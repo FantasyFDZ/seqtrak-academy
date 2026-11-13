@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="zh-CN" data-skin="body" data-fx="rich">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>啾啾 · 样稿</title>
+<!--
+  教练小鸟的样稿：不是产品页面，只用来看小鸟的样子、神态、动作、叫声，以及它飞到键上指导的样子。
+  打开：http://localhost:4747/bird-lab.html
+  定下来之后，bird.js / bird-voice.js 会替换掉现在的旋钮脸（coach-face.js），这个页面届时可以删。
+  地址参数：?grid = 把所有神态排成一张（截图检查用）；?still = 不动。
+-->
+<link rel="stylesheet" href="/css/app.css">
+<style>
+  html, body { height: auto !important; overflow: auto !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .lab-top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 24px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .lab-top h1 { font-size: 17px; margin: 0 8px 0 0; }
+  .lab-top .lab-l { font: 700 11px var(--mono); letter-spacing: .08em; color: var(--muted); }
+  .lab-seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--panel-3, #dcdde1); border-radius: 10px; }
+  .lab-seg button { border: 0; background: none; padding: 6px 12px; border-radius: 8px; font: 600 13.5px inherit; font-family: inherit; color: var(--text-2); cursor: pointer; }
+  .lab-seg button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px #0002; }
+  main { max-width: 1120px; margin: 0 auto; padding: 26px 24px 100px; }
+  section { margin-bottom: 44px; }
+  h2 { font-size: 22px; margin: 0 0 4px; }
+  .lab-lead { color: var(--text-2); margin: 0 0 16px; max-width: 48em; }
+  .stage { position: relative; display: grid; grid-template-columns: 340px 1fr; gap: 18px; }
+  .perch { position: relative; display: grid; place-items: end center; height: 340px; padding-bottom: 26px; border-radius: 22px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 3px 0 var(--line); }
+  .perch::after { content: ""; position: absolute; left: 40px; right: 40px; bottom: 30px; height: 6px; border-radius: 3px; background: var(--line-2); }
+  .perch .bird { position: relative; z-index: 1; }
+  .ctrls { display: grid; gap: 14px; align-content: start; }
+  .ctrls .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .ctrls .lab-l { width: 100%; font: 700 11px var(--mono); letter-spacing: .08em; color: var(--muted); }
+  .ctrls button { min-height: 40px; }
+  .ctrls button.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .sky { position: relative; height: 380px; border-radius: 22px; overflow: hidden; background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 80%, #9fd4ff 20%), var(--panel)); border: 1px solid var(--line); box-shadow: 0 3px 0 var(--line); cursor: crosshair; touch-action: none; }
+  .sky .ground { position: absolute; left: 0; right: 0; bottom: 0; height: 26px; background: var(--line-2); opacity: .6; }
+  .sky .bird { position: absolute; z-index: 2; }
+  .talk { position: relative; padding: 70px 18px 66px; border-radius: 22px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 3px 0 var(--line); }
+  .talk .bird { position: absolute; z-index: 5; }
+  .talk.picking .talk-board { outline: 3px dashed var(--accent); outline-offset: 6px; border-radius: 14px; cursor: help; }
+  .talk-board > :first-child, .talk-board > :first-child svg { width: 100%; max-width: none; height: auto; }
+  .talk-chips { position: absolute; z-index: 6; display: flex; flex-wrap: wrap; gap: 6px; max-width: 420px; opacity: 0; pointer-events: none; translate: 0 -6px; transition: opacity .2s, translate .3s cubic-bezier(.3, 1.4, .5, 1); }
+  .talk-chips.on { opacity: 1; pointer-events: auto; translate: 0 0; }
+  .talk-chips .btn { min-height: 40px; border-radius: 20px; }
+  .talk-book { position: absolute; left: 18px; bottom: 16px; }
+  .talk-note { position: absolute; right: 18px; top: 112px; z-index: 7; width: 330px; padding: 14px 16px; border-radius: 16px; background: #FFF7D6; color: #3a3220; border: 1px solid #f0d98a; box-shadow: 0 10px 26px rgba(0,0,0,.16); rotate: 1.5deg; opacity: 0; pointer-events: none; translate: 0 12px; transition: opacity .25s, translate .35s cubic-bezier(.3, 1.4, .5, 1); }
+  .talk-note.on { opacity: 1; pointer-events: auto; translate: 0 0; }
+  .talk-note ol { margin: 8px 0 10px; padding-left: 20px; font-size: 14px; line-height: 1.6; }
+  .talk-note .row { display: flex; gap: 8px; }
+  .talk-type { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; display: none; gap: 8px; width: min(520px, 80%); }
+  .talk-type.on { display: flex; }
+  .talk-type input { flex: 1; min-height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg); color: var(--text); font: inherit; }
+  .sizes { display: flex; align-items: flex-end; gap: 34px; padding: 24px 28px; border-radius: 22px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 3px 0 var(--line); }
+  .sizes figure { margin: 0; text-align: center; font: 600 12px var(--mono); color: var(--muted); }
+  .guide { position: relative; padding: 70px 18px 18px; border-radius: 22px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 3px 0 var(--line); }
+  .guide .bird { position: absolute; z-index: 5; }
+  .guide > :first-child, .guide > :first-child svg { width: 100%; max-width: none; height: auto; }
+  .guide-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .ref { display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: center; padding: 18px; border-radius: 22px; background: var(--panel); border: 1px solid var(--line); }
+  .ref img { width: 100%; border-radius: 14px; background: #fff; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  .swatches span { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); }
+  .swatches i { width: 22px; height: 22px; border-radius: 6px; border: 1px solid #0002; }
+  .small { font-size: 13px; color: var(--muted); }
+  /* ?grid：所有神态排成一张 */
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .grid figure { margin: 0; display: grid; place-items: center; padding: 14px 0 10px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); font-weight: 650; }
+</style>
+</head>
+<body>
+<div class="lab-top">
+  <h1>啾啾 · 教练小鸟样稿</h1>
+  <span class="lab-l">配色</span><div class="lab-seg" id="skin"><button data-v="body" class="on">机身</button><button data-v="neon">霓虹</button></div>
+  <span class="lab-l">动效</span><div class="lab-seg" id="fx"><button data-v="rich" class="on">丰富</button><button data-v="calm">克制</button></div>
+  <span class="lab-l">叫声</span><div class="lab-seg" id="snd"><button data-v="on" class="on">开</button><button data-v="off">关</button></div>
+</div>
+<main id="main"></main>
+
+<script type="module">
+import { createBird, MOODS, MOOD_NAMES, AIRS, AIR_NAMES, ACTIONS, ACTION_NAMES } from '/js/bird.js';
+import { voice } from '/js/bird-voice.js';
+import { createPanel } from '/js/device-panel.js';
+import { controlInfo } from '/js/controls.js';
+
+const q = new URLSearchParams(location.search);
+const $ = (s, el = document) => el.querySelector(s);
+const html = (s) => { const t = document.createElement('template'); t.innerHTML = s.trim(); return t.content.firstElementChild; };
+const main = $('#main');
+if (q.has('still')) document.documentElement.dataset.fx = 'calm';
+// ?raf=timer：用定时器代替逐帧回调（无界面浏览器不画画面时，逐帧回调不走，飞行就不动；测试用）
+if (q.get('raf') === 'timer') window.requestAnimationFrame = (f) => setTimeout(() => f(performance.now()), 16);
+if (q.get('skin')) document.documentElement.dataset.skin = q.get('skin');
+// ?shot：关掉过渡（无界面浏览器截图时过渡停在半路，气泡会是半透明的）
+if (q.has('shot')) document.head.append(Object.assign(document.createElement('style'), { textContent: '*, *::after { transition: none !important; }' }));
+
+const name = '啾啾';
+const CALL_OF = { idle: 'greet', talk: 'chatter', think: 'think', happy: 'ok', cheer: 'song', oops: 'oops', surprised: 'surprised', sleepy: 'sleepy', listen: 'look' };
+const CALL_NAMES = { greet: '打招呼', ok: '做对了', look: '看这里', oops: '可惜', think: '在想', surprised: '吃惊', sleepy: '困了', song: '唱一段', chatter: '嘀咕' };
+
+function seg(el, on) {
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    el.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+    on(b.dataset.v);
+  });
+}
+seg($('#skin'), (v) => (document.documentElement.dataset.skin = v));
+seg($('#fx'), (v) => (document.documentElement.dataset.fx = v));
+seg($('#snd'), (v) => (voice.enabled = v === 'on'));
+
+/** 把一只鸟身上所有的动画停在一圈的某个位置（截图检查用） */
+function freeze(b, f) {
+  for (const an of b.el.getAnimations({ subtree: true })) {
+    an.pause();
+    const d = an.effect.getTiming().duration;
+    if (typeof d === 'number') an.currentTime = f * d;
+  }
+}
+
+// ───── ?grid：所有神态 + 空中姿态排成一张，截图检查用 ─────
+if (q.has('grid')) {
+  const g = html('<div class="grid"></div>');
+  for (const m of MOODS) {
+    const b = createBird({ size: 170, mood: m });
+    const f = html(`<figure><figcaption>${MOOD_NAMES[m]}</figcaption></figure>`);
+    f.prepend(b.el);
+    g.append(f);
+  }
+  const g2 = html('<div class="grid" style="grid-template-columns: repeat(6, 1fr)"></div>');
+  // 扑翅飞取两个时刻（翅膀在上、在下），其余各一张
+  for (const [a, at, label] of [['fly', 0.02, '扑翅：翅膀在上'], ['fly', 0.38, '扑翅：翅膀在下'], ['glide', 0, '收翅滑'], ['hover', 0.02, '悬停：翅膀在上'], ['hover', 0.98, '悬停：翅膀在下'], ['land', 0.02, '刹车落地']]) {
+    const b = createBird({ size: 150, air: a });
+    const f = html(`<figure style="padding-top:26px"><figcaption>${label}</figcaption></figure>`);
+    f.prepend(b.el);
+    g2.append(f);
+    requestAnimationFrame(() => requestAnimationFrame(() => freeze(b, at)));
+  }
+  main.append(html('<h2 style="margin-bottom:14px">所有神态</h2>'), g, html('<h2 style="margin:22px 0 14px">空中姿态</h2>'), g2);
+}
+
+// ───── ?actgrid：几个动作在同几个时刻停住，排成一张对比（截图检查用） ─────
+if (q.has('actgrid')) {
+  const FR = [0.14, 0.32, 0.5, 0.68];
+  const g = html(`<div class="grid" style="grid-template-columns: 120px repeat(${FR.length}, 1fr); align-items: center"></div>`);
+  for (const a of ['nod', 'shake', 'peck']) {
+    g.append(html(`<b style="font-size:18px">${ACTION_NAMES[a]}</b>`));
+    for (const f of FR) {
+      const b = createBird({ size: 170 });
+      const fig = html(`<figure><figcaption>${Math.round(f * 100)}%</figcaption></figure>`);
+      fig.prepend(b.el);
+      g.append(fig);
+      requestAnimationFrame(() => {
+        b.act(a);
+        for (const an of b.el.getAnimations({ subtree: true })) {
+          if (an instanceof CSSAnimation) continue;
+          an.pause();
+          an.currentTime = f * an.effect.getTiming().duration;
+        }
+      });
+    }
+  }
+  main.append(html('<h2 style="margin-bottom:14px">动作对比（停在同几个时刻）</h2>'), g);
+}
+
+// ───── 1. 神态、动作、叫声 ─────
+let mood = 'idle';
+const big = createBird({ size: 260 });
+const s1 = html(`<section>
+  <h2>神态、动作、叫声</h2>
+  <p class="lab-lead">点“神态”会换表情并叫一声对应的情绪；“动作”做一次就停；“叫声”只听声音（嘴会跟着张）。叫声都落在五声音阶上，以后可以跟着机器当前的调走。</p>
+  <div class="stage"><div class="perch"></div><div class="ctrls">
+    <div class="row"><span class="lab-l">神态</span>${MOODS.map((m) => `<button class="btn sm" data-mood="${m}">${MOOD_NAMES[m]}</button>`).join('')}</div>
+    <div class="row"><span class="lab-l">动作</span>${ACTIONS.map((a) => `<button class="btn sm" data-act="${a}">${ACTION_NAMES[a]}</button>`).join('')}</div>
+    <div class="row"><span class="lab-l">叫声</span>${voice.names.map((c) => `<button class="btn sm" data-call="${c}">${CALL_NAMES[c] || c}</button>`).join('')}</div>
+  </div></div>
+</section>`);
+$('.perch', s1).append(big.el);
+s1.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.mood) {
+    mood = b.dataset.mood;
+    s1.querySelectorAll('[data-mood]').forEach((x) => x.classList.toggle('on', x === b));
+    big.setMood(mood);
+    big.sing(CALL_OF[mood]);
+    big.say({ idle: `我是<b>${name}</b>，有事点我。`, talk: '我在说话……', think: '让我想想', happy: '对啦！', cheer: '过关啦！', oops: '没关系，再来一次', surprised: '咦？！', sleepy: '好困……', listen: '我在听' }[mood], 1800);
+  } else if (b.dataset.act) big.act(b.dataset.act);
+  else if (b.dataset.call) big.sing(b.dataset.call);
+});
+main.append(s1);
+
+// ───── 2. 飞行和悬停 ─────
+const sky = html(`<section>
+  <h2>飞行和悬停</h2>
+  <p class="lab-lead"><b>在下面这块里随便点</b>：点在地面那条线附近，它飞过去落地；点在空中，它飞过去悬停。离得远的话，它会“扇几下、收翅滑一段”一起一伏地飞，这是红嘴相思鸟这类小鸟真实的飞法。起飞先蹲一下蹬腿，落地前身子后仰、翅膀往前扇着刹车、腿伸出去。</p>
+  <div class="sky"><div class="ground"></div></div>
+  <div class="guide-btns">
+    <button class="btn" data-f="long">长距离：一扇一滑</button>
+    <button class="btn" data-f="short">短距离</button>
+    <button class="btn" data-f="hover">飞起来悬停</button>
+    <button class="btn" data-f="hoverhappy">悬停时开心地叫</button>
+    <button class="btn" data-f="land">落回地面</button>
+    <button class="btn" data-f="tour">绕场一圈</button>
+  </div>
+</section>`);
+main.append(sky);
+const skyBox = $('.sky', sky);
+const flyer = createBird({ size: 84 });
+skyBox.append(flyer.el);
+const groundY = () => skyBox.clientHeight - 26;
+requestAnimationFrame(() => flyer.placeAt(90, groundY()));
+let flying = 0;
+async function go(fn) {
+  const me = ++flying;
+  await fn();
+  return me === flying;
+}
+skyBox.addEventListener('pointerdown', (e) => {
+  const r = skyBox.getBoundingClientRect();
+  const x = Math.max(40, Math.min(skyBox.clientWidth - 40, e.clientX - r.left));
+  const y = e.clientY - r.top;
+  if (y > groundY() - 46) go(() => flyer.flyTo(x, groundY()));
+  else go(() => flyer.hoverAt(x, Math.max(70, y)));
+});
+sky.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-f]');
+  if (!b) return;
+  const W = skyBox.clientWidth;
+  const k = b.dataset.f;
+  if (k === 'long') {
+    const [x] = [flyer.el.offsetLeft < W / 2 ? W - 90 : 90];
+    go(() => flyer.flyTo(x, groundY()));
+  } else if (k === 'short') {
+    const x0 = flyer.el.offsetLeft + 40;
+    go(() => flyer.flyTo(Math.max(70, Math.min(W - 70, x0 + (x0 < W / 2 ? 150 : -150))), groundY()));
+  } else if (k === 'hover') {
+    go(() => flyer.hoverAt(W / 2, 150));
+  } else if (k === 'hoverhappy') {
+    if (!flyer.air) await go(() => flyer.hoverAt(W / 2, 150));
+    flyer.setMood('happy');
+    flyer.sing('song');
+    flyer.say('我在悬停！', 1800);
+    setTimeout(() => flyer.setMood('idle'), 1800);
+  } else if (k === 'land') {
+    go(() => flyer.flyTo(Math.max(70, Math.min(W - 70, flyer.el.offsetLeft + 42)), groundY()));
+  } else if (k === 'tour') {
+    go(async () => {
+      for (const [x, y, end] of [[W * 0.3, 90, 'hover'], [W * 0.7, 120, 'hover'], [W - 90, groundY(), 'land'], [90, groundY(), 'land']]) {
+        await (end === 'hover' ? flyer.hoverAt(x, y) : flyer.flyTo(x, y));
+        if (end === 'hover') await new Promise((r) => setTimeout(r, 500));
+      }
+    });
+  }
+});
+
+// ───── 2. 小尺寸 ─────
+const s2 = html(`<section>
+  <h2>小尺寸</h2>
+  <p class="lab-lead">在应用里它平时很小：停在左边导航栏底下大约 48 像素，飞到键旁边时 64 像素上下。看看这么小还认不认得出来。</p>
+  <div class="sizes"></div>
+</section>`);
+for (const s of [40, 48, 64, 96]) {
+  const b = createBird({ size: s });
+  const f = html(`<figure><figcaption>${s} px</figcaption></figure>`);
+  f.prepend(b.el);
+  $('.sizes', s2).append(f);
+}
+main.append(s2);
+
+// ───── 3. 飞到键上指导 ─────
+const s3 = html(`<section>
+  <h2>飞到键上指导</h2>
+  <p class="lab-lead">这就是以后“动手”步骤里的样子：小鸟就是指针，飞过去落在要按的键上方，用嘴点一点，话从它身边冒出来。组合键分两步：先站在第一个键上“按住”它，再飞到第二个键。按错了，它会飞到你按的键上摇头，再飞回正确的那个。</p>
+  <div class="guide"></div>
+  <div class="guide-btns">
+    <button class="btn" data-g="kick">飞到 KICK 旋钮</button>
+    <button class="btn" data-g="step">悬停指着第 5 个方键</button>
+    <button class="btn primary" data-g="combo">组合键：按住 MUTE 再按 KICK</button>
+    <button class="btn" data-g="wrong">按错了的时候</button>
+    <button class="btn" data-g="home">回到角落</button>
+  </div>
+</section>`);
+main.append(s3);
+const guide = $('.guide', s3);
+const panel = createPanel({});
+guide.append(panel.el);
+const coach = createBird({ size: 64 });
+guide.append(coach.el);
+const rectOf = (id) => {
+  const r = panel.spot([id]);
+  if (!r) return null;
+  const g = guide.getBoundingClientRect();
+  return { cx: r.left - g.left + r.width / 2, top: r.top - g.top, bottom: r.bottom - g.top, cy: r.top - g.top + r.height / 2 };
+};
+const home = () => ({ x: guide.clientWidth - 46, y: 58 });
+requestAnimationFrame(() => { const h = home(); coach.placeAt(h.x, h.y); coach.face('left'); });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let busy = false;
+async function landOn(id, text, { onTop = false } = {}) {
+  const r = rectOf(id);
+  if (!r) return;
+  // 落在键的上沿正中（“站在上面按住”时落在键的正中）
+  await coach.flyTo(r.cx, onTop ? r.cy + 6 : r.top - 2);
+  coach.act('peck');
+  coach.sing('look');
+  panel.setHighlight([id]);
+  if (text) coach.say(text, 0);
+}
+async function demo(kind) {
+  if (busy) return;
+  busy = true;
+  coach.say('');
+  panel.setHeld([]);
+  panel.setHighlight([]);
+  try {
+    if (kind === 'kick') {
+      await landOn('KICK', '按一下<b>这个旋钮</b>（只按，别转）');
+    } else if (kind === 'step') {
+      // 方键很小、挨得很近：不落在上面（会挡住旁边的键），悬停在它正上方用嘴指着
+      const r = rectOf('DK5');
+      await coach.hoverAt(r.cx - 10, r.top - 8);
+      coach.act('peck');
+      coach.sing('look');
+      panel.setHighlight(['DK5']);
+      coach.say('把<b>第 5 个方键</b>按亮', 0);
+    } else if (kind === 'combo') {
+      await landOn('MUTE', '<b>第一步</b>：按住 MUTE 不放', { onTop: true });
+      panel.setHeld(['MUTE']);
+      await sleep(1600);
+      coach.say('');
+      await landOn('KICK', '<b>第二步</b>：再按一下 KICK');
+      await sleep(1700);
+      panel.setHeld([]);
+      coach.setMood('happy');
+      coach.sing('ok');
+      coach.say('然后一起松开。底鼓静音了！', 2200);
+      await sleep(1600);
+      coach.setMood('idle');
+    } else if (kind === 'wrong') {
+      await landOn('DK5', '把<b>第 5 个方键</b>按亮');
+      await sleep(1200);
+      coach.say('');
+      const w = rectOf('DK6');
+      panel.flash('DK6', '#EC3A2A', 900);
+      await coach.flyTo(w.cx, w.top - 2);
+      coach.setMood('oops');
+      coach.act('shake');
+      coach.sing('oops');
+      coach.say('这是第 6 个，往左一格', 1800);
+      await sleep(1700);
+      coach.setMood('idle');
+      await landOn('DK5', '是<b>这个</b>');
+    } else if (kind === 'home') {
+      const h = home();
+      await coach.flyTo(h.x, h.y);
+      coach.face('left');
+      coach.act('preen');
+    }
+  } finally {
+    busy = false;
+  }
+}
+s3.addEventListener('click', (e) => { const b = e.target.closest('[data-g]'); if (b) demo(b.dataset.g); });
+
+// ───── 4. 和啾啾说话（样子示意：话是写好的，不调 AI） ─────
+const talkSec = html(`<section>
+  <h2>和啾啾说话（样子示意）</h2>
+  <p class="lab-lead">不再是右边一个聊天窗口。<b>点一下啾啾</b>，它会问你“怎么啦”，并给几个按现在场合挑的选项；它的回答是<b>一句一句</b>从它身边冒出来的（点一下看下一句），说到哪个键就<b>飞过去指着</b>。想知道某个键是干什么的，就让它“指哪讲哪”。要它认真想的问题，它会飞回窝里想一会儿，带回来一张<b>小纸条</b>，收进纸条本里随时翻。这里的话都是写好的；接上 AI 之后还是这个样子。</p>
+  <div class="talk"><div class="talk-board"></div></div>
+</section>`);
+main.append(talkSec);
+const talkBox = $('.talk', talkSec);
+let pickMode = false;
+const talkPanel = createPanel({ onPick: (id) => { if (pickMode) explain(id); } });
+$('.talk-board', talkSec).append(talkPanel.el);
+const chi = createBird({ size: 66 });
+talkBox.append(chi.el);
+const chips = html('<div class="talk-chips"></div>');
+const notebook = html('<button class="talk-book btn sm" type="button">啾啾的纸条本 · 0</button>');
+const note = html('<div class="talk-note"></div>');
+const typing = html('<form class="talk-type"><input placeholder="想问什么，直接打字（也可以按住麦克风说）"><button class="btn sm primary">问</button></form>');
+talkBox.append(chips, notebook, note, typing);
+const notes = [];
+const nest = () => ({ x: talkBox.clientWidth - 52, y: 64 });
+const tRect = (id) => {
+  const r = talkPanel.spot([id]);
+  if (!r) return null;
+  const g = talkBox.getBoundingClientRect();
+  return { cx: r.left - g.left + r.width / 2, top: r.top - g.top, cy: r.top - g.top + r.height / 2 };
+};
+requestAnimationFrame(() => { const n = nest(); chi.placeAt(n.x, n.y); chi.face('left'); });
+
+/** 选项出现在啾啾脚下 */
+function showChips(list) {
+  chips.replaceChildren(...list.map(([label, fn]) => {
+    const b = html(`<button class="btn sm" type="button">${label}</button>`);
+    b.onclick = (e) => { e.stopPropagation(); hideChips(); fn(); };
+    return b;
+  }));
+  const fx = chi.el.offsetLeft + chi.el.offsetWidth / 2;
+  const fy = chi.el.offsetTop + chi.el.offsetHeight + 6;
+  chips.style.left = `${Math.max(8, Math.min(talkBox.clientWidth - 8 - chips.offsetWidth, fx - chips.offsetWidth / 2))}px`;
+  chips.style.top = `${Math.min(fy, talkBox.clientHeight - 46)}px`;
+  chips.classList.add('on');
+}
+function hideChips() { chips.classList.remove('on'); }
+
+/** 等你点一下（任何地方），或者过一会儿自己往下走 */
+function tapOrWait(ms) {
+  return new Promise((resolve) => {
+    const done = () => { clearTimeout(t); talkBox.removeEventListener('pointerdown', done); resolve(); };
+    const t = setTimeout(done, ms);
+    setTimeout(() => talkBox.addEventListener('pointerdown', done, { once: true }), 50);
+  });
+}
+
+/** 一句一句地说：每一句可以带 飞到哪个键（fly / hover）、表情、动作、叫法、要亮的键 */
+let talking = 0;
+async function beats(list) {
+  const me = ++talking;
+  for (const b of list) {
+    if (me !== talking) return;
+    if (b.fly) { const r = tRect(b.fly); if (r) await chi.flyTo(r.cx, r.top - 2); }
+    if (b.hover) { const r = tRect(b.hover); if (r) await chi.hoverAt(r.cx - 8, r.top - 8); }
+    if (b.home) { const n = nest(); await chi.flyTo(n.x, n.y); chi.face('left'); }
+    if (me !== talking) return;
+    chi.setMood(b.mood || 'talk');
+    if (b.act) chi.act(b.act);
+    chi.sing(b.call || 'chatter');
+    talkPanel.setHighlight(b.hl ? [b.hl] : []);
+    chi.say(b.say, 0);
+    await tapOrWait(Math.max(1800, b.say.replace(/<[^>]+>/g, '').length * 140));
+    chi.setMood('idle');
+  }
+}
+
+async function explain(id) {
+  pickMode = false;
+  talkBox.classList.remove('picking');
+  const info = controlInfo(id) || { en: id, zh: '', what: '' };
+  const [first, second] = String(info.what).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').split('。');
+  await beats([
+    { fly: id, say: `这是 <b>${info.en}</b>${info.zh ? `（${info.zh}）` : ''}。`, call: 'look', act: 'peck', hl: id },
+    ...(first ? [{ say: `${first}。`, hl: id }] : []),
+    ...(second ? [{ say: `${second}。`, hl: id }] : []),
+  ]);
+  showChips([['再问一个键', askKey], ['试试看', () => beats([{ say: '去机器上按一下它，我在这儿看着。', mood: 'happy', call: 'ok' }])], ['好，懂了', () => beats([{ home: true, say: '有事再叫我，啾！', mood: 'happy', call: 'greet' }])]]);
+}
+function askKey() {
+  pickMode = true;
+  talkBox.classList.add('picking');
+  beats([{ say: '点一下你想问的那个键，我飞过去讲。', mood: 'listen', call: 'look' }]);
+}
+function stuck() {
+  beats([
+    { say: '你停在第 2 步：<b>把第 5 个方键按亮</b>。', mood: 'think', call: 'think' },
+    { hover: 'DK5', say: '就是这个，上排左数第 5 个。', act: 'peck', call: 'look', hl: 'DK5' },
+    { say: '它是第 2 拍的位置。按一下，灯变黄就对了。', hl: 'DK5' },
+  ]).then(() => showChips([['按好了', () => beats([{ say: '对啦！咚——咚——', mood: 'happy', act: 'hop', call: 'ok' }])], ['还是不行', () => beats([{ say: '先看看 KICK 旋钮的灯是不是白的：白的才是选中了它。', fly: 'KICK', act: 'peck', call: 'look', hl: 'KICK' }])]]));
+}
+function demoIt() {
+  beats([
+    { fly: 'MUTE', say: '看我的。<b>先按住</b> MUTE 不放——', act: 'peck', call: 'look', hl: 'MUTE' },
+    { fly: 'KICK', say: '再按一下 KICK。', act: 'peck', call: 'look', hl: 'KICK' },
+    { say: '然后一起松开。底鼓就安静了。', mood: 'happy', act: 'hop', call: 'ok' },
+  ]);
+}
+async function think() {
+  const me = ++talking;
+  const n = nest();
+  await chi.flyTo(n.x, n.y);
+  chi.face('left');
+  chi.setMood('think');
+  chi.sing('think');
+  chi.say('这个问题让我好好想想……', 0);
+  await new Promise((r) => setTimeout(r, 2600));
+  if (me !== talking) return;
+  chi.setMood('happy');
+  chi.sing('ok');
+  chi.say('想好啦！给你一张小纸条。', 1600);
+  note.innerHTML = '<b>啾啾的小纸条 · 为什么第 5 个键是第 2 拍</b><ol><li>一小节 4 拍，切成 16 小格，每拍 4 格。</li><li>第 1 拍从第 1 格开始，第 2 拍从第 5 格开始。</li><li>所以四踩底鼓 = 第 1、5、9、13 格，记住这四个数。</li></ol><div class="row"><button class="btn sm primary" type="button">收进纸条本</button><button class="btn sm ghost" type="button">先不收</button></div>';
+  note.classList.add('on');
+  note.querySelector('.primary').onclick = () => { notes.push(note.querySelector('b').textContent); notebook.textContent = `啾啾的纸条本 · ${notes.length}`; note.classList.remove('on'); chi.act('nod'); chi.sing('ok'); };
+  note.querySelector('.ghost').onclick = () => note.classList.remove('on');
+}
+function typeAsk() {
+  typing.classList.add('on');
+  typing.querySelector('input').focus();
+}
+typing.onsubmit = async (e) => {
+  e.preventDefault();
+  const text = typing.querySelector('input').value.trim();
+  if (!text) return;
+  typing.classList.remove('on');
+  typing.querySelector('input').value = '';
+  chi.setMood('listen');
+  chi.sing('look');
+  chi.say(`“${text.slice(0, 24)}”……嗯！`, 0);
+  await new Promise((r) => setTimeout(r, 1200));
+  beats([{ say: '这个演示里我只会说写好的话。真的接上以后，回答也会这样一句一句地说，说到哪个键就飞过去。', mood: 'talk' }]);
+};
+
+// 点啾啾：问“怎么啦”，按场合给几个选项
+chi.el.style.cursor = 'pointer';
+chi.el.addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  ++talking;
+  chi.act('hop');
+  chi.sing('greet');
+  chi.setMood('happy');
+  chi.say('啾！怎么啦？', 0);
+  setTimeout(() => chi.setMood('idle'), 900);
+  showChips([['这个键是干嘛的？', askKey], ['我卡住了', stuck], ['示范一下', demoIt], ['认真想想', think], ['打字问…', typeAsk]]);
+});
+notebook.onclick = () => beats([{ say: notes.length ? `纸条本里有 ${notes.length} 张：${notes.join('、')}` : '纸条本还是空的。我认真想过的回答，会做成小纸条放进来。', mood: 'talk' }]);
+
+// ───── 5. 参考和配色 ─────
+const s4 = html(`<section>
+  <h2>照着谁画的</h2>
+  <div class="ref">
+    <img src="/img/ref/Leiothrix_lutea.webp" alt="红嘴相思鸟贴纸">
+    <div>
+      <p style="margin:0 0 6px"><b>红嘴相思鸟</b>（Leiothrix lutea）：体长 14–15 厘米，比麻雀大一点。歌声婉转多变，是有名的鸣禽；成对活动、形影不离，所以叫“相思鸟”。</p>
+      <p class="small" style="margin:0 0 6px">为了“鲜艳一点”，背上的橄榄绿调得比真鸟更清亮，胸口的橙色更饱和；喙、翅膀上的红黄两道色斑保留。没有用褐色和粉红。</p>
+      <div class="swatches">
+        ${[['#8DB83A', '背'], ['#FFD83D', '喉'], ['#FF8A24', '胸'], ['#EE3426', '喙'], ['#EC3A2A', '翅上的红'], ['#FFC61F', '翅上的黄'], ['#384252', '尾'], ['#BFC97F', '脸颊']].map(([c, n]) => `<span><i style="background:${c}"></i>${n}</span>`).join('')}
+      </div>
+      <p class="small" style="margin:0">参考图：<a href="https://github.com/alchaincyf/huashu-bird-sticker" target="_blank" rel="noopener">huashu-bird-sticker</a>（花叔）的红嘴相思鸟贴纸，CC BY 4.0。小鸟是照着它重新画的矢量图，以后放进应用里也要在“关于”里写上这一行。</p>
+    </div>
+  </div>
+</section>`);
+main.append(s4);
+
+window.__lab = { big, coach, demo, panel, flyer };
+// ?talk=menu / key / stuck / think：打开就自动演一段“和啾啾说话”（截图检查用），只留这一块
+// （不用滚动：无界面浏览器滚动之后截图会是空的）
+if (q.get('talk')) {
+  for (const s of main.querySelectorAll(':scope > section')) if (s !== talkSec) s.hidden = true;
+  setTimeout(() => {
+    const k = q.get('talk');
+    if (k === 'menu') chi.el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    if (k === 'key') explain('MUTE');
+    if (k === 'stuck') stuck();
+    if (k === 'think') think();
+  }, 600);
+}
+// ?fly=long / hover / tour：打开就自动飞一遍，并把它在空中经历的姿态按先后记在页面最底下（截图检查用）
+if (q.get('fly')) {
+  const log = html('<pre id="airlog" style="position:fixed;top:64px;right:10px;z-index:50;margin:0;padding:10px 12px;max-height:80vh;overflow:hidden;background:#fff;border:1px solid #ccc;border-radius:10px;font:600 13px/1.5 ui-monospace,Menlo,monospace;white-space:pre"></pre>');
+  main.append(log);
+  let last = '';
+  const t0 = performance.now();
+  new MutationObserver(() => {
+    const a = flyer.el.dataset.air || 'ground';
+    if (a !== last) log.textContent += `${Math.round(performance.now() - t0)}ms ${a}\n`;
+    last = a;
+  }).observe(flyer.el, { attributes: true, attributeFilter: ['data-air'] });
+  setTimeout(() => sky.querySelector(`[data-f="${q.get('fly')}"]`)?.click(), 400);
+}
+// ?demo=kick / step / combo / wrong：打开就自动演一遍（截图检查用）
+if (q.get('demo')) setTimeout(() => demo(q.get('demo')), 500);
+// ?mood=happy：大鸟一打开就是这个神态
+if (q.get('mood')) big.setMood(q.get('mood'));
+</script>
+</body>
+</html>

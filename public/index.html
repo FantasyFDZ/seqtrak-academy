@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN" data-skin="body" data-fx="rich">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SEQTRAK Academy</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23ff6a3d'/><rect x='6' y='13' width='4' height='6' rx='1' fill='%23fff'/><rect x='12' y='9' width='4' height='14' rx='1' fill='%23fff'/><rect x='18' y='13' width='4' height='6' rx='1' fill='%23fff'/><rect x='24' y='11' width='3' height='10' rx='1' fill='%23fff'/></svg>">
+  <script>
+    // 配色存在进度文件里，要等它读回来才知道；为了开页面那一瞬间不“先浅后深”地闪一下，theme.js 在浏览器里留了一份上次的选择
+    try {
+      var ui = JSON.parse(localStorage.getItem('seqtrak-academy-ui') || '{}');
+      var q = new URLSearchParams(location.search);
+      var skin = q.get('skin') || ui.skin;
+      var fx = q.get('fx') || (ui.motion === 'calm' || matchMedia('(prefers-reduced-motion: reduce)').matches ? 'calm' : 'rich');
+      if (skin === 'neon') document.documentElement.dataset.skin = 'neon';
+      if (fx === 'calm') document.documentElement.dataset.fx = 'calm';
+      // 开发用：?still = 入场动画和过渡直接到位。无界面的浏览器截图时等不到动画播完，tools/shots.sh 会带上它
+      if (q.has('still')) document.documentElement.dataset.still = '';
+      // 开发用：?raf=timer = 用定时器代替逐帧回调。无界面的浏览器、藏起来的窗口不画画面，逐帧回调不走，啾啾飞到一半就停住了（测试用）
+      if (q.get('raf') === 'timer') window.requestAnimationFrame = function (f) { return setTimeout(function () { f(performance.now()); }, 16); };
+    } catch (e) { /* 读不到就按默认的机身配色 */ }
+  </script>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 左边一条窄的导航：平板横屏最缺的是高度，所以不用顶栏。连接状态、等级、配色和教练小鸟的窝也在这条栏上。
+         没有对应页面的入口（hidden 的那个）由 main.js 在路由表里有它时自动亮出来。 -->
+    <nav class="rail" aria-label="主导航">
+      <a class="rail-brand" href="#/" title="SEQTRAK Academy" aria-label="SEQTRAK Academy：回到路线图"><span class="brand-mark"><i></i><i></i><i></i><i></i></span></a>
+      <div class="rail-nav">
+        <a href="#/" data-nav="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6l5-2 6 2 5-2v14l-5 2-6-2-5 2V6z"/><path d="M9 4v14M15 6v14"/></svg><span>路线图</span></a>
+        <a href="#/classroom" data-nav="classroom" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3z"/><path d="M9.5 19h5M10.5 21.5h3"/></svg><span>小课堂</span></a>
+        <a href="#/panel" data-nav="panel"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3.5"/><path d="M8 4.5V7"/><rect x="14" y="5" width="6" height="6" rx="1.5"/><rect x="4" y="15" width="6" height="5" rx="1.5"/><rect x="14" y="15" width="6" height="5" rx="1.5"/></svg><span>面板</span></a>
+        <a href="#/arcade" data-nav="arcade"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="4" height="6" rx="1.5"/><rect x="10" y="10" width="4" height="6" rx="1.5"/><rect x="16" y="4" width="4" height="6" rx="1.5"/><path d="M3 20h18"/></svg><span>练习场</span></a>
+        <a href="#/songs" data-nav="songs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg><span>曲目</span></a>
+      </div>
+      <div class="rail-foot">
+        <a id="level-chip" class="rail-level" href="#/"></a>
+        <a id="device-chip" href="#/device" data-nav="device"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v5M15 3v5"/><path d="M6 8h12v4a6 6 0 0 1-12 0V8z"/><path d="M12 18v3"/></svg><i class="dot"></i><span>设备</span></a>
+        <a href="#/settings" data-nav="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span>设置</span></a>
+        <button id="skin-toggle" class="rail-skin" type="button" data-sfx="skin" title="换一套配色：机身（浅）/ 霓虹（深）"><span class="swatch"></span></button>
+        <!-- 啾啾（教练小鸟，jiu.js）的窝：它不在别处的时候就蹲在这截树枝上。点这里或者点它，就是和它说话 -->
+        <button id="coach-toggle" class="rail-coach" type="button" data-sfx="none" title="和啾啾说话" aria-label="和啾啾说话"><span class="jiu-nest"></span><span>啾啾</span></button>
+      </div>
+    </nav>
+    <div class="shell">
+      <main id="view" tabindex="-1"></main>
+    </div>
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+    <!-- 只做横屏：平板竖着拿的时候盖上这一句 -->
+    <div class="rotate-hint" role="status"><span class="brand-mark"><i></i><i></i><i></i><i></i></span><b>请把平板横过来</b><span>这个应用是按横屏做的：机器的面板很长，竖着放不下。</span></div>
+  </div>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

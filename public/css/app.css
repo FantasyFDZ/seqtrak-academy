@@ -1,0 +1,1718 @@
+/* SEQTRAK Academy — 硬件风：按钮是键帽，标签是丝印，重点色是 SEQTRAK 的桔红。
+   两套配色只是下面两组变量值：
+     机身（默认，<html data-skin="body">）  浅灰底、桔红加机身灰
+     霓虹（<html data-skin="neon">）        近黑的底、发光的桔红 / 青 / 黄，像夜里的舞台
+   规矩：这个文件里，颜色只许写在这两组变量里；下面的规则一律用 var()。新加颜色先在两组里各起一个值。
+   真机面板的图（device-panel.js）画的是实物，不跟配色变；它外面那块“台面”（--bench）两套配色下都是浅的。
+   动效：缓动两条（--out 平滑收尾 / --pop 带过冲），时长三档（--t-press / --t-move / --t-show），
+   循环动效只放在“活着的东西”上，周期用 --beat，并且只在 <html data-fx="rich"> 下才动。 */
+
+@property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
+
+:root {
+  color-scheme: light;
+  /* 面 */
+  --bg: #e6e7e9;            /* 机身的灰 */
+  --bg-art: none;           /* 页面底上的光晕（霓虹才有） */
+  --rail: #f7f7f5;          /* 左边的导航栏 */
+  --panel: #f7f7f5;         /* 卡片：暖白 */
+  --panel-2: #efefed;
+  --panel-3: #e3e4e6;
+  --field: #ffffff;         /* 输入框、能填的格子 */
+  --seg-on: #f7f7f5;        /* 分段开关、导航里选中的那一格 */
+  --dot-off: #d2d4d8;       /* 进度条上还没到的格子 */
+  --bubble: #ffffff;        /* 对话气泡 */
+  --overlay: #fffffff2;     /* 盖在舞台上的卡片 */
+  --bench: #f1f1ef;         /* 真机面板底下的台面 */
+  --bench-edge: #b5b8be;
+  --bench-glow: 0 0 0 0 transparent;
+  /* 线 */
+  --line: #d2d4d8;
+  --line-2: #b5b8be;
+  --line-3: #9a9ea6;
+  /* 字 */
+  --text: #1b1d21;
+  --text-2: #434850;
+  --muted: #6d737d;
+  /* 重点色 */
+  --accent: #f0562b;        /* SEQTRAK 桔红 */
+  --accent-2: #d9441b;      /* 深一档：边、键帽的厚度 */
+  --accent-text: #c93d16;   /* 当字用的桔红 */
+  --accent-ink: #ffffff;    /* 压在桔红上的字 */
+  --on-bright: #ffffff;     /* 压在亮色（灯、徽章）上的字和图标 */
+  --ink-0: #000000;         /* 纯黑：只用来把别的颜色调深 */
+  --gloss: #ffffff66;       /* 亮面上沿的一道高光 */
+  --accent-soft: #fde4da;
+  --accent-wash: #fff4ee;
+  --accent-ring: color-mix(in srgb, var(--accent) 20%, transparent);
+  --accent-glow: color-mix(in srgb, var(--accent) 40%, transparent);
+  /* 状态 */
+  --ok: #1a9550;
+  --ok-soft: #dff3e6;
+  --warn: #b26a00;
+  --warn-soft: #fbedcf;
+  --bad: #d92d20;
+  --bad-soft: #fde3e0;
+  --blue: #1f6feb;
+  --blue-soft: #dfeafd;
+  --violet: #7250d8;
+  --cyan: #00a3c4;
+  /* 灯：比“当字用”的颜色亮 */
+  --lamp-ok: #25c26e;
+  --lamp-ok-ring: color-mix(in srgb, var(--lamp-ok) 20%, transparent);
+  --lamp-bad: #ff6b5e;
+  --lamp-cyan: #00b8d9;
+  --lamp-cyan-ring: color-mix(in srgb, var(--lamp-cyan) 20%, transparent);
+  --yellow: #ffcb1f;
+  --yellow-ink: #3d2e00;
+  --yellow-glow: color-mix(in srgb, var(--yellow) 55%, transparent);
+  --star: #f0a400;
+  --star-off: #b5b8be;
+  /* 旋钮，和“深色的条”（提示条、解说条、选中的标签） */
+  --knob: #2b2e34;
+  --knob-top: #4a4e56;
+  --knob-edge: #17191d;
+  --knob-mark: #c9ccd1;
+  --knob-ink: #ffffff;
+  --knob-ring: #ffffff;
+  --inv: #2b2e34;
+  --inv-2: #3a3e46;
+  --inv-text: #ffffff;
+  --inv-muted: #c9ccd1;
+  --inv-line: #ffffff22;
+  /* 键帽 */
+  --key-top: #fdfdfc;
+  --key-bot: #ececea;
+  --key-top-h: #ffffff;
+  --key-bot-h: #f2f2f0;
+  --key-top-2: #f1f2f3;     /* 每拍第一格：深一点 */
+  --key-bot-2: #d9dbdf;
+  --key-border: #b5b8be;
+  --key-border-h: #9a9ea6;
+  --key-edge: #b5b8be;      /* 键帽的厚度 */
+  --key-lamp: #d2d4d8;      /* 没亮的灯条 */
+  --pri-top: #f66a41;
+  --pri-bot: #ea4f24;
+  --pri-top-h: #f87850;
+  --pri-bot-h: #ee562b;
+  --pri-border: #c93e15;
+  --pri-edge: #b93a14;
+  --pri-glow: 0 0 0 0 transparent;
+  --kbd-top: #fbfbfa;
+  --kbd-bot: #dcdee1;
+  --kbd-text: #24272c;
+  --kbd-edge: #9ea2a9;
+  /* 影子与高光 */
+  --shade-1: #0000000d;
+  --shade-2: #00000022;
+  --shade-3: #00000033;
+  --shade-4: #00000044;
+  --hilite: #ffffff;
+  /* 音游舞台（画布从这里取色，见 game.js） */
+  --stage: #dfe1e4;
+  --stage-ink: 27, 29, 33;          /* 舞台上的“墨色”，写成 R, G, B 给 rgba() 用 */
+  --stage-lane-a: #ffffffad;
+  --stage-lane-b: #ffffff66;
+  --stage-key: #ffffff;
+  --stage-glow: 8;                  /* 判定线和音符的光晕有多大 */
+  --g-perfect: #d98a00;
+  --g-great: #1a9550;
+  --g-ok: #1f6feb;
+  --g-miss: #d92d20;
+  --zone: #f0a40033;
+  --heat-1: #c93d16;                /* 连击到 8 / 16 / 32：舞台上的连击数、横幅、边上那圈光换成这三种颜色（要在舞台的底色上读得清） */
+  --heat-2: #b06f00;
+  --heat-3: #0086a6;
+  --veil: #e6e7e9f2;                /* 全屏庆祝后面那层幕布：把页面盖住，不用模糊 */
+  /* 11 条轨道的颜色（tracks.js 引用）。机身这一组够深，能在浅底上读清 */
+  --t-KICK: #f0562b; --t-SNARE: #e08a00; --t-CLAP: #b89400; --t-HAT1: #0fa392; --t-HAT2: #2a78e4; --t-PERC1: #7250d8;
+  --t-PERC2: #d6409a; --t-SYNTH1: #1a9550; --t-SYNTH2: #0b93a3; --t-DX: #65a30d; --t-SAMPLER: #5f6672;
+  --pitch-l: 36%;                   /* 旋律 / 和弦轨道颜色的亮度 */
+  /* 监视器是一块“屏幕”，两套配色下都是深的 */
+  --mon-bg: #2b2e34; --mon-text: #c9ccd1; --mon-in: #7ce38b; --mon-out: #7db7ff; --mon-time: #8b919b;
+  /* 琴键画的是实物，两套配色一样 */
+  --piano-w1: #ffffff; --piano-w2: #eceef0; --piano-edge: #a9adb4; --piano-ink: #5a606a; --piano-b1: #3a3e46; --piano-b2: #17191c; --piano-b-edge: #000000;
+  /* 闯关地图 */
+  --road: #cfd1d5;
+  --road-line: #f7f7f5;
+  --road-done: #f0562b;
+  --region: #f7f7f5;
+  --region-dots: #0000000f;
+  --resume-a: #33373e;
+  --resume-b: #25282d;
+  --resume-edge: #17191d;
+  --resume-glow: 0 0 0 0 transparent;
+  --resume-cell: #ffffff14;
+  --say: #ffffff;                   /* “接着练”卡片里教练的气泡：卡片两套配色下都是深的，气泡都是浅的 */
+  --say-text: #1b1d21;
+  --say-link: #c93d16;
+  --tint-a: 10%;                    /* 每个区域染上多少它那一章的颜色 */
+  --swatch-a: #f4f5f7;              /* 配色切换钮上那颗半浅半深的圆 */
+  --swatch-b: #2b2e34;
+  --twig: #8a6a4a;                  /* 啾啾蹲的那截树枝 */
+  --twig-leaf: #7fae3a;
+  --paper: #fff6cf;                 /* 啾啾的小纸条 */
+  --paper-ink: #3a3220;
+  --paper-muted: #7a6c48;
+  --paper-edge: #ead58a;
+  --paper-link: #b8441b;            /* 小纸条上能点的字 */
+  --confetti-ink: #2b2e34;
+  /* 霓虹的光（只有霓虹那一组里有值；用法见下面“霓虹的光”一段） */
+  --card-line: #d2d4d8;                     /* 卡片的边 */
+  --neon-edge: 0 0 0 0 transparent;         /* 卡片外面那层淡光 */
+  --neon-hot: 0 0 0 0 transparent;          /* 选中的、正在用的东西：亮边加光 */
+  --neon-bar: 0 0 0 0 transparent;          /* 进度条、细条的光 */
+  --neon-text: none;                        /* 重点小字的光 */
+  --neon-title: none;                       /* 大标题的光 */
+  --neon-drop: none;                        /* 图标的光 */
+  /* 尺寸、字体、动效 */
+  --radius: 14px;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "PingFang SC", "Microsoft YaHei", monospace; /* 中文回落到黑体，不要落到宋体 */
+  --out: cubic-bezier(.2, .8, .2, 1);       /* 平滑收尾：状态变化 */
+  --pop: cubic-bezier(.34, 1.56, .64, 1);   /* 带过冲：奖励、出现 */
+  --t-press: 80ms;
+  --t-move: 240ms;
+  --t-show: 420ms;
+  --beat: .5s;                              /* 一拍；theme.js 按机器的 BPM 改它 */
+}
+
+/* 霓虹：深色、发光 */
+:root[data-skin="neon"] {
+  color-scheme: dark;
+  --bg: #0d0e12;
+  --bg-art: radial-gradient(1100px 620px at 78% -8%, #ff5f2e42, transparent 70%), radial-gradient(900px 600px at 0% 30%, #12b8c432, transparent 70%), radial-gradient(1000px 520px at 56% 114%, #a78bff26, transparent 70%);
+  --rail: #0b0c10;
+  --panel: #161920;
+  --panel-2: #12141a;
+  --panel-3: #222733;
+  --field: #0f1116;
+  --seg-on: #363d4c;
+  --dot-off: #262b36;
+  --bubble: #1e222c;
+  --overlay: #161920f2;
+  --bench: #e9eaec;
+  --bench-edge: #ffffff;
+  --bench-glow: 0 0 0 1px #ffffff22, 0 18px 50px #00000080;
+  --line: #262b36;
+  --line-2: #363d4c;
+  --line-3: #4a5364;
+  --text: #f4f5f7;
+  --text-2: #b9bfcb;
+  --muted: #868e9d;
+  --accent: #ff5f2e;
+  --accent-2: #b93a12;
+  --accent-text: #ff8a63;
+  --accent-ink: #ffffff;
+  --on-bright: #0d0e12;
+  --gloss: #ffffff40;
+  --accent-soft: #ff5f2e2e;
+  --accent-wash: #ff5f2e14;
+  --ok: #3ddc84;
+  --ok-soft: #3ddc8424;
+  --warn: #ffb84d;
+  --warn-soft: #ffb84d24;
+  --bad: #ff6b5e;
+  --bad-soft: #ff6b5e26;
+  --blue: #6aa8ff;
+  --blue-soft: #6aa8ff24;
+  --violet: #a78bff;
+  --cyan: #2ad0e6;
+  --lamp-ok: #3ddc84;
+  --lamp-cyan: #2ad0e6;
+  --yellow: #ffcb1f;
+  --star: #ffcb1f;
+  --star-off: #3a4252;
+  --knob: #2a2f3a;
+  --knob-top: #4a5262;
+  --knob-edge: #000000;
+  --knob-ring: #cfd4dd;
+  --inv: #07080a;
+  --inv-2: #161920;
+  --inv-muted: #b9bfcb;
+  --inv-line: #ffffff26;
+  --key-top: #272c38;
+  --key-bot: #1c2029;
+  --key-top-h: #303645;
+  --key-bot-h: #232836;
+  --key-top-2: #343b4a;
+  --key-bot-2: #272c38;
+  --key-border: #3a4252;
+  --key-border-h: #586176;
+  --key-edge: #000000;
+  --key-lamp: #3a4252;
+  --pri-top: #ff6a3a;
+  --pri-bot: #f4521f;
+  --pri-top-h: #ff7a4e;
+  --pri-bot-h: #f85c2a;
+  --pri-border: #ff8a63;
+  --pri-edge: #9c2f0c;
+  --pri-glow: 0 0 30px #ff5f2ea6;
+  --kbd-top: #3a4252;
+  --kbd-bot: #2b313d;
+  --kbd-text: #f4f5f7;
+  --kbd-edge: #000000;
+  --shade-1: #00000040;
+  --shade-2: #00000066;
+  --shade-3: #00000080;
+  --shade-4: #000000a6;
+  --hilite: #ffffff0f;
+  --stage: #07080a;
+  --stage-ink: 244, 245, 247;
+  --stage-lane-a: #ffffff12;
+  --stage-lane-b: #ffffff09;
+  --stage-key: #161920;
+  --stage-glow: 26;
+  --g-perfect: #ffcb1f;
+  --g-great: #3ddc84;
+  --g-ok: #6aa8ff;
+  --g-miss: #ff6b5e;
+  --zone: #ffcb1f33;
+  --heat-1: #ff8a63;
+  --heat-2: #ffd84a;
+  --heat-3: #4de8ff;
+  --veil: #0a0b0ef2;
+  --t-KICK: #ff6a3d; --t-SNARE: #ffb020; --t-CLAP: #ffd84a; --t-HAT1: #2fe0c8; --t-HAT2: #5aa2ff; --t-PERC1: #a78bff;
+  --t-PERC2: #ff6bc1; --t-SYNTH1: #3ddc84; --t-SYNTH2: #2ad0e6; --t-DX: #b4f03c; --t-SAMPLER: #aab2c0;
+  --pitch-l: 62%;
+  --mon-bg: #07080a;
+  --road: #262b36;
+  --road-line: #0d0e12;
+  --road-done: #ff5f2e;
+  --region: #161920cc;
+  --region-dots: #ffffff0d;
+  --resume-a: #20242e;
+  --resume-b: #13151b;
+  --resume-edge: #000000;
+  --resume-glow: 0 0 0 1px #ff5f2e99, 0 0 34px #ff5f2e47, 0 24px 80px #ff5f2e33;
+  --resume-cell: #ffffff14;
+  --say: #f4f5f7;
+  --say-text: #111318;
+  --tint-a: 15%;
+  --twig: #a7835c;
+  --twig-leaf: #8fcf3f;
+  --paper: #fff1b8;
+  --paper-ink: #2c2617;
+  --paper-muted: #6d6040;
+  --paper-edge: #e2c766;
+  --paper-link: #b23d14;
+  --confetti-ink: #f4f5f7;
+  --accent-glow: #ff5f2e99;
+  --card-line: #2ad0e64d;
+  --neon-edge: 0 0 22px #2ad0e624, 0 12px 32px #00000073;
+  --neon-hot: 0 0 0 1.5px #ff5f2e, 0 0 26px #ff5f2e8c;
+  --neon-bar: 0 0 12px #ff5f2ed9;
+  --neon-text: 0 0 10px #ff5f2ea6;
+  --neon-title: 0 0 26px #ffffff47;
+  --neon-drop: drop-shadow(0 0 7px #ff5f2ed9);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg-art), var(--bg);
+  color: var(--text);
+  font: 15px/1.65 var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent-text); text-decoration: none; }
+a:hover { color: var(--accent); }
+h1, h2, h3, h4 { margin: 0; line-height: 1.25; font-weight: 700; letter-spacing: -0.01em; }
+h1 { font-size: 30px; }
+h2 { font-size: 21px; }
+h3 { font-size: 17px; }
+p { margin: 0 0 12px; }
+p:last-child { margin-bottom: 0; }
+strong { color: var(--text); font-weight: 700; }
+ul { margin: 0 0 12px; padding-left: 20px; }
+li { margin: 4px 0; }
+code { font: 13px var(--mono); background: var(--panel-3); padding: 1px 6px; border-radius: 5px; color: var(--text); }
+/* 课文里的按键：做成机器上那种键帽 */
+kbd {
+  display: inline-block; font: 700 12px/1 var(--mono); letter-spacing: 0.03em;
+  color: var(--kbd-text); background: linear-gradient(var(--kbd-top), var(--kbd-bot));
+  padding: 4px 7px 5px; border-radius: 6px; border: 1px solid var(--line-2);
+  box-shadow: 0 1.5px 0 var(--kbd-edge); white-space: nowrap; vertical-align: 1px;
+}
+button { font: inherit; color: inherit; }
+::selection { background: var(--accent-glow); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 丝印式小标签 */
+.label, .section-title, .step-kind, .grid-caption, .widget h4, .seg-label {
+  font: 700 12px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+}
+
+/* ───────── 外壳：左边一条导航，右边是内容 ─────────
+   按平板横屏做（iPad，4:3；最小 1024 × 768，主要按 1180 × 820），桌面浏览器是它的放大版。
+   整页不滚动：导航栏固定，内容区（#view）自己滚；能点的东西至少 44 像素见方。 */
+html { -webkit-text-size-adjust: 100%; }
+body { overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+#app { display: flex; height: 100vh; height: 100dvh; height: var(--app-h, 100dvh); }
+.rail {
+  flex: none; width: calc(76px + env(safe-area-inset-left, 0px)); z-index: 20; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: max(10px, env(safe-area-inset-top, 0px)) 6px max(10px, env(safe-area-inset-bottom, 0px)) calc(6px + env(safe-area-inset-left, 0px));
+  background: var(--rail); border-right: 1px solid var(--line); overflow-y: auto; scrollbar-width: none;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.rail::-webkit-scrollbar { display: none; }
+.rail [hidden] { display: none !important; }
+.rail-brand { flex: none; width: 64px; height: 44px; display: grid; place-items: center; border-radius: 14px; }
+/* 标志的四根条跟着节拍动 */
+.brand-mark { display: flex; align-items: flex-end; gap: 3px; height: 22px; }
+.brand-mark i { width: 5px; border-radius: 2.5px; background: var(--accent); transform-origin: bottom; }
+.brand-mark i:nth-child(1) { height: 10px; } .brand-mark i:nth-child(2) { height: 22px; }
+.brand-mark i:nth-child(3) { height: 14px; background: var(--text); } .brand-mark i:nth-child(4) { height: 18px; }
+[data-fx="rich"] .brand-mark i { animation: eq var(--beat) var(--out) infinite alternate; }
+[data-fx="rich"] .brand-mark i:nth-child(2) { animation-delay: calc(var(--beat) * -.25); }
+[data-fx="rich"] .brand-mark i:nth-child(3) { animation-delay: calc(var(--beat) * -.6); }
+[data-fx="rich"] .brand-mark i:nth-child(4) { animation-delay: calc(var(--beat) * -.4); }
+@keyframes eq { to { transform: scaleY(.45); } }
+.rail-nav, .rail-foot { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; }
+.rail-foot { margin-top: auto; padding-top: 8px; }
+/* 导航里的一格：图标在上，字在下 */
+.rail a[data-nav], .rail-level, .rail-coach {
+  position: relative; flex: none; width: 64px; min-height: 54px; padding: 7px 0 5px; border: 0; border-radius: 14px; background: none; cursor: pointer; touch-action: manipulation;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--text-2); font: 600 12px/1.2 var(--font); white-space: nowrap;
+  transition: color var(--t-move), background var(--t-move), transform var(--t-press);
+}
+.rail a[data-nav] svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.rail a[data-nav]:hover, .rail-level:hover, .rail-coach:hover { color: var(--text); background: var(--panel-3); }
+.rail a[data-nav]:active, .rail-level:active, .rail-coach:active, .rail-skin:active, .rail .is-down { transform: translateY(2px); }
+.rail a[data-nav].active { color: var(--text); background: var(--seg-on); box-shadow: 0 1px 2px var(--shade-2); }
+.rail a[data-nav].active svg { color: var(--accent); }
+.rail a[data-nav].active::before { content: ""; position: absolute; left: -6px; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+/* 设备：图标右上角一颗灯，连上了是绿的，下面的字换成机器的速度 */
+#device-chip .dot { position: absolute; right: 14px; top: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--rail); }
+#device-chip .dot.ok { background: var(--lamp-ok); box-shadow: 0 0 0 2px var(--rail), 0 0 0 5px var(--lamp-ok-ring); }
+#device-chip .dot.off { background: var(--line-2); }
+#device-chip .bpm { font: 700 12px/1.2 var(--mono); color: var(--accent-text); }
+/* 等级：一圈经验条，中间是第几级，下面是这一级的名字。随时看得见 */
+.rail-level { gap: 4px; color: var(--text); }
+.rail-level .ring { width: 40px; height: 40px; animation: none; filter: none; transition: --p var(--t-show) var(--out); }
+.rail-level .ring::before { width: 30px; height: 30px; background: var(--rail); }
+.rail-level .ring > * { font-size: 14px; }
+.rail-level .lv-name { max-width: 66px; overflow: hidden; text-overflow: ellipsis; font-weight: 650; }
+.rail-level.bump .ring { animation: bump var(--t-show) var(--pop); }
+@keyframes bump { 40% { transform: scale(1.18); } }
+/* 配色切换：半浅半深的一颗圆 */
+.rail-skin { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; transition: background var(--t-move), transform var(--t-press); }
+.rail-skin:hover { background: var(--panel-3); }
+.rail-skin .swatch { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(90deg, var(--swatch-a) 50%, var(--swatch-b) 50%); box-shadow: 0 0 0 1.5px var(--line-2); transition: transform var(--t-show) var(--pop); }
+[data-skin="neon"] .rail-skin .swatch { transform: rotate(180deg); box-shadow: 0 0 0 1.5px var(--line-3), 0 0 12px var(--accent-glow); }
+/* 啾啾的窝：导航栏最下面一截小树枝，啾啾不在别处的时候就蹲在上面（小鸟本身在 .jiu-layer 里，见“啾啾”一段） */
+.rail-coach { min-height: 72px; color: var(--text); }
+.rail-coach .jiu-nest { width: 46px; height: 46px; }
+
+.shell { flex: 1; min-width: 0; min-height: 0; display: flex; }
+/* 内容区是一个“容器”：里面的版式按它自己的宽度变（见文件最后），不看窗口有多宽 */
+#view { flex: 1; min-width: 0; overflow-y: auto; overscroll-behavior: contain; padding: 24px max(24px, env(safe-area-inset-right, 0px)) 64px 24px; outline: none; container: view / inline-size; }
+#view > * { max-width: 1120px; margin-left: auto; margin-right: auto; }
+/* 只做横屏：平板竖着拿的时候盖上一句话 */
+.rotate-hint { display: none; }
+@media (orientation: portrait) and (pointer: coarse) {
+  .rotate-hint { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 32px; text-align: center; background: var(--bg); color: var(--text); }
+  .rotate-hint b { font-size: 22px; }
+  .rotate-hint span:last-child { max-width: 22em; color: var(--text-2); }
+}
+
+.chip {
+  display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 13px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid var(--line-2); background: var(--panel); color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: border-color var(--t-move), color var(--t-move), transform var(--t-press);
+}
+.chip:hover { border-color: var(--text-2); color: var(--text); }
+.chip:active, .chip.is-down { transform: translateY(1.5px); }
+
+/* 按钮像键帽：有一条向下的厚度，按下去走完这段行程 */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 18px; white-space: nowrap; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  border-radius: 10px; border: 1px solid var(--key-border); background: linear-gradient(var(--key-top), var(--key-bot)); color: var(--text);
+  font-size: 14px; font-weight: 650; cursor: pointer; box-shadow: 0 3px 0 var(--key-edge); transform: translateY(0);
+  transition: transform var(--t-press), box-shadow var(--t-press), background var(--t-move), border-color var(--t-move);
+}
+.btn:hover { background: linear-gradient(var(--key-top-h), var(--key-bot-h)); border-color: var(--key-border-h); color: var(--text); }
+.btn:active, .btn.is-down { transform: translateY(3px); box-shadow: 0 0 0 var(--key-edge); }
+.btn.primary { background: linear-gradient(var(--pri-top), var(--pri-bot)); border-color: var(--pri-border); color: var(--accent-ink); box-shadow: 0 3px 0 var(--pri-edge), var(--pri-glow); }
+.btn.primary:hover { background: linear-gradient(var(--pri-top-h), var(--pri-bot-h)); color: var(--accent-ink); }
+.btn.primary:active, .btn.primary.is-down { box-shadow: 0 0 0 var(--pri-edge), var(--pri-glow); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); box-shadow: none; }
+.btn.ghost:hover { background: var(--panel-3); color: var(--text); }
+.btn.ghost:active { transform: translateY(1.5px); }
+.btn.sm { position: relative; height: 34px; padding: 0 12px; font-size: 13px; border-radius: 9px; box-shadow: 0 2px 0 var(--key-edge); }
+.btn.sm::after { content: ""; position: absolute; inset: -6px -2px; } /* 小按钮看着小，能点到的范围照样有 44 像素高 */
+.btn.sm:active, .btn.sm.is-down { transform: translateY(2px); }
+.btn.sm.primary { box-shadow: 0 2px 0 var(--pri-edge), var(--pri-glow); }
+.btn.sm.ghost { box-shadow: none; }
+.btn.lg { height: 50px; padding: 0 26px; font-size: 16px; border-radius: 13px; box-shadow: 0 4px 0 var(--key-edge); }
+.btn.lg.primary { box-shadow: 0 4px 0 var(--pri-edge), var(--pri-glow); }
+.btn.lg:active, .btn.lg.is-down { transform: translateY(4px); }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.btn.danger { color: var(--bad); }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; box-shadow: 0 1px 0 var(--hilite) inset, 0 1px 2px var(--shade-1); }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.mono { font-family: var(--mono); }
+.tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); font-size: 12px; font-weight: 650; white-space: nowrap; }
+.tag.accent { background: var(--accent-soft); color: var(--accent-text); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.page-head { margin-bottom: 22px; }
+.page-head p { color: var(--text-2); margin-top: 6px; max-width: 720px; }
+.section-title { margin: 30px 0 12px; }
+
+.toasts { position: fixed; left: calc(50% + 38px); bottom: 26px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 60; pointer-events: none; }
+.toast { background: var(--inv); color: var(--inv-text); padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 10px 30px var(--shade-4), 0 0 0 1px var(--inv-line) inset; animation: toast-in var(--t-move) var(--pop); }
+.toast.ok { box-shadow: 0 10px 30px var(--shade-4), 0 0 0 2px var(--lamp-ok) inset; } .toast.bad { box-shadow: 0 10px 30px var(--shade-4), 0 0 0 2px var(--lamp-bad) inset; }
+/* 涨经验、升级、拿徽章 */
+.toast.gain { display: flex; align-items: center; gap: 10px; padding: 9px 16px 9px 10px; box-shadow: 0 10px 30px var(--shade-4), 0 0 0 2px var(--yellow) inset; }
+.toast.gain b { font: 800 13px var(--mono); color: var(--yellow); letter-spacing: .04em; }
+.toast.gain .badge { width: 30px; height: 30px; box-shadow: none; }
+.toast.gain .badge svg { width: 17px; height: 17px; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px) scale(.94); } }
+
+/* ───────── 首页：接着练 + 等级 / 连续 / 本周 ─────────
+   首页不整页滚动（平板横屏最缺的是高度）：这一排固定在上面、一直看得见，下面的徽章和地图在 .home-scroll 里自己滚。 */
+#view.fixed { overflow: hidden; display: flex; flex-direction: column; padding-bottom: 0; }
+.home { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; }
+.home-scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; margin: 14px -8px 0; padding: 4px 8px 56px; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+.home-top { flex: none; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(270px, 1fr); gap: 16px; align-items: stretch; }
+.resume {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; padding: 16px 22px 16px; border-radius: 22px; color: var(--inv-text);
+  background: linear-gradient(135deg, var(--resume-a), var(--resume-b)); border: 1px solid var(--resume-edge); box-shadow: 0 4px 0 var(--resume-edge), var(--resume-glow);
+}
+/* 右下角一片扬声器网孔 */
+.resume::after { content: ""; position: absolute; right: 0; bottom: 0; width: 44%; height: 70%; background: radial-gradient(var(--resume-cell) 1.6px, transparent 1.9px) 0 0 / 12px 12px; mask-image: linear-gradient(135deg, transparent 45%, #000); -webkit-mask-image: linear-gradient(135deg, transparent 45%, #000); pointer-events: none; }
+.resume > * { position: relative; z-index: 1; }
+.resume .label { color: var(--inv-muted); }
+.resume-row { display: flex; align-items: flex-end; gap: 14px; }
+.resume-what { flex: 1; min-width: 0; }
+.resume h1 { font-size: 26px; margin: 5px 0 0; color: var(--inv-text); }
+.resume h1 .no { font-family: var(--mono); color: var(--yellow); margin-right: 12px; }
+.resume .sum { display: none; color: var(--inv-muted); max-width: 40em; margin: 10px 0 0; } /* 屏幕够高才显示，见文件最后 */
+.resume-foot { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+.resume-foot .small { color: var(--inv-muted); }
+/* 这节课的每一步是一个步进键：走过的亮着，现在这一步跟着节拍闪 */
+.resume-steps { display: flex; gap: 5px; margin-left: auto; }
+.resume-steps i { width: 16px; height: 16px; border-radius: 4px; background: var(--resume-cell); }
+.resume-steps i.on { background: var(--yellow); box-shadow: 0 0 12px var(--yellow-glow); }
+.resume-steps i.now { box-shadow: 0 0 0 1.5px var(--yellow) inset; }
+[data-fx="rich"] .resume-steps i.now { animation: step-now var(--beat) steps(1) infinite; }
+@keyframes step-now { 50% { background: var(--inv-text); box-shadow: 0 0 14px var(--inv-text); } }
+
+/* 啾啾在卡片里打招呼：它蹲在一块浅色的圆盘上（圆盘里是给它留的那截树枝），旁边是它说的话 */
+.greet { display: flex; align-items: flex-end; gap: 14px; margin-bottom: 12px; }
+.greet-face { flex: none; width: 78px; height: 78px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; display: grid; place-items: center; background: var(--bench); box-shadow: 0 3px 0 var(--shade-3), 0 0 0 1px var(--inv-line); transition: transform var(--t-move) var(--pop); }
+.greet-face .face { margin-top: -8px; }
+.greet-face:hover { box-shadow: 0 3px 0 var(--shade-3), 0 0 0 2px var(--accent); }
+.say { position: relative; flex: 1; min-width: 0; max-width: 560px; min-height: 62px; padding: 12px 16px; border-radius: 16px 16px 16px 4px; background: var(--say); color: var(--say-text); font-size: 15px; line-height: 1.6; box-shadow: 0 3px 0 var(--shade-3); transform-origin: 0 100%; animation: grow var(--t-show) var(--pop); }
+.say .say-text { display: block; }
+.say .say-more { display: inline-block; margin-top: 4px; font-size: 13px; font-weight: 650; color: var(--say-link); background: none; border: 0; padding: 0; cursor: pointer; }
+.say .say-more:hover { color: var(--accent); }
+@keyframes grow { from { transform: scale(.6); opacity: 0; } }
+
+.hstats { display: grid; gap: 12px; }
+.hstat[role="button"] { cursor: pointer; touch-action: manipulation; }
+.hstat { display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 8px 16px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 3px 0 var(--line); transition: transform var(--t-move) var(--pop); }
+[data-fx="rich"] .hstat:hover { transform: translateY(-3px); }
+.hstat .big { font: 800 26px/1.1 var(--mono); color: var(--text); }
+.hstat .big small { font: 700 13px var(--mono); color: var(--muted); margin-left: 3px; }
+.hstat .what { font-size: 14px; font-weight: 650; color: var(--text); }
+.hstat .hint { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.hstat .hint b { color: var(--text-2); font-weight: 650; }
+.ring { --p: 0; position: relative; flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--accent) calc(var(--p) * 1%), var(--panel-3) 0); }
+.ring::before { content: ""; grid-area: 1 / 1; width: 36px; height: 36px; border-radius: 50%; background: var(--panel); }
+.ring > * { grid-area: 1 / 1; position: relative; font: 800 15px var(--mono); color: var(--text); }
+.ring > small { font-size: 12px; }
+.ring.full { background: conic-gradient(var(--lamp-ok) calc(var(--p) * 1%), var(--panel-3) 0); }
+[data-fx="rich"] .ring { animation: ring-fill 1s var(--out) backwards; }
+@keyframes ring-fill { from { --p: 0; } }
+[data-skin="neon"] .ring { filter: drop-shadow(0 0 8px var(--accent-glow)); }
+.flame { flex: none; width: 48px; height: 48px; display: grid; place-items: center; color: var(--line-2); transform-origin: 50% 90%; }
+.flame svg { width: 34px; height: 34px; fill: currentColor; }
+.flame.lit { color: var(--accent); }
+.flame.lit svg { filter: drop-shadow(0 0 8px var(--accent-glow)); }
+[data-fx="rich"] .flame.lit { animation: sway 1.6s ease-in-out infinite alternate; }
+@keyframes sway { from { transform: rotate(-5deg) scale(1); } to { transform: rotate(5deg) scale(1.08); } }
+.week-dots { display: flex; gap: 5px; margin-top: 5px; }
+.week-dots i { width: 18px; height: 18px; border-radius: 5px; background: var(--panel-3); display: grid; place-items: center; font: 700 12px/1 var(--mono); font-style: normal; color: var(--muted); }
+.week-dots i.on { background: var(--accent); color: var(--accent-ink); }
+.week-dots i.today { box-shadow: 0 0 0 1.5px var(--text-2); }
+
+/* 徽章 */
+.badges { padding: 14px 20px 12px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 3px 0 var(--line); }
+.badges-main { display: flex; align-items: center; gap: 18px; }
+/* 点哪个徽章，这一行就说哪个：它是什么、怎么拿（不靠悬停，平板上没有悬停） */
+.badge-note { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13.5px; line-height: 1.55; color: var(--text-2); }
+.badge-note b { color: var(--text); }
+.badges-head { flex: none; }
+.badges-head b { display: block; font: 800 20px/1.2 var(--mono); color: var(--text); }
+.badges-head b small { font-size: 13px; color: var(--muted); }
+.badge-row { display: flex; gap: 12px; flex-wrap: wrap; flex: 1; }
+.badge { --b: var(--panel-3); position: relative; flex: none; width: 46px; height: 46px; border-radius: 50%; border: 0; padding: 0; display: grid; place-items: center; background: var(--b); color: var(--line-3); box-shadow: 0 1px 2px var(--shade-2) inset; cursor: pointer; touch-action: manipulation; transition: transform var(--t-move) var(--pop); }
+.badge.picked { outline: 2px solid var(--text-2); outline-offset: 4px; }
+.badge svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.badge .mark { position: absolute; right: -5px; bottom: -4px; min-width: 20px; height: 18px; padding: 0 4px; border-radius: 9px; font: 800 12px/14px var(--mono); background: var(--panel-3); color: var(--muted); border: 2px solid var(--panel); }
+.badge.got { color: var(--on-bright); box-shadow: 0 3px 0 color-mix(in srgb, var(--b) 70%, var(--ink-0)), 0 1px 0 var(--gloss) inset; }
+.badge.got[data-tone="accent"] { --b: var(--accent); }
+.badge.got[data-tone="yellow"] { --b: var(--yellow); color: var(--yellow-ink); }
+.badge.got[data-tone="cyan"] { --b: var(--cyan); }
+.badge.got[data-tone="ok"] { --b: var(--ok); }
+.badge.got[data-tone="violet"] { --b: var(--violet); }
+.badge.got .mark { background: var(--knob); color: var(--knob-ink); }
+[data-skin="neon"] .badge.got { box-shadow: 0 3px 0 color-mix(in srgb, var(--b) 55%, var(--ink-0)), 0 0 18px color-mix(in srgb, var(--b) 55%, transparent); }
+.badge:active { transform: translateY(2px); }
+@media (hover: hover) { .badge:hover { transform: translateY(-3px); } }
+/* 刚拿到、还没看过的：一圈光 */
+.badge.fresh::before { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid var(--b); opacity: .7; }
+[data-fx="rich"] .badge.fresh::before { animation: halo calc(var(--beat) * 2) var(--out) infinite; }
+@keyframes halo { to { transform: scale(1.35); opacity: 0; } }
+
+/* 关卡上悬停时的小说明：只是给鼠标的加分项，课名和状态本来就一直写在关卡下面 */
+.tip { position: absolute; left: 50%; bottom: calc(100% + 12px); z-index: 30; width: max-content; max-width: 250px; padding: 9px 12px; border-radius: 10px; background: var(--inv); color: var(--inv-text); font: 500 13px/1.5 var(--font); text-align: left; white-space: normal; box-shadow: 0 8px 22px var(--shade-3), 0 0 0 1px var(--inv-line) inset; opacity: 0; translate: -50% 6px; pointer-events: none; transition: opacity var(--t-move), translate var(--t-move) var(--pop); }
+.tip b { display: block; font-weight: 700; margin-bottom: 2px; }
+.tip small { display: block; margin-top: 4px; font-size: 12px; color: var(--inv-muted); }
+.map-node:focus-visible > .tip { opacity: 1; translate: -50% 0; }
+@media (hover: hover) { .map-node:hover > .tip { opacity: 1; translate: -50% 0; } }
+
+/* ───────── 首页：闯关地图 ───────── */
+.map { position: relative; margin-top: 46px; }
+.map-road { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; overflow: visible; }
+.map-road path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.road-bed { stroke: var(--road); stroke-width: 20; }
+.road-mid { stroke: var(--road-line); stroke-width: 2.5; stroke-dasharray: 1 13; }
+.road-done { stroke: var(--road-done); stroke-width: 8; }
+[data-skin="neon"] .road-done { filter: drop-shadow(0 0 8px var(--accent-glow)); }
+.road-far { stroke: var(--road); stroke-width: 5; stroke-dasharray: 1 14; }
+/* 一章一个区域 */
+.region { --tint: var(--accent); position: absolute; left: 0; right: 0; border-radius: 22px; background: radial-gradient(62% 95% at var(--gx, 8%) 0%, color-mix(in srgb, var(--tint) var(--tint-a), transparent), transparent 72%), radial-gradient(var(--region-dots) 1.3px, transparent 1.6px) 0 0 / 14px 14px, var(--region); border: 1px solid var(--line); box-shadow: 0 3px 0 var(--line); }
+/* 章节的铭牌：骑在区域的上边线上、居中，路从两边绕过去。章节号是一颗旋钮，正在学的那章指示线是桔红的 */
+.region-head { position: absolute; left: 50%; top: -22px; z-index: 2; translate: -50%; display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 18px 0 6px; border-radius: 999px; white-space: nowrap; background: var(--panel); border: 1px solid var(--line-2); box-shadow: 0 3px 0 var(--line); }
+.region-head h2 { font-size: 16.5px; }
+.region-head .sub { color: var(--muted); font-size: 13.5px; margin-left: -4px; }
+.region-count { margin-left: 6px; display: flex; align-items: center; gap: 9px; color: var(--muted); font: 700 12px var(--mono); letter-spacing: 0.06em; }
+.region-count .cells { display: flex; gap: 3px; }
+.region-count .cells i { width: 13px; height: 6px; border-radius: 3px; background: var(--key-lamp); }
+.region-count .cells i.on { background: var(--yellow); box-shadow: 0 0 8px var(--yellow-glow); }
+.region.clear .region-count { color: var(--ok); }
+.region.active .region-head { border-color: var(--accent); box-shadow: 0 3px 0 var(--accent-2); }
+.region-no { position: relative; flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 800 13px var(--mono); padding-top: 3px; background: radial-gradient(circle at 50% 35%, var(--knob-top), var(--knob) 70%); color: var(--knob-ink); box-shadow: 0 2px 0 var(--shade-3); }
+.region-no::before { content: ""; position: absolute; top: 3px; left: 50%; width: 2.5px; height: 6px; margin-left: -1.25px; border-radius: 2px; background: var(--knob-mark); }
+.region.active .region-no::before { background: var(--accent); }
+
+/* 关卡：一个步进键。left / top 是键帽的中心 */
+.map-node { position: absolute; z-index: 3; width: 144px; margin-left: -72px; touch-action: manipulation; display: flex; flex-direction: column; align-items: center; text-align: center; color: var(--text); cursor: pointer; outline-offset: 6px; border-radius: 16px; }
+.map-node:hover { color: var(--text); z-index: 6; }
+.map-node .cap { position: relative; width: 62px; height: 56px; margin-top: -28px; border-radius: 16px; display: grid; place-items: center; align-content: center; gap: 5px; border: 1px solid var(--key-border); background: linear-gradient(var(--key-top), var(--key-bot)); box-shadow: 0 5px 0 var(--key-edge), 0 10px 18px var(--shade-2); transition: transform var(--t-move) var(--pop), box-shadow var(--t-press); }
+.map-node .no { font: 800 15px/1 var(--mono); }
+.map-node .lamp { width: 24px; height: 5px; border-radius: 3px; background: var(--key-lamp); }
+.map-node:hover .cap { transform: translateY(-5px); }
+.map-node:active .cap, .map-node.is-down .cap { transform: translateY(5px); box-shadow: 0 0 0 var(--key-edge), 0 2px 4px var(--shade-2); }
+.map-node .name { margin-top: 13px; padding: 1px 6px; border-radius: 6px; font-size: 13.5px; font-weight: 650; line-height: 1.35; background: var(--region); }
+.map-node .meta { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.map-node .stars { letter-spacing: 2px; color: var(--star-off); font-size: 13px; }
+.map-node .stars b { color: var(--star); font-weight: 400; }
+.map-node.done .lamp { background: var(--yellow); box-shadow: 0 0 10px var(--yellow-glow); }
+/* 现在这一关：桔红的键，跟着节拍跳 */
+.map-node.now .cap { border-color: var(--pri-border); background: linear-gradient(var(--pri-top), var(--pri-bot)); color: var(--accent-ink); box-shadow: 0 5px 0 var(--pri-edge), 0 10px 18px var(--shade-2), var(--pri-glow); }
+.map-node.now .lamp { background: var(--accent-ink); }
+.map-node.now .cap::before { content: ""; position: absolute; inset: -7px; border-radius: 21px; border: 2px solid var(--accent); opacity: .55; }
+[data-fx="rich"] .map-node.now .cap { animation: hop var(--beat) var(--out) infinite; }
+[data-fx="rich"] .map-node.now .cap::before { animation: halo calc(var(--beat) * 2) var(--out) infinite; }
+[data-fx="rich"] .map-node.now:hover .cap { animation: none; }
+[data-fx="rich"] .map-node.now .lamp { animation: blink var(--beat) steps(1) infinite; }
+@keyframes hop { 0% { transform: translateY(-6px); } 100% { transform: translateY(0); } }
+@keyframes blink { 50% { opacity: .35; } }
+.map-node .flag { position: absolute; left: 50%; top: -74px; translate: -50%; padding: 3px 10px; border-radius: 999px; font: 700 12px/1.5 var(--font); white-space: nowrap; background: var(--inv); color: var(--inv-text); box-shadow: 0 4px 10px var(--shade-3), 0 0 0 1px var(--inv-line) inset; }
+.map-node .flag::after { content: ""; position: absolute; left: 50%; bottom: -4px; width: 9px; height: 9px; margin-left: -4.5px; background: var(--inv); transform: rotate(45deg); }
+.map-node.boss .flag { top: -88px; }
+/* 还没解锁：凹下去的暗键，带一把小锁 */
+.map-node.locked { cursor: not-allowed; color: var(--muted); }
+.map-node.locked .cap { background: var(--panel-3); border-color: var(--line); box-shadow: 0 1px 3px var(--shade-2) inset; color: var(--muted); }
+.map-node.locked:hover .cap { transform: none; }
+.map-node.locked .name { font-weight: 600; }
+.map-node .lock { width: 13px; height: 13px; fill: currentColor; }
+/* 章节挑战：每章最后一关，大一号的旋钮 */
+.map-node.boss .cap { width: 86px; height: 86px; margin-top: -43px; border-radius: 50%; border: 0; color: var(--knob-ink); background: radial-gradient(circle at 50% 32%, var(--knob-top), var(--knob) 68%); box-shadow: 0 6px 0 var(--knob-edge), 0 14px 24px var(--shade-3), 0 0 0 5px var(--region), 0 0 0 9px var(--key-lamp); }
+.map-node.boss .cap::after { content: ""; position: absolute; top: 6px; left: 50%; width: 4px; height: 12px; margin-left: -2px; border-radius: 2px; background: var(--knob-mark); }
+.map-node.boss .no { font-size: 17px; margin-top: 8px; }
+.map-node.boss .lamp { display: none; }
+.map-node.boss .name { margin-top: 0; }
+.map-node .kind { padding: 0 6px; border-radius: 6px; font: 700 12px/1.6 var(--mono); letter-spacing: .1em; background: var(--region); }
+.map-node.boss .kind { margin-top: 22px; color: var(--accent-text); }
+/* 小关：章开头挂着的小课（数据在 chapter.minis，见 views/home.js 开头），小一号的圆键 */
+.map-node.mini .cap { width: 50px; height: 48px; margin-top: -24px; border-radius: 50%; }
+.map-node.mini .no { font-size: 13px; }
+.map-node.mini .lamp { width: 16px; height: 4px; }
+.map-node.mini .kind { margin-top: 11px; color: var(--violet); }
+.map-node.mini .name { margin-top: 0; }
+.map-node.boss:active .cap { transform: translateY(6px); box-shadow: 0 0 0 var(--knob-edge), 0 2px 6px var(--shade-3), 0 0 0 5px var(--region), 0 0 0 9px var(--key-lamp); }
+.map-node.boss.done .cap { box-shadow: 0 6px 0 var(--knob-edge), 0 14px 24px var(--shade-3), 0 0 0 5px var(--region), 0 0 0 9px var(--yellow), 0 0 22px 9px var(--yellow-glow); }
+.map-node.boss.done .cap::after { background: var(--yellow); }
+.map-node.boss.now .cap { box-shadow: 0 6px 0 var(--knob-edge), 0 14px 24px var(--shade-3), 0 0 0 5px var(--region), 0 0 0 9px var(--accent), var(--pri-glow); }
+.map-node.boss.now .cap::after { background: var(--accent); }
+.map-node.boss.now .cap::before { inset: -18px; border-radius: 50%; }
+.map-node.boss.locked .cap { background: var(--panel-3); color: var(--muted); box-shadow: 0 1px 3px var(--shade-2) inset, 0 0 0 5px var(--region), 0 0 0 9px var(--panel-3); }
+.map-node.boss.locked .cap::after { background: var(--line-2); }
+.map-node.boss.locked .kind { color: var(--muted); }
+/* 远处还没开放的区域：路变成点，越远越淡 */
+.far { position: absolute; left: 0; right: 0; }
+.far-label { position: absolute; left: 50%; top: 0; translate: -50%; white-space: nowrap; }
+.far-node { position: absolute; z-index: 3; width: 168px; margin-left: -84px; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; display: flex; flex-direction: column; align-items: center; text-align: center; opacity: var(--o, 1); outline-offset: 6px; border-radius: 14px; transition: opacity var(--t-move); }
+.far-node .cap { width: 44px; height: 44px; margin-top: -22px; border-radius: 50%; display: grid; place-items: center; font: 800 14px var(--mono); color: var(--muted); background: var(--bg); border: 2px dashed var(--line-2); }
+.far-node .name { margin-top: 10px; font-size: 13.5px; font-weight: 650; color: var(--text-2); }
+.far-node .sub { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.far-node.picked { opacity: 1; }
+.far-node.picked .cap { border-style: solid; border-color: var(--text-2); color: var(--text); }
+@media (hover: hover) { .far-node:hover { opacity: 1; } }
+/* 点了远处的哪个区域，这一行就说里面会学什么 */
+.far-note { max-width: 46em; min-height: 44px; margin-top: 4px; text-align: center; font-size: 13.5px; line-height: 1.6; color: var(--text-2); }
+.far-note b { color: var(--text); }
+
+/* ───────── 啾啾（教练小鸟：jiu.js 管它飞到哪、说什么气泡，coach.js 管说什么；小鸟本身的画法在 bird.js） ─────────
+   全应用只有一只，待在盖在最上面的一层里（.jiu-layer），在页面留给它的地方（.jiu-perch）、导航栏的窝（.jiu-nest）、要按的键之间飞来飞去。 */
+.jiu-layer { position: fixed; inset: 0; z-index: 75; pointer-events: none; }
+.jiu-layer .bird { position: absolute; left: 0; top: 0; pointer-events: none; transition: width .45s var(--out), height .45s var(--out); }
+.jiu-layer .bird svg .b-act { pointer-events: auto; cursor: pointer; } /* 只有画出来的那只鸟能点，图框的空白处点得到下面的东西 */
+[data-skin="neon"] .jiu-layer .bird { filter: drop-shadow(0 0 10px #ffd83d55); }
+/* 机器在放的时候，蹲着的啾啾跟着拍子点头 */
+.jiu-layer .bird.jiu-groove:not([data-air]):is([data-mood="idle"], [data-mood="listen"]) .b-headpose { animation: jiu-groove var(--beat) ease-in-out infinite; }
+@keyframes jiu-groove { 0%, 100% { transform: rotate(0); } 22% { transform: translate(1px, 2.5px) rotate(9deg); } }
+[data-fx="calm"] .jiu-layer .bird.jiu-groove .b-headpose { animation: none; }
+
+/* 页面上给它留的地方、导航栏里的窝：一小截树枝（它飞走了，树枝还在） */
+.jiu-perch, .jiu-nest { position: relative; display: inline-block; flex: none; vertical-align: bottom; }
+.jiu-perch::after, .jiu-nest::after { content: ""; position: absolute; left: 14%; right: 6%; bottom: 5%; height: 4px; border-radius: 3px; background: var(--twig); box-shadow: 0 1px 0 var(--shade-2); }
+.jiu-perch::before, .jiu-nest::before { content: ""; position: absolute; right: 18%; bottom: 7%; width: 9px; height: 4px; border-radius: 3px 3px 3px 0; background: var(--twig-leaf); transform: rotate(-32deg); transform-origin: 0 100%; }
+
+/* 说话的气泡：跟着小鸟走，尾巴指着它（jiu.js 的 placeTalk 摆位置，data-tail = 尾巴在气泡的哪条边上） */
+.jiu-talk { position: fixed; left: 0; top: 0; width: max-content; max-width: min(340px, calc(100vw - 20px)); padding: 12px 14px; border-radius: 16px; background: var(--inv); color: var(--inv-text);
+  font-size: 15px; line-height: 1.55; box-shadow: 0 12px 34px var(--shade-4), 0 0 0 1px var(--inv-line) inset; pointer-events: auto; visibility: hidden; opacity: 0; transition: opacity .16s, visibility 0s .16s; }
+.jiu-talk.on { visibility: visible; opacity: 1; transition: opacity .16s; }
+[data-fx="rich"] .jiu-talk.on.pop { animation: grow var(--t-move) var(--pop); }
+.jiu-talk[data-tail="bottom"] { transform-origin: var(--tail, 50%) 100%; }
+.jiu-talk[data-tail="left"] { transform-origin: 0 var(--tail, 50%); }
+.jiu-talk[data-tail="right"] { transform-origin: 100% var(--tail, 50%); }
+.jiu-talk[data-tail="top"] { transform-origin: var(--tail, 50%) 0; }
+[data-skin="neon"] .jiu-talk { box-shadow: 0 0 0 1.5px var(--accent), 0 0 30px var(--accent-glow); }
+.jiu-tail { position: absolute; width: 14px; height: 14px; border-radius: 2px; background: inherit; transform: rotate(45deg); }
+.jiu-talk[data-tail="bottom"] .jiu-tail { bottom: -6px; left: calc(var(--tail, 50%) - 7px); }
+.jiu-talk[data-tail="top"] .jiu-tail { top: -6px; left: calc(var(--tail, 50%) - 7px); }
+.jiu-talk[data-tail="left"] .jiu-tail { left: -6px; top: calc(var(--tail, 50%) - 7px); }
+.jiu-talk[data-tail="right"] .jiu-tail { right: -6px; top: calc(var(--tail, 50%) - 7px); }
+.jiu-body { position: relative; }
+.jiu-line b, .jiu-line strong { color: var(--yellow); }
+.jiu-line kbd { color: var(--inv-text); background: var(--inv-2); border-color: var(--inv-line); }
+.jiu-talk.has-next { cursor: pointer; padding-right: 30px; }
+.jiu-next { position: absolute; right: -18px; bottom: -4px; font-size: 13px; color: var(--inv-muted); }
+[data-fx="rich"] .jiu-next { animation: jiu-next 1s ease-in-out infinite; }
+@keyframes jiu-next { 50% { transform: translateX(3px); opacity: .5; } }
+.jiu-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.jiu-chips .btn { min-height: 38px; border-radius: 19px; }
+.jiu-talk .btn.ghost { color: var(--inv-muted); }
+.jiu-talk .btn.ghost:hover { background: var(--inv-2); color: var(--inv-text); }
+.jiu-ask { margin-top: 10px; }
+.jiu-ask textarea { display: block; width: min(300px, calc(100vw - 60px)); min-height: 64px; max-height: 160px; resize: vertical; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--inv-line); background: var(--inv-2); color: var(--inv-text); font: inherit; font-size: 15px; }
+.jiu-ask textarea:focus { outline: none; border-color: var(--accent); }
+.jiu-ask-row { display: flex; gap: 6px; margin-top: 8px; }
+/* 小纸条：黄色的便签纸，微微歪着 */
+.jiu-talk.paper { max-width: min(400px, calc(100vw - 20px)); padding: 16px 18px 14px; background: var(--paper); color: var(--paper-ink); box-shadow: 0 14px 34px var(--shade-4), 0 0 0 1px var(--paper-edge) inset; rotate: -1deg; }
+[data-skin="neon"] .jiu-talk.paper { box-shadow: 0 0 0 1.5px var(--yellow), 0 0 26px #ffd83d55; }
+.jiu-paper-title { font-weight: 800; font-size: 16px; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1.5px dashed var(--paper-edge); }
+.jiu-paper-body { max-height: min(46vh, 380px); overflow-y: auto; font-size: 14.5px; line-height: 1.65; }
+.jiu-paper-body p { margin: 0 0 8px; } .jiu-paper-body ul { margin: 0 0 8px; padding-left: 20px; }
+/* 小纸条上能点的：课号、小课堂的关、练习场、按键（coach.js 的 linkify） */
+.jiu-paper-body .jiu-link { color: var(--paper-link); font-weight: 650; text-decoration: underline dotted; text-decoration-thickness: 1.5px; text-underline-offset: 3px; cursor: pointer; border-radius: 4px; }
+.jiu-paper-body .jiu-link:hover, .jiu-paper-body .jiu-link:focus-visible { text-decoration-style: solid; background: #b8441b14; outline: none; }
+.jiu-paper-body kbd.jiu-key { cursor: pointer; box-shadow: 0 2px 0 var(--paper-link), 0 0 0 1px var(--paper-link); }
+.jiu-paper-body kbd.jiu-key:hover, .jiu-paper-body kbd.jiu-key:focus-visible { background: #fff; outline: none; }
+.jiu-paper-tip { margin: 8px 0 0 !important; font-size: 12px; color: var(--paper-muted); }
+.jiu-talk.paper .btn.ghost { color: var(--paper-muted); }
+.jiu-talk.paper .btn.ghost:hover { background: #0000000d; color: var(--paper-ink); }
+.jiu-notes { list-style: none; margin: 0; padding: 0; max-height: min(46vh, 360px); overflow-y: auto; }
+.jiu-notes button { display: flex; align-items: baseline; gap: 10px; width: 100%; min-height: 40px; padding: 6px 4px; border: 0; border-bottom: 1px dashed var(--paper-edge); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.jiu-notes button:hover b { text-decoration: underline; }
+.jiu-notes b { flex: 1; font-size: 15px; }
+.jiu-notes small { flex: none; color: var(--paper-muted); font-size: 12px; }
+/* 指哪讲哪：机器的图外面一圈虚线，点哪个键讲哪个 */
+.panel-wrap.jiu-picking { outline: 3px dashed var(--accent); outline-offset: 6px; border-radius: 14px; cursor: help; }
+.panel-wrap.jiu-picking .ctl, .panel-wrap.jiu-picking [data-id] { cursor: help; }
+
+/* ───────── 霓虹的光 ─────────
+   只有霓虹配色才有：卡片是一圈发青的细边加一层淡光，导航栏上选中的那一格、进度条、重点的小字带桔红的光，大标题有一点白光。
+   光的颜色和大小都在开头霓虹那一组变量里（--card-line、--neon-*、--bg-art、--pri-glow……），想亮一点暗一点改那里。
+   这一段放在各个组件的规则前面：组件自己的“选中 / 按下 / 完成”这些状态写在后面，会盖过这里的。 */
+[data-skin="neon"] :is(.card, .widget, .task, .mirror-card, .chart-card, .song, .fold, .game, .ctl-card, .hstat, .gp-best, .sp-row) { border-color: var(--card-line); box-shadow: var(--neon-edge); }
+[data-skin="neon"] .sp-row { border-left-color: var(--c); }
+[data-skin="neon"] h1 { text-shadow: var(--neon-title); }
+[data-skin="neon"] :is(.step-kind, .cel-kicker, .song-learn b, .xp-line > b, .result-xp > b, .tag.accent, .done-up, .xp-up) { text-shadow: var(--neon-text); }
+[data-skin="neon"] :is(.brand-mark i, .game-progress i) { box-shadow: var(--neon-bar); }
+[data-skin="neon"] .step-dots i.now::before, [data-skin="neon"] .tour-dots i.on::before, [data-skin="neon"] .rail a[data-nav].active::before { box-shadow: var(--neon-bar); }
+[data-skin="neon"] .rail a[data-nav].active { box-shadow: 0 1px 2px var(--shade-2), var(--neon-edge); }
+[data-skin="neon"] .rail a[data-nav].active svg { filter: var(--neon-drop); }
+
+/* ───────── 动效的公共零件（fx.js） ───────── */
+.fx-layer { position: fixed; inset: 0; z-index: 80; pointer-events: none; overflow: hidden; }
+.confetti { position: absolute; width: 9px; height: 14px; margin: -7px 0 0 -4.5px; border-radius: 2px; animation: conf 1.1s var(--out) forwards; }
+@keyframes conf { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
+.fx-pop { animation: pop-in var(--t-show) var(--pop); }
+@keyframes pop-in { from { transform: scale(.4); opacity: 0; } }
+/* 开发用（地址带 ?still）：入场动画和过渡直接到位，循环的动效只是换个相位。给无界面的浏览器截图用 */
+[data-still] *, [data-still] *::before, [data-still] *::after { animation-delay: -3s !important; transition: none !important; }
+
+/* ───────── 练习场：谱面卡片 ─────────
+   封面就是这个谱面一圈的图案（和机器上那排步进键是同一个东西）：彩色的格子是要你打的，灰的是伴奏。
+   封面右下角那颗圆键是试听；别的地方点下去是进去打。 */
+.group-title { display: flex; align-items: baseline; gap: 10px; margin: 30px 0 12px; font-size: 19px; }
+.group-title span { font: 700 12px var(--mono); letter-spacing: .08em; color: var(--muted); }
+.charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 14px; }
+.chart-card { position: relative; display: flex; flex-direction: column; min-width: 0; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 3px 0 var(--line); overflow: hidden; transition: border-color var(--t-move), transform var(--t-press), box-shadow var(--t-press); }
+.chart-card > a { flex: 1; display: flex; flex-direction: column; color: var(--text); }
+.chart-card:has(> a:active) { transform: translateY(3px); box-shadow: 0 0 0 var(--line); }
+.chart-card.playing { border-color: var(--accent); }
+@media (hover: hover) { .chart-card:hover { border-color: var(--accent); } }
+.cover { --n: 16; position: relative; display: flex; flex-direction: column; justify-content: center; gap: 3px; height: 92px; padding: 10px 14px; background: var(--stage); border-bottom: 1px solid var(--line); }
+.cover-row { flex: 0 1 13px; min-height: 3px; display: grid; grid-template-columns: repeat(var(--n), 1fr); }
+.cover-row i { margin: 0 1.5px; border-radius: 2px; background: rgba(var(--stage-ink), .07); transition: transform var(--t-press), filter var(--t-press); }
+.cover-row i.beat { background: rgba(var(--stage-ink), .15); }
+.cover-row i.on { background: var(--c); }
+.cover-row.back i.on { background: rgba(var(--stage-ink), .36); }
+[data-skin="neon"] .cover-row:not(.back) i.on { box-shadow: 0 0 7px var(--c); }
+.cover-row i.hit { transform: scaleY(1.5); filter: brightness(1.35); }
+/* 播放头：试听时跟着声音走；丰富档下鼠标停在卡片上，它按这个谱面自己的速度扫一圈 */
+.cover-head { position: absolute; top: 6px; bottom: 6px; left: 14px; width: calc((100% - 28px) / var(--n)); translate: calc(var(--at, 0) * 100%) 0; border-radius: 3px; background: rgba(var(--stage-ink), .14); box-shadow: 0 0 0 1.5px rgba(var(--stage-ink), .5) inset; opacity: 0; pointer-events: none; }
+.chart-card.playing .cover-head { opacity: 1; }
+@media (hover: hover) {
+  [data-fx="rich"] .chart-card:not(.playing):hover .cover-head { opacity: .8; animation: cover-scan var(--loop, 2.4s) steps(16) infinite; }
+  [data-fx="rich"] .chart-card:not(.playing):hover .cover[data-n="32"] .cover-head { animation-timing-function: steps(32); }
+}
+@keyframes cover-scan { to { translate: calc(var(--n) * 100%) 0; } }
+.cover-play { position: absolute; right: 12px; top: 70px; z-index: 1; width: 44px; height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; border: 1px solid var(--key-border); background: linear-gradient(var(--key-top), var(--key-bot)); color: var(--text); box-shadow: 0 3px 0 var(--key-edge); transition: transform var(--t-press), box-shadow var(--t-press); }
+.cover-play:active { transform: translateY(3px); box-shadow: 0 0 0 var(--key-edge); }
+.cover-play svg { width: 18px; height: 18px; fill: currentColor; }
+.chart-card.playing .cover-play { background: linear-gradient(var(--pri-top), var(--pri-bot)); border-color: var(--pri-border); color: var(--accent-ink); box-shadow: 0 3px 0 var(--pri-edge), var(--pri-glow); }
+.chart-body { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 11px 14px 12px; }
+.chart-kicker { display: flex; align-items: center; gap: 8px; min-height: 22px; padding-right: 52px; font: 700 12px var(--mono); letter-spacing: .06em; color: var(--muted); white-space: nowrap; }
+.chart-body h3 { font-size: 15.5px; }
+.chart-body p { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.5; }
+.chart-foot { margin-top: auto; padding-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.chart-foot .tracks { flex: 1; min-width: 0; line-height: 1.4; }
+.chart-foot .best { flex: none; display: flex; align-items: center; gap: 6px; font: 700 12px var(--mono); white-space: nowrap; }
+.chart-foot .stars { font-size: 14px; letter-spacing: 1px; }
+
+/* ───────── 练习场：打一个谱面的那一页。不整页滚动，舞台把剩下的高度占满 ───────── */
+.play { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; padding-bottom: 18px; }
+.play-head { flex: none; display: flex; align-items: center; gap: 4px 14px; min-height: 44px; margin-bottom: 10px; }
+.play-head .back { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding-right: 4px; color: var(--muted); font-size: 14px; white-space: nowrap; }
+.play-head h1 { min-width: 0; font-size: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.play-head .meta { flex: none; margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+/* ───────── 课程播放器（lesson.js）─────────
+   页面不整页滚动（#view.fixed）：最上面一行（回路线图、课名、进度条）和最下面的“下一步”固定，中间是这一步（.step）。
+     .step[data-layout="stage"]  要动手的步骤（动手 / 编程挑战 / 练习）：一屏放下，里面是左右两栏，各管各的滚动
+     .step[data-layout="flow"]   往下读的步骤（讲解、小测、导览……）：这一块自己上下滚
+   两栏看的是这一步自己的宽度（容器查询），窄了就叠成一列。 */
+.lesson { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; }
+.lesson-top { flex: none; display: flex; align-items: center; gap: 14px; min-height: 44px; }
+.lesson-top .back { flex: none; display: inline-flex; align-items: center; min-height: 44px; color: var(--muted); font-size: 14px; white-space: nowrap; }
+.lesson-top h2 { flex: 0 1 auto; min-width: 0; font-size: 15px; color: var(--text-2); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 进度条：一格一步，到过的能点回去。格子画得细，能点到的范围是整行那么高 */
+.step-dots { flex: 1 1 160px; min-width: 120px; align-self: stretch; display: flex; gap: 5px; }
+.step-dots i { flex: 1; position: relative; min-height: 44px; }
+.step-dots i::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 6px; margin-top: -3px; border-radius: 3px; background: var(--dot-off); transition: background var(--t-move), transform var(--t-move) var(--pop); }
+.step-dots i.done { cursor: pointer; }
+.step-dots i.done::before { background: color-mix(in srgb, var(--accent) 45%, var(--dot-off)); }
+.step-dots i.now::before { background: var(--accent); transform: scaleY(1.5); }
+
+.step { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; padding-top: 6px; container: step / inline-size; }
+.step[data-layout="flow"] { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.step-top { flex: none; display: flex; align-items: baseline; gap: 4px 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.step-kind { color: var(--accent-text); white-space: nowrap; }
+.step h1 { font-size: 24px; }
+.step-body { color: var(--text-2); font-size: 16px; line-height: 1.75; }
+.step-body p { margin-bottom: 14px; }
+.step[data-layout="stage"] > .step-body { flex: 1; min-height: 0; margin-bottom: 12px; }
+.step[data-layout="flow"] > .step-body { padding-bottom: 20px; }
+.step-widget { margin: 20px 0; }
+/* 换了一步：标题和内容滑进来（讲解页是一块一块依次出来，见下面） */
+[data-fx="rich"] .step.enter > .step-top, [data-fx="rich"] .step.enter > .step-body:not(.read) { animation: rise var(--t-show) var(--out) both; }
+.step-actions { flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 0 14px; border-top: 1px solid var(--line); }
+.step-actions .hint { color: var(--muted); font-size: 13px; }
+/* 这一步做完了：“下一步”亮起来的时候蹦一下 */
+[data-fx="rich"] .step-actions .btn.go { animation: go-pop var(--t-show) var(--pop); }
+@keyframes go-pop { 40% { transform: scale(1.1); } }
+.callout { border-left: 4px solid var(--line-2); background: var(--panel); padding: 13px 16px; border-radius: 0 10px 10px 0; margin: 16px 0; color: var(--text-2); font-size: 15px; box-shadow: 0 1px 2px var(--shade-1); }
+.callout b.label { display: block; font: 700 12px var(--mono); letter-spacing: 0.1em; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; }
+.callout.dj { border-color: var(--blue); } .callout.dj b.label { color: var(--blue); }
+.callout.tip { border-color: var(--ok); } .callout.tip b.label { color: var(--ok); }
+.callout.warn { border-color: var(--accent); background: var(--accent-wash); } .callout.warn b.label { color: var(--accent-text); }
+.callout.theory { border-color: var(--violet); } .callout.theory b.label { color: var(--violet); }
+
+/* 讲解：正文在左边一栏（一行三十几个字），紧跟着它的小贴士 / 注意 / 乐理放到右边当旁注；小部件和面板图占满整行。
+   丰富档下一块一块依次出现（--i 是第几块）。 */
+.step-body.read { max-width: 980px; }
+.read-row { display: grid; grid-template-columns: minmax(0, 36em) minmax(220px, 1fr); gap: 4px 30px; align-items: start; }
+.read-row.solo, .read-row.full { display: block; }
+.read-row.solo .read-text { max-width: 36em; }
+.read-row.notes-only { grid-template-columns: minmax(0, 36em); }
+.read-row.full { margin: 6px 0 18px; }
+.read-row.full .step-widget { margin: 0; }
+.read-text ul { margin: 0 0 14px; padding-left: 22px; }
+.read-notes { display: grid; gap: 10px; padding: 4px 0 14px; }
+.read-notes .callout { margin: 0; font-size: 14px; line-height: 1.65; }
+[data-fx="rich"] .step.enter .read-row { animation: rise var(--t-show) var(--out) both; animation-delay: calc(var(--i) * 90ms + 60ms); }
+@container step (max-width: 700px) { .read-row { grid-template-columns: 1fr; } }
+
+/* 要动手的步骤：左边机器（或网格），右边“现在做什么” */
+.split { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 34%, 360px); gap: 18px; }
+.split > * { min-width: 0; min-height: 0; }
+.split.no-bench { grid-template-columns: minmax(0, 640px); }
+.split.no-bench .do-bench { display: none; }
+.do-bench, .prog-main { display: flex; flex-direction: column; gap: 10px; overflow: hidden auto; scrollbar-width: thin; }
+.do-side, .prog-side { display: flex; flex-direction: column; gap: 12px; overflow: hidden auto; scrollbar-width: thin; font-size: 15px; line-height: 1.65; }
+.do-side > *, .prog-side > *, .do-bench > *, .prog-main > * { flex: none; }
+.do-side .callout, .prog-side .callout { margin: 0; font-size: 14px; }
+.do-intro { display: grid; gap: 10px; }
+.do-intro:empty { display: none; }
+.do-intro p, .prog-side p { margin: 0; }
+.do-intro .step-widget { margin: 0; }
+.do-intro .widget { padding: 12px 14px; }
+.do-machine .sim { gap: 8px; }
+.do-machine .panel-wrap { padding: 8px; overflow: hidden; }
+.do-machine .panel-svg { min-width: 0; } /* 看整台的时候也不横着滚：有多宽画多宽 */
+.do-machine .panel-legend { margin-top: 8px; }
+.do-machine .sim-bar { flex-wrap: nowrap; align-items: stretch; }
+.do-machine .sim-say { min-width: 0; }
+.bench-view { flex: none; align-self: center; }
+.prog-main > .panel-legend { margin: 0; }
+.prog-now-host:empty { display: none; }
+@container step (max-width: 760px) {
+  .split { grid-template-columns: 1fr; overflow-y: auto; }
+  .do-bench, .prog-main, .do-side, .prog-side { overflow: visible; }
+}
+/* 现在该做的那一项：贴在机器上面的气泡，尾巴（--tail）指着要按的键。没摆机器、或者这一项没有哪个键可指，就不带尾巴（.loose） */
+.do-bubble-row { display: flex; align-items: flex-end; min-height: 76px; }
+.do-bubble { position: relative; max-width: min(470px, 100%); margin-bottom: 9px; padding: 9px 16px 11px; border-radius: 14px; background: var(--inv); color: var(--inv-text); font-size: 15px; line-height: 1.55; box-shadow: 0 8px 22px var(--shade-3); transform-origin: var(--tail, 30px) 100%; transition: margin-left var(--t-show) var(--out), background var(--t-move); }
+.do-bubble::after { content: ""; position: absolute; left: var(--tail, 30px); bottom: -6px; width: 14px; height: 14px; margin-left: -7px; border-radius: 2px; background: inherit; transform: rotate(45deg); transition: left var(--t-show) var(--out); }
+.do-bubble.loose { margin-bottom: 0; }
+.do-bubble.loose::after { display: none; }
+.do-bubble .n { display: block; font: 700 12px var(--mono); letter-spacing: .1em; color: var(--yellow); }
+.do-bubble strong { color: inherit; }
+.do-bubble kbd { box-shadow: none; border-color: transparent; }
+.do-bubble.ok { background: var(--ok); color: var(--on-bright); }
+.do-bubble.ok .n { color: inherit; opacity: .85; }
+[data-skin="neon"] .do-bubble:not(.ok) { box-shadow: 0 0 0 1.5px var(--accent), 0 0 26px var(--accent-glow); }
+[data-fx="rich"] .do-bubble.in { animation: grow var(--t-move) var(--pop); }
+/* 这一步的整张清单：做完的打勾，正在做的那一项亮着 */
+.task { border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--panel); padding: 14px 16px; box-shadow: 0 2px 0 var(--line); }
+.task.done { border-color: var(--lamp-ok); }
+.task ol { margin: 0; padding: 0; list-style: none; counter-reset: task; display: grid; gap: 9px; color: var(--text); font-size: 14.5px; line-height: 1.55; }
+.task ol li { counter-increment: task; position: relative; padding-left: 31px; transition: opacity var(--t-move), color var(--t-move); }
+.task ol li::before { content: counter(task); position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 700 12px var(--mono); background: var(--panel-3); color: var(--text-2); transition: background var(--t-move); }
+.task ol li.now { font-weight: 650; }
+.task ol li.now::before { background: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 3px var(--accent-ring); }
+.task ol li.done { color: var(--muted); }
+.task ol li.done strong { color: inherit; }
+.task ol li.done::before { content: "✓"; background: var(--lamp-ok); color: var(--on-bright); }
+.task ol li.todo, .task ol li.skip { opacity: .55; }
+.task ol li .tag.ok { display: none !important; } /* 勾已经画在前面的圆点上了；这个标记只留给走查脚本读 */
+.task-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 650; font-size: 14px; line-height: 1.55; color: var(--text-2); }
+.task .task-status { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.task-status:empty { display: none; }
+.task-status .pulse { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.task-status > span:not(.pulse):not(.spacer) { flex: 1 1 160px; min-width: 0; }
+[data-fx="rich"] .task-status .pulse { animation: pulse 1.2s infinite; }
+.task.done .task-status { color: var(--ok); } .task.done .pulse { background: var(--lamp-ok); animation: none; }
+@keyframes pulse { 50% { opacity: .3; transform: scale(.75); } }
+/* 编程挑战：左边机器和“现在编成了什么样”，右边说明、目标、核对的结果 */
+.prog-now, .prog-target { padding: 12px 14px; }
+.prog-now .grid-caption, .prog-target .grid-caption { margin: 0 0 6px; }
+.prog-side .grid-row, .prog-side .grid-nums { grid-template-columns: 52px 1fr; gap: 6px; }
+.prog-side .grid-cells, .prog-side .grid-nums > div { gap: 2px; }
+.prog-side .grid-nums span { visibility: hidden; } /* 这一栏窄：只留每拍第一格的数字 */
+.prog-side .grid-row .name small { display: none; }
+.prog-side .cell { border-radius: 4px; }
+.prog-tip { margin: 0; line-height: 1.55; }
+/* 练习（音游）：把这一步剩下的高度都给它 */
+.step-body.fill { display: flex; }
+.game-host { flex: 1; min-width: 0; min-height: 0; display: flex; }
+
+/* 小测：一次一题，选项是一排键帽 */
+.step-body.quiz { max-width: 720px; }
+.quiz-item { display: grid; gap: 12px; }
+.quiz-item[hidden], .quiz-item [hidden] { display: none; }
+.quiz-item .btn.primary { justify-self: start; }
+.quiz-n { font: 700 12px var(--mono); letter-spacing: .1em; color: var(--muted); }
+.quiz-q { font-size: 19px; font-weight: 700; line-height: 1.5; color: var(--text); }
+.quiz-opts { display: grid; gap: 10px; }
+.quiz-opt { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 9px 16px 9px 12px; text-align: left; border-radius: 12px; border: 1px solid var(--key-border); background: linear-gradient(var(--key-top), var(--key-bot)); color: var(--text); font-size: 15.5px; line-height: 1.45; cursor: pointer; touch-action: manipulation; box-shadow: 0 3px 0 var(--key-edge); transition: transform var(--t-press), box-shadow var(--t-press), border-color var(--t-move), background var(--t-move), opacity var(--t-move); }
+.quiz-opt i { flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font: 800 13px var(--mono); font-style: normal; background: var(--panel-3); color: var(--text-2); transition: background var(--t-move), color var(--t-move); }
+.quiz-opt:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 0 0 var(--key-edge); }
+.quiz-opt:disabled { cursor: default; }
+.quiz-opt:disabled:not(.right):not(.wrong) { opacity: .5; }
+.quiz-opt.right { border-color: var(--lamp-ok); background: var(--ok-soft); box-shadow: 0 3px 0 var(--lamp-ok); }
+.quiz-opt.right i { background: var(--lamp-ok); color: var(--on-bright); }
+.quiz-opt.wrong { border-color: var(--bad); background: var(--bad-soft); box-shadow: 0 1px 0 var(--bad); transform: translateY(2px); }
+.quiz-opt.wrong i { background: var(--bad); color: var(--on-bright); }
+.quiz-opt.shake { animation: opt-shake 320ms var(--out); }
+@keyframes opt-shake { 20% { transform: translate(-6px, 2px); } 40% { transform: translate(5px, 2px); } 60% { transform: translate(-3px, 2px); } 80% { transform: translate(2px, 2px); } }
+.quiz-explain { min-height: 26px; font-size: 15px; line-height: 1.6; color: var(--text-2); }
+.quiz-explain.right { color: var(--ok); font-weight: 600; }
+.quiz-explain.wrong { padding-left: 12px; border-left: 3px solid var(--bad); }
+
+/* 完成页（页面上的；丰富档在它上面再盖一张全屏的庆祝） */
+.step-body.done { max-width: 760px; display: grid; gap: 14px; }
+.step-body.done .callout { margin: 0; }
+.done-top { display: flex; align-items: center; gap: 12px 24px; flex-wrap: wrap; }
+.done-top .big-stars { padding: 0; }
+.done-xp { flex: 1; min-width: 260px; display: grid; gap: 6px; }
+.done-up { font-weight: 750; color: var(--accent-text); }
+/* 一行经验：涨了多少、经验条、现在几级（结算、完成页、全屏庆祝都用） */
+.xp-line { display: grid; grid-template-columns: auto minmax(60px, 1fr) auto; align-items: center; gap: 8px 12px; font-size: 13.5px; color: var(--text-2); }
+.xp-line > b { font: 800 14px var(--mono); color: var(--accent-text); white-space: nowrap; }
+
+/* ───────── 全屏的庆祝（celebrate.js）：过一节课、升级。只有丰富档会出现 ───────── */
+.celebrate { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 24px; background: var(--veil); overflow-y: auto; animation: veil-in var(--t-move) var(--out); }
+@keyframes veil-in { from { opacity: 0; } }
+.cel-card { width: min(560px, 100%); display: grid; justify-items: center; gap: 12px; padding: 28px 30px 26px; text-align: center; background: var(--panel); border: 1px solid var(--line-2); border-radius: 22px; box-shadow: 0 4px 0 var(--line-2), 0 30px 80px var(--shade-4); animation: pop-in var(--cel-pop, var(--t-show)) var(--pop); }
+[data-skin="neon"] .cel-card { box-shadow: 0 0 0 1px var(--accent), 0 0 80px var(--accent-glow); }
+.cel-kicker { font: 800 13px var(--mono); letter-spacing: .4em; margin-right: -.4em; color: var(--accent-text); }
+.cel-card h1 { font-size: 26px; }
+.cel-card .big-stars { font-size: 58px; gap: 14px; padding: 4px 0 2px; }
+.cel-card .xp-line { width: 100%; }
+.cel-level { display: flex; align-items: center; gap: 14px; padding: 10px 20px 10px 12px; border-radius: 16px; background: var(--accent-wash); box-shadow: 0 0 0 1.5px var(--accent) inset; text-align: left; }
+.cel-level small { display: block; font: 700 12px var(--mono); letter-spacing: .1em; color: var(--accent-text); }
+.cel-level b { font-size: 19px; }
+.cel-level.big { padding: 16px 28px 16px 18px; gap: 18px; }
+.cel-level.big .ring { width: 84px; height: 84px; }
+.cel-level.big .ring::before { width: 64px; height: 64px; }
+.cel-level.big .ring > * { font-size: 28px; }
+.cel-level.big b { font-size: 26px; }
+.cel-badges { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.cel-badge { display: flex; align-items: center; gap: 10px; padding: 6px 16px 6px 6px; border-radius: 999px; background: var(--panel-2); box-shadow: 0 0 0 1px var(--line) inset; text-align: left; }
+.cel-badge .badge { width: 36px; height: 36px; cursor: default; }
+.cel-badge .badge svg { width: 20px; height: 20px; }
+.cel-badge small { display: block; font: 700 12px var(--mono); letter-spacing: .06em; color: var(--muted); }
+.cel-badge b { font-size: 14.5px; color: var(--text); }
+.cel-say { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; border-radius: 14px; background: var(--panel-2); box-shadow: 0 0 0 1px var(--line) inset; text-align: left; }
+.cel-say p { margin: 0; font-size: 15px; line-height: 1.55; color: var(--text); }
+.cel-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+/* 节奏：各样东西什么时候出来、动多久，由 celebrate.js 写在卡片上（--cel-* 那几个变量；声音、彩带、经验条用的是同一组数）。
+   想调快慢改 celebrate.js 开头的 PACE，别改这里。音游结算卡片的星星用的是下面“结算”那一段，不受影响 */
+.cel-card.ceremony .big-stars .on { animation-duration: var(--cel-slam, 420ms); animation-delay: calc(var(--i) * var(--cel-beat, 210ms) + var(--cel-first, 240ms)); }
+.cel-card :is(.cel-level, .xp-line, .cel-badges, .cel-say, .cel-actions) { animation: rise var(--cel-rise, var(--t-show)) var(--out) both; animation-delay: var(--cel-rest, 700ms); }
+.cel-card .xp-line { animation-delay: var(--cel-xp, var(--cel-rest, 700ms)); }
+.cel-card .cel-say { animation-delay: var(--cel-say, 900ms); }
+.cel-card .cel-actions { animation-delay: var(--cel-act, var(--cel-rest, 700ms)); }
+.cel-card .xp-bar i { transition-duration: var(--cel-fill, 900ms); }
+
+
+/* ───────── 音游 ─────────
+   舞台上的字（连击、四种判定各打了几个、里程碑的横幅、飞出来的判定字）是盖在画布上的普通元素：
+   game.js 只管往上放、换 data-heat（连击到 8 / 16 / 32 是 1 / 2 / 3），长什么样、怎么动都在这里。
+   一次性的反馈两档动效都有，克制档下收成“原地淡掉”；放大、震动只在丰富档。 */
+.game { display: flex; flex-direction: column; min-width: 0; background: var(--panel); border: 1px solid var(--line-2); border-radius: 16px; overflow: hidden; box-shadow: 0 2px 0 var(--line-2); }
+.game-hud { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 11px 18px 9px; }
+.game-title { font-weight: 700; font-size: 16px; }
+.game-sub { color: var(--muted); font: 700 12px var(--mono); letter-spacing: 0.08em; margin-top: 3px; }
+.game-stats { display: flex; gap: 22px; }
+.stat { text-align: right; line-height: 1.15; }
+.stat b { display: block; font: 800 22px var(--mono); color: var(--text); }
+.stat span { font: 700 12px var(--mono); color: var(--muted); letter-spacing: 0.1em; }
+.game-progress { flex: none; height: 4px; background: var(--panel-3); }
+.game-progress i { display: block; height: 100%; width: 0; background: var(--accent); }
+/* 舞台的高度：外面没给高度时（课程里）跟着屏幕的高矮走；外面给了（练习场，见 .game-panel.fill）就把它占满 */
+.game-stage { position: relative; flex: none; height: clamp(360px, calc(100dvh - 380px), 520px); background: var(--stage); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow: hidden; }
+.game-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: manipulation; }
+.game-stage.live .game-canvas { touch-action: none; } /* 打着的时候轨道是鼓垫：手指在上面不滚页面、不缩放 */
+/* 连击到了里程碑：舞台边上亮一圈那个颜色 */
+.game-stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 0 transparent; transition: box-shadow var(--t-show) var(--out); }
+[data-heat="1"] { --heat: var(--heat-1); } [data-heat="2"] { --heat: var(--heat-2); } [data-heat="3"] { --heat: var(--heat-3); }
+.game-stage:is([data-heat="1"], [data-heat="2"], [data-heat="3"])::after { box-shadow: inset 0 0 0 2px var(--heat), inset 0 0 48px color-mix(in srgb, var(--heat) 22%, transparent); }
+[data-fx="rich"] .game-stage.shake { animation: stage-shake 300ms var(--out); }
+@keyframes stage-shake { 20% { transform: translate(-5px, 2px); } 40% { transform: translate(5px, -2px); } 60% { transform: translate(-3px, 1px); } 80% { transform: translate(2px, 0); } }
+
+.stage-hud { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+/* 连击：轨道左边那块空地（--side 是 game.js 量出来的空地宽度） */
+.stage-combo { position: absolute; left: 0; top: 44%; width: var(--side, 96px); translate: 0 -50%; display: grid; justify-items: center; gap: 4px; color: rgba(var(--stage-ink), .82); opacity: 0; transition: opacity var(--t-move), color var(--t-move); }
+.stage-combo.show { opacity: 1; }
+.stage-combo b { font: 800 46px/1 var(--mono); letter-spacing: -0.02em; transition: scale var(--t-show) var(--pop); }
+.stage-combo span { font: 700 12px var(--mono); letter-spacing: .3em; margin-right: -.3em; color: rgba(var(--stage-ink), .56); }
+.stage-combo:is([data-heat="1"], [data-heat="2"], [data-heat="3"]) { color: var(--heat); }
+[data-skin="neon"] .stage-combo:is([data-heat="1"], [data-heat="2"], [data-heat="3"]) b { text-shadow: 0 0 22px color-mix(in srgb, var(--heat) 70%, transparent); }
+[data-fx="rich"] .stage-combo[data-heat="1"] b { scale: 1.12; } [data-fx="rich"] .stage-combo[data-heat="2"] b { scale: 1.26; } [data-fx="rich"] .stage-combo[data-heat="3"] b { scale: 1.4; }
+[data-fx="rich"] .stage-combo.bump b { animation: combo-bump 170ms var(--out); }
+@keyframes combo-bump { from { transform: scale(1.3); } }
+/* 四种判定各打了几个：轨道右边那块空地 */
+.stage-tally { position: absolute; right: 0; top: 44%; width: var(--side, 96px); translate: 0 -50%; display: grid; justify-items: center; gap: 10px; opacity: 0; transition: opacity var(--t-move); }
+.stage-tally.show { opacity: 1; }
+.stage-tally span { display: grid; justify-items: center; gap: 1px; font: 700 12px var(--mono); letter-spacing: .08em; }
+.stage-tally b { font: 800 19px/1.1 var(--mono); letter-spacing: 0; color: rgba(var(--stage-ink), .86); }
+.g-perfect { color: var(--g-perfect); } .g-great { color: var(--g-great); } .g-ok { color: var(--g-ok); } .g-miss { color: var(--g-miss); }
+/* 里程碑的横幅：舞台上方正中，出来一下就走 */
+.stage-banner { position: absolute; left: 50%; top: 13%; translate: -50% 0; display: flex; align-items: baseline; gap: 9px; padding: 6px 16px 7px; border-radius: 999px; white-space: nowrap; font: 800 15px var(--font); background: var(--heat, var(--inv)); color: var(--on-bright); box-shadow: 0 6px 20px var(--shade-3); opacity: 0; }
+.stage-banner b { font: 800 19px var(--mono); }
+.stage-banner[data-heat="lost"] { color: var(--inv-text); }
+[data-skin="neon"] .stage-banner:not([data-heat="lost"]) { box-shadow: 0 0 26px color-mix(in srgb, var(--heat, transparent) 60%, transparent); }
+.stage-banner.go { animation: banner-calm 1400ms linear both; }
+[data-fx="rich"] .stage-banner.go { animation: banner 1400ms var(--out) both; }
+.stage-banner.hold { opacity: 1; animation: none; }
+@keyframes banner { 0% { opacity: 0; transform: scale(.5); } 12% { opacity: 1; transform: scale(1.14); } 22% { transform: scale(1); } 78% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-10px); } }
+@keyframes banner-calm { 0% { opacity: 0; } 10%, 78% { opacity: 1; } 100% { opacity: 0; } }
+/* 判定字：从打中的那条轨道上冒出来 */
+.stage-fly .fly { position: absolute; translate: -50% -50%; font: 800 15px var(--mono); letter-spacing: .04em; white-space: nowrap; text-shadow: 0 0 2px var(--stage), 0 0 7px var(--stage), 0 0 7px var(--stage); animation: fly-calm 700ms linear both; }
+[data-fx="rich"] .stage-fly .fly { animation: fly 700ms var(--out) both; }
+.stage-fly .fly.keep { animation: none; }
+.stage-fly .g-extra { color: rgba(var(--stage-ink), .6); }
+@keyframes fly { 0% { opacity: 0; transform: translateY(8px) scale(.7); } 18% { opacity: 1; transform: translateY(-6px) scale(1.16); } 60% { opacity: 1; } 100% { opacity: 0; transform: translateY(-36px); } }
+@keyframes fly-calm { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
+/* 舞台窄（放不下两边的空地）：连击和计数缩到舞台顶上的两个角 */
+.game-stage.compact .stage-combo { left: 12px; top: 8px; width: auto; translate: none; grid-auto-flow: column; align-items: baseline; gap: 6px; }
+.game-stage.compact .stage-combo b { font-size: 26px; scale: 1; }
+.game-stage.compact .stage-tally { right: 10px; top: 12px; width: auto; translate: none; grid-auto-flow: column; gap: 10px; }
+.game-stage.compact .stage-tally span { grid-auto-flow: column; align-items: baseline; gap: 4px; }
+.game-stage.compact .stage-tally b { font-size: 13px; }
+.game-stage.compact .stage-banner { top: 46px; }
+
+.game-overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; padding: 10px; pointer-events: none; }
+.game-overlay.show { display: flex; }
+.game-overlay .game-card { pointer-events: auto; max-height: 100%; overflow-y: auto; scrollbar-width: thin; }
+.countin { text-align: center; }
+.countin-label { font: 700 12px var(--mono); letter-spacing: 0.3em; color: var(--muted); }
+.countin-num { font: 800 92px/1.1 var(--mono); color: var(--accent); min-height: 102px; }
+[data-fx="rich"] .countin-num.tick { animation: count-tick 260ms var(--pop); }
+@keyframes count-tick { from { transform: scale(1.5); opacity: .3; } }
+.countin-dots { display: flex; gap: 10px; justify-content: center; }
+.countin-dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--field); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.countin-dots i.on { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-ring); }
+.game-card { width: min(440px, 100%); background: var(--overlay); border: 1px solid var(--line-2); border-radius: 16px; padding: 22px 24px; text-align: center; box-shadow: 0 3px 0 var(--line-2), 0 20px 50px var(--shade-3); backdrop-filter: blur(6px); }
+.game-card h3 { margin: 12px 0 6px; font-size: 18px; }
+.game-card p { color: var(--text-2); font-size: 14.5px; line-height: 1.6; }
+.game-card .how-keys { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 14px; margin: 12px 0 0; color: var(--text); font-size: 14px; line-height: 1.5; }
+/* 这两条要排在上面那条后面、写得一样重，不然“用什么打”那两行会同时露出来 */
+@media (hover: none) { .key-only, .game-card .how-keys.key-only { display: none; } } /* 只对键盘有用的话，触屏上不说 */
+@media (hover: hover) { .touch-only, .game-card .how-keys.touch-only { display: none; } } /* 反过来：只对触屏有用的话，有鼠标键盘的设备上不说 */
+.how-keys b { font: 700 12px var(--mono); letter-spacing: .08em; color: var(--accent-text); }
+.how-keys kbd { margin-right: 2px; }
+/* 结算。丰富档（.ceremony）：星星一颗一颗砸下来，下面几样跟着依次出来；数字由 game.js 滚上去 */
+.game-card.result { width: min(470px, 100%); padding: 13px 22px 15px; }
+.game-card.result.great h3 { color: var(--ok); } .game-card.result.work h3 { color: var(--accent-text); }
+.stars { font-size: 30px; letter-spacing: 6px; color: var(--star-off); line-height: 1; }
+.stars .on { color: var(--star); }
+.big-stars { display: flex; justify-content: center; gap: 10px; font-size: 42px; letter-spacing: 0; padding-top: 4px; }
+.big-stars span { display: inline-block; }
+.big-stars span:nth-child(2) { translate: 0 -6px; }
+[data-skin="neon"] .big-stars .on { text-shadow: 0 0 18px var(--yellow-glow); }
+.ceremony .big-stars .on { animation: star-slam 420ms var(--pop) both; animation-delay: calc(var(--i) * 210ms + 240ms); }
+@keyframes star-slam { 0% { opacity: 0; transform: scale(2.8) rotate(-26deg); } 55% { opacity: 1; } 100% { transform: none; } }
+.result-acc { font: 800 40px/1.15 var(--mono); margin-top: 2px; }
+.result-counts { display: flex; gap: 12px; justify-content: center; font: 700 12px var(--mono); flex-wrap: wrap; }
+.result-timing { color: var(--muted); font-size: 12.5px; margin-top: 5px; min-height: 18px; }
+/* 教练说的那一句 */
+.result-say { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 8px 12px; border-radius: 12px; background: var(--panel-2); box-shadow: 0 0 0 1px var(--line) inset; text-align: left; }
+.result-say .face { flex: none; }
+.result-say h3 { margin: 0 0 1px; font-size: 15.5px; }
+.result-say p { margin: 0; font-size: 13.5px; line-height: 1.5; }
+/* 这一局给了多少经验 */
+.result-xp { display: none; }
+.result-xp.show { display: grid; grid-template-columns: auto minmax(40px, 1fr) auto; align-items: center; gap: 7px 10px; margin-top: 11px; font-size: 13px; color: var(--text-2); }
+.result-xp > b { font: 800 13px var(--mono); color: var(--accent-text); letter-spacing: .02em; }
+.xp-bar { height: 8px; border-radius: 4px; background: var(--panel-3); overflow: hidden; box-shadow: 0 1px 2px var(--shade-1) inset; }
+.xp-bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); transition: width 900ms var(--out); }
+.xp-up { font-weight: 750; color: var(--accent-text); }
+.xp-badge { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 650; color: var(--text); }
+.xp-badge .badge { width: 28px; height: 28px; box-shadow: none; cursor: default; }
+.xp-badge .badge svg { width: 16px; height: 16px; }
+.ceremony :is(.result-counts, .result-timing, .result-say, .result-xp.show, .game-actions) { animation: rise var(--t-show) var(--out) both; animation-delay: 520ms; }
+.ceremony .result-say { animation-delay: 700ms; } .ceremony .result-xp.show { animation-delay: 860ms; } .ceremony .game-actions { animation-delay: 620ms; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+.game-actions { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+.game-card.result .game-actions { margin-top: 13px; }
+.game-card.result .game-actions.extra { margin-top: 9px; }
+.game-actions.extra:empty { display: none; }
+
+/* 偏差仪：一条横轴，正中那条粗线是“分毫不差”，左早右晚。轴上三档区域和三种判定同色（中间 PERFECT、两边 GREAT、最外 OK），
+   下面一行写着是哪一档；每打中一下落一根小竖条。右边两行字说最近几下：第一行是平均偏差（不分早晚），
+   第二行和轴上面的三角是早晚相抵之后整体偏哪边 */
+.game-meter { display: flex; align-items: flex-start; gap: 10px; padding: 13px 18px 7px; }
+.meter-label { font: 700 12px/20px var(--mono); color: var(--muted); letter-spacing: 0.1em; }
+.meter-body { position: relative; flex: 1; min-width: 0; }
+.meter-track { position: relative; height: 20px; border-radius: 6px; background: color-mix(in srgb, var(--g-ok) 20%, var(--panel-3)); box-shadow: 0 1px 2px var(--shade-2) inset; overflow: hidden; }
+.meter-zone { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); }
+.meter-zone.great { background: color-mix(in srgb, var(--g-great) 30%, var(--panel-3)); }
+.meter-zone.perfect { background: color-mix(in srgb, var(--g-perfect) 48%, var(--panel-3)); }
+.meter-center { position: absolute; left: 50%; top: -4px; width: 4px; height: 28px; margin-left: -2px; border-radius: 2px; background: var(--text); box-shadow: 0 0 0 1.5px var(--panel); pointer-events: none; }
+.meter-ticks i { position: absolute; top: 3px; bottom: 3px; width: 4px; margin-left: -2px; border-radius: 2px; box-shadow: 0 0 0 1px var(--panel); animation: tick-fade 5s linear forwards; }
+@keyframes tick-fade { to { opacity: .2; } }
+.meter-avg { position: absolute; top: -10px; width: 0; margin-left: -6px; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--text); opacity: 0; transition: left .15s; }
+.meter-scale { display: grid; margin-top: 5px; font: 700 12px/1.2 var(--mono); letter-spacing: .04em; text-align: center; }
+.meter-scale span { min-width: 0; overflow: hidden; white-space: nowrap; }
+.meter-text { display: grid; align-content: start; min-width: 96px; text-align: right; font: 700 12px/20px var(--mono); color: var(--text-2); white-space: nowrap; }
+.meter-text b { font: inherit; color: var(--text); }
+.meter-text small { margin-top: 5px; font: 700 12px/1.2 var(--mono); color: var(--muted); }
+
+.game-steps { padding: 6px 18px 14px; display: grid; gap: 4px; border-top: 1px solid var(--line); }
+.steps-row { display: grid; grid-template-columns: 66px 1fr; align-items: center; gap: 8px; }
+.steps-label { font: 700 12px var(--mono); white-space: nowrap; overflow: hidden; }
+.steps-grid { display: grid; gap: 3px; }
+.gstep { height: 14px; border-radius: 3px; background: var(--field); box-shadow: 0 0 0 1px var(--line) inset; }
+.gstep.beat { background: var(--panel-3); }
+.gstep.on { background: var(--c); box-shadow: none; }
+.gstep.on[data-r="miss"] { background: var(--field); box-shadow: inset 0 0 0 2px var(--bad); }
+.gstep.on[data-r="perfect"], .gstep.on[data-r="great"], .gstep.on[data-r="ok"] { outline: 2px solid var(--text); outline-offset: -1px; }
+.step-head { height: 16px; font: 700 12px/16px var(--mono); color: var(--muted); text-align: center; border-radius: 3px; }
+.step-head.now { background: var(--text); color: var(--bg); }
+[data-skin="neon"] .gstep.on { box-shadow: 0 0 8px var(--c); }
+
+.game-setup { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+.seg { display: inline-flex; background: var(--panel-3); border-radius: 10px; padding: 3px; box-shadow: 0 1px 2px var(--shade-1) inset; }
+.seg button { border: 0; background: transparent; color: var(--text-2); min-height: 38px; padding: 0 14px; border-radius: 7px; font-size: 13.5px; font-weight: 650; cursor: pointer; white-space: nowrap; touch-action: manipulation; transition: color var(--t-move); }
+.seg button:hover { color: var(--text); }
+.seg button.on { background: var(--seg-on); color: var(--text); box-shadow: 0 1px 2px var(--shade-3); }
+.seg button.on.fresh { animation: seg-on var(--t-move) var(--pop); }
+@keyframes seg-on { from { transform: scale(.82); opacity: .4; } }
+.seg-label { margin-right: 8px; }
+.stage-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.stage-pill { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 6px 14px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line-2); color: var(--muted); font-size: 13px; font-weight: 650; cursor: pointer; }
+.stage-pill.now { border-color: var(--accent); color: var(--text); }
+.stage-pill.done { color: var(--ok); border-color: var(--lamp-ok); }
+.stage-pill .n { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-3); font: 700 12px var(--mono); }
+.stage-pill.done .n { background: var(--lamp-ok); color: var(--on-bright); }
+
+/* ───────── 音游外面那层（gamepanel.js）─────────
+   地方够宽：左右两栏，左边是舞台，右边一栏（.gp-side）是“现在做什么”，从上到下：分段、开打之前的检查、真机的镜子、
+   速度和模式、这一关练什么、最好成绩、提示。接着真机时最要紧的两样（检查、镜子）排在最上面，不用滚就看得见。
+   地方窄：叠成一列，右边那一栏散开（display: contents）：镜子和提示排到舞台下面，别的在舞台上面。
+   看的是这一块自己的宽度，不看窗口。 */
+.game-wrap { container: game / inline-size; min-width: 0; }
+.game-panel { display: flex; flex-direction: column; gap: 14px; }
+.gp-main { order: 5; min-width: 0; min-height: 0; }
+.gp-side { display: contents; }
+.gp-side > * { order: 1; min-width: 0; }
+.gp-side > .gp-bench, .gp-side > .gp-hint { order: 9; }
+.gp-side > :empty { display: none; }
+.gp-side .callout, .gp-side .game-check { margin: 0; }
+.gp-bench .game-mirror { margin-top: 0; }
+.gp-aside { display: grid; gap: 12px; }
+.gp-desc { margin: 0; color: var(--text-2); font-size: 14.5px; line-height: 1.6; }
+.gp-hint { margin: 0; line-height: 1.55; }
+.gp-best { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+.gp-best .label { margin: 0; }
+.gp-best .stars { font-size: 16px; letter-spacing: 2px; }
+.gp-best b { font: 800 14px var(--mono); }
+@container game (min-width: 800px) {
+  .game-panel { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 33%, 340px); gap: 18px; align-items: start; }
+  .gp-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+  .gp-main, .gp-side > *, .gp-side > .gp-bench, .gp-side > .gp-hint { order: 0; }
+  .game-panel .game-setup { display: grid; gap: 6px; }
+  .game-panel .game-setup > .row { flex-wrap: nowrap; justify-content: space-between; }
+}
+/* 外面给了固定的高度（练习场打谱面的那一页）：舞台把高度占满，右边那一栏放不下的时候自己滚 */
+.game-wrap.fill { flex: 1; min-height: 0; display: flex; }
+.game-panel.fill { flex: 1; min-width: 0; min-height: 0; }
+.game-panel.fill :is(.gp-main, .gp-stage) { display: flex; flex-direction: column; min-height: 0; }
+.game-panel.fill .gp-stage, .game-panel.fill .game { flex: 1; min-height: 0; }
+.game-panel.fill .game-stage { flex: 1; height: auto; min-height: 200px; }
+.game-panel.fill .game-title { display: none; } /* 这一页的标题已经写着谱面的名字了 */
+.game-panel.fill .game-hud { padding: 8px 18px 7px; }
+@container game (min-width: 800px) {
+  .game-panel.fill { grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+  .game-panel.fill .gp-side { overflow-y: auto; scrollbar-width: thin; }
+  .game-panel.fill .gp-hint { margin-top: auto; padding-top: 6px; } /* 提示沉到这一栏的最下面 */
+}
+/* 给了高度、地方却不够宽（叠成了一列）：舞台用固定的高度，这一块自己上下滚 */
+@container game (max-width: 799.98px) {
+  .game-panel.fill { overflow-y: auto; scrollbar-width: thin; }
+  .game-panel.fill .gp-main { flex: none; }
+  .game-panel.fill .game-stage { flex: none; height: 400px; }
+}
+
+/* ───────── 步进网格（编辑 / 目标 / 机器镜像）：格子就是机器上的方键 ───────── */
+.grid-board { display: grid; gap: 6px; }
+.grid-row { display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: center; }
+.grid-row .name { font: 700 12px var(--mono); }
+.grid-row .name small { display: block; font: 500 12px var(--font); color: var(--muted); }
+.grid-cells { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; }
+.cell { aspect-ratio: 1; max-height: 34px; border-radius: 6px; background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); position: relative; box-shadow: 0 1.5px 0 var(--key-edge); }
+.cell:nth-child(4n+1) { background: linear-gradient(var(--key-top-2), var(--key-bot-2)); }
+.cell.on { background: var(--c, var(--accent)); border-color: var(--shade-3); box-shadow: 0 1.5px 0 var(--shade-3); }
+.cell.ghost { box-shadow: inset 0 0 0 2.5px var(--c, var(--accent)), 0 1.5px 0 var(--key-edge); }
+.cell.bad { box-shadow: inset 0 0 0 2.5px var(--bad), 0 1.5px 0 var(--key-edge); }
+.cell.bad.on { background: var(--bad); }
+.cell.good.on { outline: 2px solid var(--text); outline-offset: -1px; }
+.cell.head::after { content: ""; position: absolute; inset: -4px; border-radius: 9px; border: 2px solid var(--text); }
+[data-skin="neon"] .cell.on { box-shadow: 0 1.5px 0 var(--shade-3), 0 0 10px var(--c, var(--accent)); }
+button.cell { cursor: pointer; padding: 0; max-height: 44px; touch-action: manipulation; transition: transform var(--t-press); } /* 能点的格子：放得下就做到 44 像素高 */
+button.cell:hover { border-color: var(--key-border-h); }
+button.cell:active { transform: translateY(1.5px); box-shadow: none; }
+.grid-nums { display: grid; grid-template-columns: 74px 1fr; gap: 10px; }
+.grid-nums > div { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; font: 700 12px var(--mono); color: var(--muted); text-align: center; }
+.grid-nums b { color: var(--text); }
+.grid-caption { margin: 14px 0 8px; }
+
+/* ───────── 互动小部件 ───────── */
+.widget { background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 18px 20px; box-shadow: 0 2px 0 var(--line); }
+.widget h4 { margin-bottom: 14px; }
+.slider-row { display: flex; align-items: center; gap: 14px; }
+input[type="range"] { -webkit-appearance: none; appearance: none; flex: 1; height: 6px; border-radius: 3px; background: var(--panel-3); box-shadow: 0 1px 2px var(--shade-3) inset; outline-offset: 6px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 50% 35%, var(--knob-top), var(--knob) 70%); border: 2px solid var(--knob-ring); box-shadow: 0 1px 3px var(--shade-4); cursor: pointer; }
+.big-num { font: 800 34px/1 var(--mono); min-width: 90px; }
+.big-num small { font: 700 12px var(--mono); color: var(--muted); margin-left: 5px; letter-spacing: 0.08em; }
+.beat-lights { display: flex; gap: 10px; margin-top: 14px; }
+.beat-lights i { flex: 1; height: 42px; border-radius: 10px; background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 2px 0 var(--key-edge); display: grid; place-items: center; font: 800 16px var(--mono); color: var(--muted); font-style: normal; transition: background .05s; }
+.beat-lights i.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-2); }
+.beat-lights i.first.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.count-line { display: grid; grid-template-columns: repeat(16, 1fr); gap: 3px; margin-top: 10px; font: 700 12px var(--mono); text-align: center; color: var(--muted); }
+.count-line span { padding: 5px 0; border-radius: 5px; background: var(--field); box-shadow: 0 0 0 1px var(--line) inset; }
+.count-line span.b { color: var(--text); background: var(--panel-3); }
+.count-line span.on { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
+/* 小部件里随节拍亮起来的方块（和弦进行那一排） */
+.lit-cell { flex: 1; min-width: 70px; padding: 10px 8px; border-radius: 10px; border: 1.5px solid var(--line); text-align: center; background: var(--field); transition: background .08s, color .08s; }
+.lit-cell.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-2); }
+.lit-cell.on .muted { color: inherit; opacity: .85; }
+
+.piano { position: relative; display: flex; height: 132px; user-select: none; border-radius: 0 0 8px 8px; }
+.piano .white { flex: 1; background: linear-gradient(var(--piano-w1), var(--piano-w2)); border: 1px solid var(--piano-edge); border-radius: 0 0 7px 7px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 7px; font: 700 12px var(--mono); color: var(--piano-ink); cursor: pointer; box-shadow: 0 2px 0 var(--piano-edge); }
+.piano .black { position: absolute; top: 0; width: 4.2%; height: 62%; background: linear-gradient(var(--piano-b1), var(--piano-b2)); border-radius: 0 0 5px 5px; cursor: pointer; z-index: 2; box-shadow: 0 2px 0 var(--piano-b-edge); }
+.piano .white.in, .piano .black.in { box-shadow: inset 0 -7px 0 var(--accent), 0 2px 0 var(--piano-edge); }
+.piano .white.down { background: var(--accent); color: var(--accent-ink); } .piano .black.down { background: var(--accent); }
+.piano .white.root { color: var(--accent-2); }
+
+/* ───────── SEQTRAK 模拟机 / 面板图：图画的是实物，不跟配色变；底下这块台面两套配色下都是浅的 ───────── */
+.panel-wrap { background: var(--bench); border: 1px solid var(--bench-edge); border-radius: var(--radius); padding: 14px 10px 10px; overflow-x: auto; box-shadow: 0 1px 3px var(--shade-2) inset, var(--bench-glow); }
+.panel-svg { display: block; width: 100%; min-width: 660px; height: auto; user-select: none; -webkit-user-select: none; }
+/* 只取了其中一块来看（device-panel.js 的 focus）：有多宽就画多宽，不用横着滚 */
+.panel-wrap.zoomed { padding: 8px; overflow: hidden; }
+.panel-wrap.zoomed .panel-svg { min-width: 0; }
+.panel-svg .hl { opacity: .9; }
+[data-fx="rich"] .panel-svg .hl { animation: hl 1.1s ease-in-out infinite; }
+@keyframes hl { 50% { opacity: .25; } }
+.panel-svg .ctl { cursor: pointer; }
+.panel-svg .ctl.down { transform: translateY(1.5px); filter: brightness(.9); }
+.panel-svg.off .led-layer { opacity: 0; }
+.panel-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+
+.sim { display: grid; gap: 10px; }
+.sim-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sim-say { flex: 1; min-width: 240px; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: 10px; background: var(--inv); color: var(--inv-text); font-size: 14px; line-height: 1.5; box-shadow: 0 0 0 1px var(--inv-line) inset; }
+.sim-say .led { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.sim-say strong { color: var(--inv-text); }
+.sim-say kbd { box-shadow: none; border-color: transparent; }
+.sim-tips { font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+.sim-tips b { color: var(--text-2); }
+
+/* 按键百科 / 导览 / 找按键 */
+.guide { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+.ctl-card { position: sticky; top: 0; background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 18px 18px 16px; box-shadow: 0 2px 0 var(--line); min-height: 220px; }
+.ctl-card .en { font: 800 19px var(--mono); letter-spacing: 0.02em; }
+.ctl-card .zh { color: var(--accent-text); font-weight: 700; margin: 2px 0 10px; }
+.ctl-card p { color: var(--text-2); font-size: 14.5px; line-height: 1.65; }
+.ctl-card ul { margin: 10px 0 0; padding-left: 18px; font-size: 13.5px; color: var(--text-2); }
+.ctl-card .when { margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+/* 真机镜像：右边那一栏 */
+/* 音游里的真机镜像：“开打之前”的卡片 + 游戏下面的那面镜子 */
+.game-check { margin: 0 0 14px; }
+.game-check.ok { border-color: var(--lamp-ok); }
+.game-check.ok .label { color: var(--ok); }
+.game-check .mirror-try li.next .tick { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.game-mirror { margin-top: 16px; }
+.mirror-main { display: grid; gap: 14px; min-width: 0; }
+.mirror-side { display: grid; gap: 12px; }
+.mirror-card { background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 14px 16px; box-shadow: 0 2px 0 var(--line); }
+.mirror-card .label { font: 700 12px var(--mono); letter-spacing: 0.08em; color: var(--muted); margin-bottom: 9px; }
+.mirror-status { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; margin: 0; font-size: 13.5px; }
+.mirror-status dt { color: var(--muted); }
+.mirror-status dd { margin: 0; font-weight: 650; color: var(--text); }
+.mirror-try { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13.5px; line-height: 1.5; color: var(--text-2); }
+.mirror-try li { display: flex; gap: 9px; align-items: flex-start; }
+.mirror-try .tick { flex: none; width: 17px; height: 17px; margin-top: 2px; border-radius: 50%; border: 1.5px solid var(--line-2); font-size: 12px; line-height: 14px; text-align: center; color: var(--on-bright); }
+.mirror-try li.next { color: var(--text); font-weight: 650; }
+.mirror-try li.next .tick { border-color: var(--lamp-cyan); box-shadow: 0 0 0 3px var(--lamp-cyan-ring); }
+.mirror-try li.done { color: var(--muted); }
+.mirror-try li.done strong { color: inherit; }
+.mirror-try li.done .tick { background: var(--lamp-ok); border-color: var(--lamp-ok); }
+.mirror-try li.all { color: var(--ok); font-weight: 650; }
+.mirror-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: 13px; line-height: 1.5; color: var(--muted); max-height: 280px; overflow: auto; }
+.mirror-log li:first-child { color: var(--text); }
+.mirror-log li.empty { color: var(--muted); }
+.mirror-log time { font: 12px var(--mono); color: var(--muted); margin-right: 7px; }
+/* 面板页（views/panel.js）：不整页滚动，标题和几个标签在一行，下面是选中的那一样。
+   真机镜像、模拟机、导览用的是课程里那套左右两栏（.split）：左边机器，镜头只对着正在说的那一块；右边是文字 */
+.panel-page { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; }
+.panel-head { flex: none; display: flex; align-items: center; gap: 10px 20px; flex-wrap: wrap; min-height: 44px; margin-bottom: 14px; }
+.panel-head h1 { font-size: 24px; }
+.panel-body { flex: 1; min-height: 0; overflow: hidden auto; scrollbar-width: thin; padding-bottom: 18px; container: step / inline-size; }
+.panel-body > .split { height: 100%; }
+.panel-note { max-width: 760px; display: grid; gap: 14px; }
+.panel-note .callout { margin: 0; }
+.zone-pick { display: flex; align-items: center; min-height: 44px; }
+.do-side .ctl-card { position: static; min-height: 0; }
+.do-side .mirror-card { padding: 12px 14px; }
+/* 导览：右边那张卡片。进度是一格一站，能点；格子画得细，能点到的范围高一些 */
+.tour-card { display: grid; gap: 10px; padding: 14px 16px; }
+.tour-card h3 { font-size: 19px; }
+.tour-text { margin: 0; color: var(--text-2); font-size: 15px; line-height: 1.7; }
+.tour-nav { display: grid; gap: 4px; }
+.tour-nav .row { flex-wrap: nowrap; gap: 8px; }
+.tour-count { font: 700 12px var(--mono); color: var(--muted); letter-spacing: 0.08em; }
+.tour-dots { display: flex; gap: 4px; }
+.tour-dots i { flex: 1; position: relative; min-height: 36px; cursor: pointer; }
+.tour-dots i::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 5px; margin-top: -2.5px; border-radius: 3px; background: var(--dot-off); transition: background var(--t-move); }
+.tour-dots i.on::before { background: var(--accent); }
+.pq-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pq-ask { flex: 1; min-width: 260px; font-size: 19px; font-weight: 700; }
+.pq-ask small { display: block; font: 700 12px var(--mono); letter-spacing: 0.12em; color: var(--muted); margin-bottom: 4px; }
+.pq-score { font: 800 22px var(--mono); text-align: right; }
+.pq-score small { display: block; font: 600 12px var(--mono); color: var(--muted); letter-spacing: .04em; }
+/* 找按键的结果：过没过关要一眼看出来（原来只有一行小绿字，用户对了 7 题以为没过） */
+.pq-result { text-align: center; padding: 8px 0 4px; }
+.pq-verdict { font-size: 26px; font-weight: 800; letter-spacing: .02em; }
+.pq-result.pass .pq-verdict { color: var(--ok); }
+.pq-result.fail .pq-verdict { color: var(--accent-text); }
+.pq-result .big-stars { display: flex; justify-content: center; gap: 8px; font-size: 34px; letter-spacing: 0; padding-top: 6px; }
+.pq-final { margin-top: 6px; font: 800 20px var(--mono); color: var(--text); }
+.pq-result p { margin: 6px 0 0; }
+.pq-note { color: var(--text-2); font-size: 14px; }
+.pq-missed { color: var(--muted); font-size: 13.5px; }
+.pq-result .game-actions { margin-top: 14px; }
+.pq-feedback { min-height: 26px; font-size: 14.5px; color: var(--text-2); }
+.pq-feedback.right { color: var(--ok); font-weight: 650; } .pq-feedback.wrong { color: var(--bad); font-weight: 650; }
+.led-legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 16px; font-size: 14px; }
+.led-legend span { display: flex; align-items: center; gap: 9px; }
+.led-legend i { flex: none; width: 22px; height: 9px; border-radius: 5px; box-shadow: 0 0 0 1px var(--shade-2) inset; }
+
+
+/* ───────── 表单 / 设置 / 设备 ───────── */
+.form { display: grid; gap: 14px; max-width: 620px; }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 13px; font-weight: 650; color: var(--text-2); }
+.field .help { font-size: 12.5px; color: var(--muted); }
+.input, select.input { height: 44px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--field); color: var(--text); padding: 0 12px; font: 14px var(--font); width: 100%; box-shadow: 0 1px 2px var(--shade-1) inset; }
+.input:focus { outline: none; border-color: var(--accent); }
+.input::placeholder, textarea::placeholder { color: var(--muted); }
+.kv { display: grid; grid-template-columns: 150px 1fr; gap: 8px 16px; font-size: 14px; margin: 0; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--mono); font-size: 13px; }
+/* 监视器是这页唯一的“屏幕”，保持深色 */
+.monitor { height: 260px; overflow-y: auto; background: var(--mon-bg); border-radius: 10px; padding: 10px 12px; font: 12px/1.7 var(--mono); color: var(--mon-text); box-shadow: 0 2px 6px var(--shade-4) inset, 0 0 0 1px var(--inv-line) inset; }
+.monitor .in { color: var(--mon-in); } .monitor .out { color: var(--mon-out); } .monitor .t { color: var(--mon-time); margin-right: 8px; }
+.kv.two { grid-template-columns: repeat(2, 120px minmax(0, 1fr)); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-2.top { align-items: start; }
+/* 设备页、设置页：从上到下一块一块，空的不占地方 */
+.settings { display: grid; gap: 16px; }
+.settings > :empty { display: none; }
+.settings .callout { margin: 0; }
+/* 按键体检（设备页）：开头两轮各一块；第 5–8 章那一轮每一步上面一行“按法”，下面问一句看到了什么 */
+.probe-run + .probe-run { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.probe-run h4 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.probe-combo { margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--panel-3); color: var(--text); font-size: 14.5px; line-height: 1.9; }
+.probe-legend { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+.probe-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; font-size: 14px; font-weight: 600; color: var(--text-2); }
+.probe-ask .seg { flex-wrap: wrap; }
+.probe-mark { margin-top: 12px; }
+.probe-mark p { margin: 0 0 8px; font-size: 14px; color: var(--text-2); }
+.probe-names { width: 100%; border-collapse: collapse; margin: 6px 0 4px; font-size: 12.5px; }
+.probe-names th, .probe-names td { padding: 4px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.probe-names th { color: var(--muted); font-weight: 650; }
+.probe-names td { font-family: var(--mono); color: var(--text-2); word-break: break-all; }
+.probe-names tr.changed td { color: var(--text); font-weight: 700; }
+.probe-steps { display: grid; gap: 10px; margin: 14px 0; padding-left: 22px; font-size: 14px; }
+.probe-steps .lines { margin-top: 3px; font: 12px/1.6 var(--mono); color: var(--text-2); word-break: break-all; }
+/* 延迟校准：平时是一张小卡片，点了“开始校准”才把舞台摆出来 */
+.calib { display: grid; gap: 10px; align-content: start; }
+.calib p { margin: 0; }
+.calib [hidden], .calib-stage:empty { display: none; }
+/* 折叠起来的一块：不常动的东西收在里面，点标题那一行展开 */
+.fold { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); }
+.fold > summary { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; min-height: 54px; padding: 8px 18px; cursor: pointer; list-style: none; font-weight: 700; font-size: 15.5px; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: ""; flex: none; width: 8px; height: 8px; margin: 0 6px 2px 2px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(-45deg); transition: transform var(--t-move) var(--out); }
+.fold[open] > summary::before { transform: rotate(45deg); }
+.fold > summary small { flex: 1 1 240px; font-weight: 400; font-size: 13px; color: var(--muted); }
+.fold > summary .tag { font-weight: 650; }
+.fold-body { display: grid; gap: 14px; padding: 4px 18px 18px; }
+/* 设置里一行一个开关：左边是开关，右边一句说明 */
+.pref { display: grid; grid-template-columns: 250px 1fr; gap: 6px 18px; align-items: center; }
+.pref .seg-label { min-width: 84px; }
+.pref.wide { grid-template-columns: 280px 1fr; }
+.pref .small { line-height: 1.5; }
+
+/* ───────── 曲目（views/songs.js）─────────
+   不整页滚动：歌在中间自己滚，最下面一行（选了几首、请教练排顺序）固定。
+   每首歌一张卡片，上面是封面：一块深色的小屏幕上一排音柱，颜色跟着风格（--c），四种风格四种排法；选中的歌，音柱跟着节拍动。 */
+.songs-page { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; }
+.songs-scroll { flex: 1; min-height: 0; overflow: hidden auto; scrollbar-width: thin; padding-bottom: 22px; }
+.songs-scroll .page-head { margin-bottom: 0; }
+.group-title .dot { flex: none; align-self: center; width: 11px; height: 11px; border-radius: 50%; background: var(--c); }
+.songs { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+.song { position: relative; display: flex; flex-direction: column; min-width: 0; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 3px 0 var(--line); overflow: hidden; cursor: pointer; touch-action: manipulation; transition: border-color var(--t-move), transform var(--t-press), box-shadow var(--t-press); }
+.song:active { transform: translateY(3px); box-shadow: 0 0 0 var(--line); }
+.song.picked { border-color: var(--accent); box-shadow: 0 3px 0 var(--accent); }
+.song.picked:active { box-shadow: 0 0 0 var(--accent); }
+@media (hover: hover) { .song:hover { border-color: var(--text-2); } .song.picked:hover { border-color: var(--accent); } }
+.song-cover { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 86px; padding: 26px 14px 12px; background: var(--inv); }
+.song-cover i { flex: 1; min-height: 4px; border-radius: 2px; background: var(--c); opacity: .85; transform-origin: 50% 100%; }
+.song-cover i:nth-of-type(4n+1) { opacity: 1; }
+.song-cover.s-hiphop, .song-cover.s-ambient { align-items: center; }
+.song-cover.s-hiphop i, .song-cover.s-ambient i { transform-origin: 50% 50%; }
+.song-cover.s-synth i { background: repeating-linear-gradient(var(--c) 0 5px, transparent 5px 8px); border-radius: 0; }
+.song-cover.s-ambient i { border-radius: 999px; max-height: 62%; }
+.song-cover .bpm { position: absolute; left: 14px; top: 8px; font: 700 12px var(--mono); letter-spacing: .06em; color: var(--inv-muted); }
+[data-fx="rich"] .song.picked .song-cover i { animation: eq var(--beat) var(--out) infinite alternate; animation-delay: calc(var(--i) * -70ms); }
+.song .check { position: absolute; right: 12px; top: 10px; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--inv-muted); display: grid; place-items: center; font-size: 14px; color: transparent; transition: background var(--t-move), border-color var(--t-move); }
+.song.picked .check { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.song-body { flex: 1; display: flex; flex-direction: column; gap: 3px; padding: 12px 16px 13px; }
+.song h3 { font-size: 16px; }
+.song .artist { color: var(--muted); font-size: 13px; }
+.song p { margin: 5px 0 0; color: var(--text-2); font-size: 13.5px; line-height: 1.55; }
+.song-learn { margin-top: 7px; font-size: 13px; line-height: 1.5; color: var(--text); }
+.song-learn b { margin-right: 7px; font: 700 12px var(--mono); letter-spacing: .06em; color: var(--accent-text); }
+.song-foot { margin-top: auto; padding-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.song-foot .lv { flex: none; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.song-foot .when { text-align: right; }
+.songs-wish { margin-top: 26px; display: grid; gap: 10px; }
+.songs-wish textarea.input { height: 88px; padding: 10px 12px; resize: vertical; line-height: 1.5; }
+.songs-bar { flex: none; display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 12px 0 14px; border-top: 1px solid var(--line); }
+.songs-bar b { font: 800 16px var(--mono); }
+/* 拆好了 SEQTRAK 分轨的歌：封面上的试听键（样子同练习场的 .cover-play），正文里一行“一轨一轨听 →” */
+.song .cover-play { top: 62px; }
+.song.playing { border-color: var(--accent); }
+.song.playing .cover-play { background: linear-gradient(var(--pri-top), var(--pri-bot)); border-color: var(--pri-border); color: var(--accent-ink); box-shadow: 0 3px 0 var(--pri-edge), var(--pri-glow); }
+.song-cover i.hit { opacity: 1; filter: brightness(1.3); }
+.song-parts { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; padding: 8px 10px 8px 12px; border-radius: 10px; background: var(--panel-2); font-size: 13px; color: var(--text-2); }
+.song-parts-go { display: flex; flex-wrap: wrap; gap: 6px; }
+.song-parts b { margin-right: 7px; font: 700 12px var(--mono); letter-spacing: .06em; color: var(--accent-text); }
+
+/* ───────── 一首歌的 SEQTRAK 版分轨（views/song-parts.js） ─────────
+   不整页滚动：上面一行歌名；左边放音的按钮 + 一条条分轨（多了自己滚），右边“机器上先这样设”“和原曲哪里不一样”。
+   一条分轨 = 左边轨道名和独奏 / 静音，右边一排格子（一格一步）、一句它在原曲里是哪一层、一行机器上怎么放。 */
+.sp-page { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; }
+.sp-page .play-head h1 { display: flex; align-items: baseline; gap: 10px; }
+.sp-sub { font: 700 13px var(--mono); letter-spacing: .06em; color: var(--accent-text); white-space: nowrap; }
+.sp-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; }
+.sp-main { min-height: 0; display: flex; flex-direction: column; }
+.sp-transport { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.sp-play { min-width: 118px; }
+.sp-play svg { width: 16px; height: 16px; margin-right: 6px; fill: currentColor; }
+.sp-chips { display: inline-flex; gap: 4px; margin-left: 4px; }
+.sp-chip { display: inline-flex; align-items: center; height: 26px; padding: 0 9px; border-radius: 7px; background: var(--panel-3); color: var(--muted); font-size: 12px; font-weight: 650; transition: background var(--t-move), color var(--t-move); }
+.sp-chip.on { background: var(--accent-soft); color: var(--accent-text); }
+.sp-summary { flex: none; margin: 10px 0 10px; font-size: 13.5px; line-height: 1.55; color: var(--text-2); }
+.sp-tip { color: var(--accent-text); font-weight: 650; }
+.sp-tracks { flex: 1; min-height: 0; overflow: hidden auto; scrollbar-width: thin; display: grid; align-content: start; gap: 8px; padding-bottom: 18px; }
+.sp-row { display: grid; grid-template-columns: 124px minmax(0, 1fr); gap: 0 14px; padding: 10px 14px 10px 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--c); transition: opacity var(--t-move); }
+.sp-name > div:first-child { display: flex; align-items: baseline; gap: 7px; }
+.sp-name b { font: 800 14px var(--mono); letter-spacing: .02em; }
+.sp-name span { font-size: 13px; color: var(--text-2); }
+.sp-name small { display: block; margin-top: 3px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.sp-btns { display: flex; gap: 6px; margin-top: 8px; }
+.sp-btns .btn.sm { padding: 0 9px; }
+.sp-btns .btn[aria-pressed="true"] { color: var(--on-bright); box-shadow: 0 2px 0 var(--key-edge); }
+.sp-btns .sp-solo[aria-pressed="true"] { background: var(--lamp-cyan); border-color: var(--lamp-cyan); box-shadow: 0 0 0 3px var(--lamp-cyan-ring); }
+.sp-btns .sp-mute[aria-pressed="true"] { background: var(--lamp-ok); border-color: var(--lamp-ok); box-shadow: 0 0 0 3px var(--lamp-ok-ring); }
+/* 格子：一格一步，每拍第一格深一点，第 2 小节前面一道线；色块上的数字是第几个 Synth key，两行的时候下面那行低一个八度 */
+.sp-grid { --lane-h: 20px; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); grid-template-rows: repeat(var(--lanes), var(--lane-h)); padding: 3px; border-radius: 8px; background: color-mix(in srgb, var(--stage) 45%, var(--panel)); box-shadow: inset 0 0 0 1px rgba(var(--stage-ink), .06); }
+.sp-grid i { grid-row: 1 / -1; margin: 0 1px; border-radius: 2px; background: rgba(var(--stage-ink), .045); transition: background var(--t-press), box-shadow var(--t-press); }
+.sp-grid i.beat { background: rgba(var(--stage-ink), .1); }
+.sp-grid i.bar { box-shadow: -2px 0 0 rgba(var(--stage-ink), .26); }
+.sp-grid i.now { background: color-mix(in srgb, var(--c) 45%, transparent); box-shadow: 0 0 10px 1px color-mix(in srgb, var(--c) 60%, transparent); }  /* 播放头：轨道色的一道光 */
+.sp-grid b { z-index: 1; min-width: 0; margin: 1px; border-radius: 3px; display: grid; place-items: center; overflow: hidden; background: var(--c); color: var(--on-bright); font: 700 12px/1 var(--mono); transition: filter var(--t-press), transform var(--t-press); }
+.sp-grid.drum b { margin: 2px; opacity: .82; }
+.sp-grid.drum b.acc { opacity: 1; }
+.sp-grid b.rep { opacity: .5; }
+.sp-grids { display: grid; gap: 4px; }  /* 超过四小节的分轨：一排四小节，叠成两排 */
+.sp-grid.dense i { margin: 0 .5px; }  /* 四小节（64 步）的歌，格子窄，缝也窄一点 */
+.sp-grid.dense.drum b { margin: 2px .5px; }
+[data-fx="rich"] .sp-grid b.hit { animation: sp-hit .45s var(--out); }  /* 刚响的色块：亮一下、弹一下 */
+@keyframes sp-hit { 0% { transform: scale(1.15, 1.35); filter: brightness(1.5); box-shadow: 0 0 14px var(--c); } 100% { transform: none; filter: none; } }
+[data-skin="neon"] .sp-grid b:not(.rep) { box-shadow: 0 0 7px var(--c); }
+.sp-role { margin: 7px 0 0; font-size: 13px; line-height: 1.5; color: var(--text); }
+.sp-how { margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.sp-row.quiet { opacity: .5; }
+.sp-row.quiet .sp-grid b { background: rgba(var(--stage-ink), .3); box-shadow: none; animation: none; }
+.sp-row.quiet .sp-grid i.now { background: rgba(var(--stage-ink), .18); box-shadow: none; }
+.sp-side { min-height: 0; overflow: hidden auto; scrollbar-width: thin; display: grid; align-content: start; gap: 12px; padding-bottom: 18px; }
+.sp-card { padding: 14px 16px 15px; }
+.sp-card h3 { font-size: 15px; margin-bottom: 8px; }
+.sp-setup { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; margin: 0; }
+.sp-setup dt { padding-top: 1px; font: 700 12px var(--mono); letter-spacing: .04em; color: var(--muted); white-space: nowrap; }
+.sp-setup dd { margin: 0; }
+.sp-setup dd b { display: block; font: 800 15px var(--mono); }
+.sp-setup dd small { display: block; font-size: 12px; line-height: 1.45; color: var(--text-2); }
+.sp-note { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.sp-differs { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+.sp-next p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text-2); }
+.sp-next .btn { margin-top: 12px; }
+.sp-next .sp-done { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--ok); font-weight: 650; }
+/* 曲目的完整版（views/song-full.js，#/songs/<id>/full）：上面一排放音，中间是多轨时间线（.daw-*，在下面），再下面是选中轨道的几段乐句 */
+.sf-page .sp-body { grid-template-columns: minmax(0, 1fr) 240px; }  /* 时间线要宽一点，右边那一栏让一些 */
+.sf-where { margin-left: 4px; font: 650 13px var(--mono); color: var(--text-2); }
+.sf-scroll { position: relative; flex: 1; min-height: 0; overflow: hidden auto; scrollbar-width: thin; display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: max-content; align-content: start; gap: 14px; padding-bottom: 18px; }
+.sf-matrix { position: sticky; top: 0; z-index: 2; display: grid; gap: 5px 4px; padding: 10px 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: 0 0 0 8px var(--bg), 0 14px 18px -12px var(--shade-4); }  /* 往下看乐句时，时间线钉在上面；外面一圈页面底色，盖住从圆角底下卷过去的卡片 */
+.sf-prog { position: absolute; left: 0; bottom: 0; width: 0; height: 3px; background: var(--k); }
+.sf-name { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 3px 4px 3px 8px; border-left: 4px solid var(--c); border-radius: 8px; background: var(--panel); transition: opacity var(--t-move); }
+.sf-name.focus { background: var(--panel-3); }
+.sf-name.quiet { opacity: .5; }
+.sf-label { min-width: 0; display: flex; align-items: baseline; gap: 5px; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
+.sf-label b { font: 800 12px var(--mono); white-space: nowrap; }
+.sf-label span { font-size: 11.5px; color: var(--text-2); white-space: nowrap; }
+.sf-btns { flex: none; display: flex; gap: 3px; }
+.sf-btns .btn.sm { height: 24px; padding: 0 4px; font-size: 11px; }
+.sf-btns .btn[aria-pressed="true"] { color: var(--on-bright); }
+.sf-btns .sp-solo[aria-pressed="true"] { background: var(--lamp-cyan); border-color: var(--lamp-cyan); }
+.sf-btns .sp-mute[aria-pressed="true"] { background: var(--lamp-ok); border-color: var(--lamp-ok); }
+.sf-fx { margin-top: 6px; }
+.sf-fx b { color: var(--text); }
+.sf-fx-note { margin-top: 0; }
+.sf-fx + .sf-fx-note { margin-top: 10px; }
+
+/* 完整版的多轨时间线（像音频软件那样）：时间尺 + 一条轨道一行，色块是乐句（里面画着音），一根播放头扫过所有轨道。
+   宽度、一步几像素都在 views/song-full.js 里算好写在 style 上（--head 轨道名那一列、--bar 一小节、--beatw 一拍、--lane 一行多高、--step 一步多长） */
+.sf-matrix.daw { display: block; min-width: 0; padding: 8px 0 4px; }  /* 不要 overflow: hidden：它是外面那个滚动区（grid）的一项，内容比滚动区高时会被压成 0 高 */
+.daw-scroll { overflow: auto hidden; scrollbar-width: thin; }
+.daw-inner { position: relative; display: grid; gap: 3px; padding: 0 12px 4px 0; }
+.daw-row { display: flex; align-items: stretch; height: var(--lane); }
+.daw-rulerrow { height: 54px; }
+.daw-head { position: sticky; left: 0; z-index: 3; flex: none; width: var(--head); box-sizing: border-box; margin-right: 0; box-shadow: 8px 0 10px -8px var(--shade-3); }  /* 横着滚的时候钉在左边 */
+.daw-corner { display: flex; align-items: flex-end; padding: 0 8px 6px 12px; border-radius: 0; background: var(--panel); font: 700 11px var(--mono); color: var(--muted); }
+.daw-ruler { position: relative; flex: none; height: 100%; }
+.daw-sec { position: absolute; top: 0; height: 37px; box-sizing: border-box; overflow: clip; display: grid; align-content: start; gap: 1px; padding: 3px 6px; border: 0; border-top: 3px solid var(--k); border-right: 2px solid var(--panel); border-radius: 7px; background: color-mix(in srgb, var(--k) 12%, var(--panel)); color: var(--text); text-align: left; cursor: pointer; transition: background var(--t-move), color var(--t-move), box-shadow var(--t-move); }
+/* 段落名、几小节：这一段从左边看不见的地方开始时，贴着轨道名那一列钉住（overflow: clip 不会挡住 sticky） */
+.daw-sec b, .daw-sec small { position: sticky; left: calc(var(--head) + 6px); justify-self: start; }
+.daw-sec b { font-size: 11.5px; line-height: 15px; white-space: nowrap; }
+.daw-sec small { font: 600 10px/13px var(--mono); color: var(--muted); white-space: nowrap; }
+.daw-sec:hover { background: color-mix(in srgb, var(--k) 22%, var(--panel)); }
+.daw-sec.picked { box-shadow: inset 0 0 0 2px var(--k); }
+.daw-sec.now { background: var(--k); color: var(--on-bright); box-shadow: 0 6px 14px -6px var(--k); }
+.daw-sec.now small { color: color-mix(in srgb, var(--on-bright) 80%, transparent); }
+.daw-sec.now .sf-prog { height: 3px; background: color-mix(in srgb, var(--on-bright) 75%, transparent); }
+.daw-barno { position: absolute; top: 39px; padding-left: 3px; border-left: 1px solid rgba(var(--stage-ink), .25); font: 600 10px/14px var(--mono); font-style: normal; color: var(--muted); }
+/* 一条轨道：浅浅的底，竖线是小节（深一点）和拍子（浅一点） */
+.daw-lane { position: relative; flex: none; height: 100%; border-radius: 6px; background-color: rgba(var(--stage-ink), .025);
+  background-image: repeating-linear-gradient(90deg, rgba(var(--stage-ink), .13) 0 1px, transparent 1px var(--bar)), repeating-linear-gradient(90deg, rgba(var(--stage-ink), .05) 0 1px, transparent 1px var(--beatw)); }
+.daw-lane.focus { background-color: color-mix(in srgb, var(--c) 7%, transparent); }
+.daw-clip { position: absolute; top: 2px; bottom: 2px; box-sizing: border-box; display: block; overflow: clip; padding: 0; text-align: left; border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--c) 15%, var(--panel)); cursor: pointer; transition: background var(--t-move), box-shadow var(--t-move), border-color var(--t-move); }
+.daw-clip:hover { background: color-mix(in srgb, var(--c) 26%, var(--panel)); }
+.daw-notes { position: absolute; left: -1px; top: 1px; fill: var(--c); }
+.daw-tag { position: sticky; left: calc(var(--head) + 4px); z-index: 1; display: inline-block; margin: 2px 0 0 4px; padding: 0 4px; border-radius: 4px; background: var(--c); color: var(--on-bright); font: 800 10.5px/15px var(--mono); vertical-align: top; }  /* 乐句编号：色块从左边看不见的地方开始时也钉住 */
+/* 正在放的那一段：每条轨道的色块一起亮起来 */
+.daw-clip.now { border-color: var(--c); background: color-mix(in srgb, var(--c) 30%, var(--panel)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent), 0 6px 16px -8px var(--c); }
+.daw-lane.quiet .daw-clip { border-color: transparent; background: rgba(var(--stage-ink), .07); box-shadow: none; }
+.daw-lane.quiet .daw-notes { fill: rgba(var(--stage-ink), .3); }
+.daw-lane.quiet .daw-tag { background: rgba(var(--stage-ink), .3); }
+[data-skin="neon"] .daw-clip.now { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 35%, transparent), 0 0 16px var(--c); }
+/* 播放头：一根发光的竖线扫过时间尺和所有轨道；每一步滑过去（一步多长就滑多久），跳的时候不滑 */
+.daw-playhead { position: absolute; top: 0; bottom: 0; z-index: 2; width: 2px; margin-left: -1px; background: var(--accent); box-shadow: 0 0 10px var(--accent); pointer-events: none; opacity: 0; transition: transform var(--step) linear, opacity var(--t-move); }
+.daw-playhead.on { opacity: 1; }
+.daw-playhead.jump { transition: opacity var(--t-move); }
+.daw-playhead i { position: absolute; top: 0; left: -6px; width: 14px; height: 9px; background: var(--accent); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+[data-fx="rich"] .daw-playhead.on i { animation: daw-tick var(--beat) var(--out) infinite; }
+@keyframes daw-tick { 0% { transform: scale(1.6); } 60%, 100% { transform: scale(1); } }
+
+.sf-pats { display: grid; gap: 10px; }
+.sf-pats h3 { display: flex; align-items: baseline; gap: 10px; font-size: 15px; }
+.sf-pats h3 small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.sf-pat { padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 12px; background: var(--panel); opacity: .72; transition: opacity var(--t-move), box-shadow var(--t-move), background var(--t-move); }
+.sf-pat.on { opacity: 1; border-color: var(--c); background: color-mix(in srgb, var(--c) 7%, var(--panel)); box-shadow: 0 0 0 2px var(--c), 0 10px 22px -12px var(--c); }
+.sf-live { display: none; padding: 1px 7px; border-radius: 6px; background: var(--c); color: var(--on-bright); font: 700 11px/1.6 var(--mono); font-style: normal; }
+.sf-pat.on .sf-live { display: inline-block; }
+/* 说明文字默认收成两行 */
+.sf-sumbox { flex: none; margin: 8px 0 10px; }
+.sf-sumbox .sp-summary { margin: 0; }
+.sf-sum:not(.open) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.sf-more { padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; font-size: 12.5px; font-weight: 650; cursor: pointer; }
+.sf-pat-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.sf-pat-head b { font: 800 13px var(--mono); }
+.sf-pat-head span { font: 600 12px var(--mono); color: var(--text-2); }
+.sf-pat-head small { margin-left: auto; font-size: 12px; color: var(--muted); }
+
+.diff { display: inline-flex; gap: 3px; align-items: center; }
+.diff i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); } .diff i.on { background: var(--accent); }
+
+/* 霓虹的光：选中的、正在用的东西是桔红的亮边（写在组件的规则后面，盖过它们自己的阴影） */
+[data-skin="neon"] :is(.song.picked, .song.playing, .chart-card.playing, .stage-pill.now) { box-shadow: var(--neon-hot); }
+[data-skin="neon"] .task ol li.now::before { box-shadow: 0 0 0 3px var(--accent-ring), var(--neon-bar); }
+
+/* 版式跟着内容区的宽度变（#view 是容器）：窗口小就按小的排 */
+@container view (max-width: 990px) {
+  .guide { grid-template-columns: 1fr; }
+  .ctl-card { position: static; min-height: 0; }
+}
+@container view (max-width: 760px) {
+  .home-top { grid-template-columns: 1fr; }
+  .hstats { grid-template-columns: repeat(3, 1fr); }
+  .hstat { flex-direction: column; align-items: flex-start; }
+  .badges-main { flex-direction: column; align-items: flex-start; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .pref, .pref.wide { grid-template-columns: 1fr; }
+  .kv.two { grid-template-columns: 120px 1fr; }
+  .sp-body { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+  .sp-side { max-height: 40%; }
+}
+@container view (max-width: 560px) {
+  .hstats { grid-template-columns: 1fr; }
+  .hstat { flex-direction: row; align-items: center; }
+  .greet { flex-direction: column; align-items: flex-start; }
+  .region-head .sub { display: none; }
+}
+/* 屏幕够高（大平板、桌面）：“接着练”把这节课的摘要也显示出来，旁边三张卡松一点 */
+@media (min-height: 900px) {
+  .resume { padding: 20px 24px; }
+  .resume .sum { display: block; }
+  .hstat { min-height: 76px; padding: 12px 18px; }
+}
+/* 太窄或者太矮（不是平板横屏了）：首页固定不住那一排，退回整页一起滚 */
+@media (max-width: 860px), (max-height: 620px) {
+  #view.fixed { overflow-y: auto; display: block; padding-bottom: 64px; }
+  .home { display: block; }
+  .home-scroll { overflow: visible; margin: 14px 0 0; padding: 0; }
+  .lesson, .step, .songs-page, .panel-page, .sp-page, .sp-main { display: block; }
+  .songs-scroll, .panel-body, .sp-tracks, .sp-side, .sf-scroll { overflow: visible; }
+  .sp-body { display: block; }
+  .sp-side { max-height: none; margin-top: 12px; }
+  .panel-body > .split { height: auto; }
+  .songs-bar { position: sticky; bottom: 0; background: var(--bg); }
+  .step[data-layout="flow"] { overflow: visible; }
+  .step[data-layout="stage"] > .step-body { margin-bottom: 16px; }
+  .split { grid-template-columns: 1fr; }
+  .do-bench, .prog-main, .do-side, .prog-side { overflow: visible; }
+  .step-body.fill, .game-host { display: block; }
+  .step-actions { position: sticky; bottom: 0; background: var(--bg); }
+  .game-wrap.fill { display: block; }
+  .game-panel.fill .game-stage { flex: none; height: 400px; }
+  .game-panel.fill, .game-panel.fill .gp-side { overflow: visible; }
+}
+}
+@media (max-width: 640px) {
+  #view { padding: 16px 14px 60px; }
+}
+
+/* ───── 完整版的课：一排 scene、一段乐句的格子（arrangement-widgets.js） ───── */
+.arrw-strip { display: flex; gap: 3px; min-width: 0; }
+.arrw-sc { flex: 1 1 0; min-width: 0; display: grid; gap: 1px; justify-items: start; padding: 4px 6px 5px; border: 0; border-top: 3px solid var(--k); border-radius: 7px; background: color-mix(in srgb, var(--k) 13%, var(--panel)); color: var(--text); text-align: left; cursor: pointer; overflow: hidden; transition: background var(--t-move), color var(--t-move), box-shadow var(--t-move); }
+.arrw-sc:hover { background: color-mix(in srgb, var(--k) 24%, var(--panel)); }
+.arrw-sc i { font: 800 10px/12px var(--mono); font-style: normal; color: var(--muted); }
+.arrw-sc b { max-width: 100%; font-size: 12px; line-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arrw-sc small { max-width: 100%; font: 600 10px/12px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; }
+.arrw-sc.now { background: var(--k); color: var(--on-bright); box-shadow: 0 6px 14px -6px var(--k); }
+.arrw-sc.now i, .arrw-sc.now small { color: color-mix(in srgb, var(--on-bright) 80%, transparent); }
+.arrw-pat { padding: 10px 12px; }
+.arrw-pat-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.arrw-pat-head b { color: var(--text); }
+.arrw-pat-head small { color: var(--muted); font-size: 12px; }
+.sf-lesson { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.sf-lesson p { margin: 0 0 6px; }
+.sf-lesson small { color: var(--muted); }
+.arrw-rows { display: grid; gap: 3px; }
+.arrw-row { display: grid; grid-template-columns: 42px repeat(16, minmax(0, 1fr)); gap: 2px; align-items: stretch; }
+.arrw-pg { font: 600 10.5px/18px var(--mono); color: var(--muted); white-space: nowrap; }
+.arrw-c { height: 18px; border-radius: 3px; background: rgba(var(--stage-ink), .05); font: 700 10.5px/18px var(--mono); font-style: normal; text-align: center; color: var(--on-bright); overflow: hidden; }
+.arrw-c.beat { background: rgba(var(--stage-ink), .1); }
+.arrw-c.hit { background: color-mix(in srgb, var(--c) 75%, transparent); }
+.arrw-c.acc { background: var(--c); }
+.arrw-c.note { background: var(--c); }
+.arrw-c.tail { background: color-mix(in srgb, var(--c) 30%, transparent); }

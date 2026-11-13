@@ -1,0 +1,10 @@
+config.local.json
+data/
+data-dev/
+node_modules/
+.DS_Store
+data-walk-ch4/
+
+# 运行日志、开发时的截图和检查输出（tools/shots.sh、mac-check.sh 等写在 tools/out/）
+server.log
+tools/out/

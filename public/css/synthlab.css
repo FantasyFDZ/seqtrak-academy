@@ -1,0 +1,123 @@
+/* 音色实验台（public/js/synth-lab.js，第 4 章）。颜色只用 app.css 里的变量，两套配色都跟着走。
+   右边那一列照着机器右边的 Sound Design 列做：桔红底、黑旋钮、上面一行亮着的字（机器上叫 Index）。 */
+.sl-box { padding: 16px; }
+.sl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: stretch; }
+.sl-title { grid-column: 1 / -1; font-weight: 800; font-size: 16px; color: var(--text); }
+.sl-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+/* 画面：一块嵌进去的小屏幕（和效果实验台的一样） */
+.sl-screen { position: relative; height: 210px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--line-2); box-shadow: 0 1px 4px var(--shade-2) inset; overflow: hidden; }
+.sl-screen .fx-scope, .sl-env-view, .sl-lfo-view { position: absolute; left: 14px; top: 34px; width: calc(100% - 28px); height: calc(100% - 44px); display: block; }
+.sl-lfo-view { top: 14px; height: calc(100% - 24px); }
+.sl:not(.playing) .sl-screen:has(.fx-scope)::after { content: "点「播放」，这里会动起来"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; color: var(--muted); pointer-events: none; }
+
+/* 下面一排：播放、换原料 / 换配方、都回到原样 */
+.sl-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.sl-play { min-width: 112px; }
+.sl-seg button { min-height: 44px; padding: 0 14px; font-size: 14px; }
+.sl-reset, .sl-sweep { min-height: 44px; }
+.sl-note { min-height: 22px; font-size: 15px; line-height: 1.55; color: var(--text-2); }
+
+/* 包络那一台的“按住听”：一个大键帽，压在画面右下角 */
+.sl-hold { position: absolute; right: 12px; bottom: 30px; min-width: 120px; min-height: 64px; font-size: 16px; font-weight: 800; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.sl-hold.down { transform: translateY(3px); background: var(--accent); color: var(--accent-ink); border-color: var(--pri-border); box-shadow: 0 0 0 4px var(--accent-ring); }
+
+/* 右边那一列：桔红底，一个一个旋钮从上往下排 */
+.sl-column { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-width: 128px; padding: 14px 12px; border-radius: 16px; background: var(--accent); border: 1px solid var(--pri-edge); box-shadow: 0 2px 0 var(--accent-2), 0 2px 10px var(--shade-2) inset; }
+.sl-col-cap { font: 700 12px/1.2 var(--mono); letter-spacing: .12em; color: var(--accent-ink); opacity: .8; }
+.sl-knob-box { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.sl-knob-label { font: 800 12px/1.2 var(--mono); letter-spacing: .1em; color: var(--accent-ink); opacity: .55; transition: opacity var(--t-move) var(--out); white-space: nowrap; }
+.sl-knob-box.moved .sl-knob-label, .sl-knob-box.touch .sl-knob-label { opacity: 1; }
+.sl-knob { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--knob-edge); box-shadow: 0 3px 0 var(--shade-4), 0 0 0 2px var(--shade-2); cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; outline: none; }
+.sl-knob:focus-visible { box-shadow: 0 3px 0 var(--shade-4), 0 0 0 3px var(--knob-ring); }
+.sl-knob-cap { position: relative; width: 56px; height: 56px; border-radius: 50%; background: radial-gradient(circle at 50% 35%, var(--knob-top), var(--knob)); transition: transform 60ms linear; }
+.sl-knob-mark { position: absolute; left: 50%; top: 5px; width: 4px; height: 18px; margin-left: -2px; border-radius: 2px; background: var(--knob-mark); }
+.sl-knob-box.touch .sl-knob { box-shadow: 0 3px 0 var(--shade-4), 0 0 0 4px var(--yellow-glow); }
+.sl-knob-read { min-height: 18px; max-width: 120px; font-size: 13px; font-weight: 700; line-height: 1.3; text-align: center; color: var(--accent-ink); }
+
+/* 课文里指到小课堂某一关的小卡片（lesson.js 的 classroomLink） */
+a.classroom-link { display: block; color: inherit; text-decoration: none; }
+a.classroom-link:hover { border-color: var(--accent); }
+.classroom-link .classroom-go { display: inline-block; margin-left: 8px; font-weight: 800; color: var(--accent-text); white-space: nowrap; }
+
+/* 16 类音色：照着机器上那两排方键 */
+.sl-cats { display: flex; flex-direction: column; gap: 8px; }
+.sl-cat-row { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
+.sl-cat { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 64px; padding: 6px 2px; border-radius: 10px; border: 1px solid var(--key-border); background: linear-gradient(var(--key-top), var(--key-bot)); box-shadow: 0 3px 0 var(--key-edge); color: var(--text); cursor: pointer; transition: transform var(--t-press), box-shadow var(--t-press); }
+.sl-cat:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--key-edge); }
+.sl-cat .n { font: 700 12px/1 var(--mono); color: var(--muted); }
+.sl-cat b { font: 800 12px/1.15 var(--mono); letter-spacing: 0; text-align: center; overflow-wrap: anywhere; }
+.sl-cat .zh { font-size: 12px; color: var(--text-2); }
+.sl-cat.on { border-color: var(--pri-border); box-shadow: 0 3px 0 var(--pri-edge), 0 0 0 3px var(--accent-ring); }
+.sl-catbox .sl-note { margin-top: 12px; }
+
+
+/* 配方那一台四个旋钮都摆出来：小一号，免得这一列比画面高出一大截 */
+.sl-presets .sl-column { gap: 6px; padding: 10px; }
+.sl-presets .sl-knob { width: 50px; height: 50px; }
+.sl-presets .sl-knob-cap { width: 44px; height: 44px; }
+.sl-presets .sl-knob-mark { top: 4px; height: 14px; }
+
+/* ───── 第 5–8 章的小部件（public/js/chapter-toys.js） ───── */
+/* 采样实验台：一条波形，两条能拖的线；下面 7 个“当乐器弹”的键 */
+.sl-wavebox { height: 170px; }
+.sl-wave { position: absolute; inset: 12px; width: calc(100% - 24px); height: calc(100% - 24px); display: block; cursor: ew-resize; touch-action: none; }
+.sl-padrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sl-pads { display: flex; gap: 8px; }
+.sl-pad { width: 48px; height: 48px; border-radius: 10px; border: 1px solid var(--key-border); background: linear-gradient(var(--key-top), var(--key-bot)); box-shadow: 0 3px 0 var(--key-edge); font: 800 15px var(--mono); color: var(--text); cursor: pointer; touch-action: none; }
+.sl-pad:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--key-edge); background: var(--accent-soft); }
+.sl-loop { min-width: 96px; min-height: 44px; }
+
+/* 编曲台：一行一条轨道、一列一个段落；格子 0 灰、1 / 2 是用第几段乐句 */
+.arr { display: flex; flex-direction: column; gap: 12px; }
+.arr-grid { display: grid; gap: 6px; align-items: stretch; }
+.arr-head { text-align: center; font-weight: 800; font-size: 14px; color: var(--text-2); padding: 4px 0; border-radius: 8px; transition: background var(--t-move) var(--out), color var(--t-move); }
+.arr-head.now { background: var(--accent); color: var(--accent-ink); }
+.arr-row { display: flex; align-items: center; font-weight: 700; font-size: 14px; color: var(--text); }
+.arr-cell { min-height: 44px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--panel-3); font: 800 15px var(--mono); color: var(--text); cursor: pointer; }
+/* “轻”的一格：白底 + 桔红粗边（桔红调淡了会发粉，这套课不用粉色） */
+.arr-cell[data-v="1"] { background: var(--panel); border: 2px solid var(--accent); color: var(--accent-2); }
+.arr-cell[data-v="2"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-2); }
+.arr-energy { display: grid; grid-template-columns: 76px 1fr; align-items: end; gap: 6px; }
+.arr-meter { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; height: 54px; align-items: end; }
+.arr-meter i { display: block; border-radius: 6px 6px 2px 2px; background: color-mix(in srgb, var(--accent) 70%, var(--yellow)); min-height: 4px; transition: height var(--t-move) var(--out); }
+
+/* 录音机 */
+.rec { display: flex; flex-direction: column; gap: 12px; }
+.rec-top { gap: 12px; align-items: center; flex-wrap: wrap; }
+.rec-select { min-height: 44px; min-width: 240px; max-width: 100%; }
+.rec-clock { margin-left: auto; font: 800 22px var(--mono); color: var(--text); }
+.rec-level { height: 12px; border-radius: 6px; background: var(--panel-3); overflow: hidden; }
+.rec-level-fill { display: block; height: 100%; width: 0; background: var(--ok); transition: width 60ms linear; }
+.rec-list { display: flex; flex-direction: column; gap: 8px; }
+.rec-item { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-weight: 700; }
+.rec-item audio { height: 40px; }
+
+/* 第 8 章：演出曲目单 */
+.setl { display: flex; flex-direction: column; gap: 14px; }
+.setl-top { display: flex; gap: 16px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; }
+.setl-head { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.setl-head b { font-size: 16px; color: var(--text); }
+.setl-curve { display: flex; align-items: flex-end; gap: 6px; height: 56px; padding: 6px 8px; border-radius: 10px; background: var(--field); border: 1px solid var(--line-2); }
+.setl-curve i { width: 18px; border-radius: 4px 4px 2px 2px; background: var(--accent); }
+.setl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.setl-item { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--field); border: 1px solid var(--line-2); }
+.setl-no { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font: 800 14px/1 var(--mono); }
+.setl-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.setl-name b { font-size: 15px; color: var(--text); overflow-wrap: anywhere; }
+.setl-name small { font-size: 13px; color: var(--text-2); }
+.setl-links { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.setl-tag { font-size: 13px; color: var(--muted); }
+.setl-pick .label { margin-bottom: 8px; }
+.setl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.setl-song { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 52px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--key-border); border-left: 4px solid var(--c); background: linear-gradient(var(--key-top), var(--key-bot)); color: var(--text); text-align: left; cursor: pointer; }
+.setl-song b { font-size: 14px; overflow-wrap: anywhere; }
+.setl-song small { font-size: 12px; color: var(--text-2); }
+.setl-song.on { border-color: var(--pri-border); box-shadow: 0 0 0 3px var(--accent-ring); }
+.setl-song:disabled { opacity: .45; cursor: default; }
+@media (max-width: 560px) { .setl-item { grid-template-columns: 28px minmax(0, 1fr); } .setl-links { grid-column: 1 / -1; justify-content: flex-start; } }
+
+/* 第 6–8 章：“写下来，请阿拍点评” */
+.reflect { display: flex; flex-direction: column; gap: 12px; }
+.reflect-field { display: flex; flex-direction: column; gap: 6px; }
+.reflect-input { width: 100%; min-height: 72px; resize: vertical; font: inherit; line-height: 1.5; }

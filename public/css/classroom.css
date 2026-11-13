@@ -1,0 +1,328 @@
+/* 小课堂（public/js/views/classroom.js、classroom-toys.js、classroom-bench.js）。
+   按 iPad 横屏做：最小 1024 × 768，一屏放下，不出现整页滚动；能点的东西至少 44 像素；不靠悬停。
+   颜色只用 app.css 里的变量，机身和霓虹两套配色都跟着走。每条线自己的颜色放在 --c 里。 */
+
+/* 这一页自己管满屏：内容区不滚，里面各块自己滚 */
+#view.cl-host { padding: 0; overflow: hidden; display: flex; }
+#view.cl-host > .cl-page { max-width: 1366px; width: 100%; margin: 0 auto; }
+.cl-page { height: 100%; min-height: 0; display: flex; flex-direction: column; padding: max(14px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) max(14px, env(safe-area-inset-bottom, 0px)) 20px; container-type: inline-size; -webkit-tap-highlight-color: transparent; }
+.cl-page button, .cl-page a { touch-action: manipulation; }
+.cl-page .stars { color: var(--star); letter-spacing: 2px; font-size: 15px; white-space: nowrap; }
+
+/* ───────── 列表 ───────── */
+.cl-list-head { flex: none; display: flex; align-items: flex-end; gap: 16px; margin-bottom: 14px; }
+.cl-list-head h1 { font-size: 26px; }
+.cl-list-head p { margin: 4px 0 0; color: var(--text-2); }
+.cl-total { margin-left: auto; display: flex; align-items: baseline; gap: 6px; padding: 8px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); color: var(--text-2); font-weight: 650; white-space: nowrap; }
+.cl-total b { font: 800 24px/1 var(--mono); color: var(--text); }
+.cl-total .stars { margin-left: 10px; }
+
+.cl-lines { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.cl-line { min-height: 0; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 2px 0 var(--line); }
+.cl-line > header { flex: none; padding: 13px 16px 12px; border-top: 5px solid var(--c); border-bottom: 1px solid var(--line); }
+.cl-line-name { display: flex; align-items: baseline; gap: 10px; }
+.cl-line-name h2 { font-size: 20px; }
+.cl-line-name .count { margin-left: auto; font: 700 13px var(--mono); color: var(--muted); }
+.cl-line > header p { margin: 2px 0 10px; color: var(--text-2); font-size: 13.5px; }
+.cl-line-bar { height: 6px; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
+.cl-line-bar i { display: block; height: 100%; border-radius: 3px; background: var(--c); transition: width var(--t-show) var(--out); }
+.cl-nodes { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+
+.cl-node { flex: none; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 11px; min-height: 62px; padding: 8px 12px 8px 8px; border-radius: 13px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 3px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-press), box-shadow var(--t-press), border-color var(--t-move); }
+.cl-node:hover { color: var(--text); border-color: var(--c); }
+.cl-node:active { transform: translateY(3px); box-shadow: 0 0 0 var(--key-edge); }
+.cl-node .no { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; font: 800 14px var(--mono); color: var(--muted); background: var(--panel-3); box-shadow: 0 1px 2px var(--shade-2) inset; transition: background var(--t-move), color var(--t-move); }
+.cl-node .words { min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.cl-node .words b { font-size: 15.5px; }
+.cl-node .words span { font-size: 12.5px; color: var(--text-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.cl-node .go { font: 700 12px var(--mono); color: var(--accent-text); white-space: nowrap; }
+.cl-node.done .no { background: var(--c); color: var(--on-bright); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent); }
+.cl-node.soon { min-height: 46px; padding-top: 4px; padding-bottom: 4px; background: transparent; border: 1px dashed var(--line-2); box-shadow: none; cursor: default; color: var(--muted); }
+.cl-node.soon .no { width: 36px; height: 36px; margin-left: 4px; font-size: 12px; }
+.cl-node.soon .words b { font-size: 14px; font-weight: 650; color: var(--text-2); }
+.cl-node.soon .words span { display: none; } /* 没开放的只留名字：一列里要排十来关，名字本身就说了讲什么 */
+.cl-node.soon .tag { font-size: 12px; }
+.cl-node.soon:active { transform: none; }
+.cl-node.shake { animation: cl-shake 280ms var(--out); }
+@keyframes cl-shake { 25% { transform: translateX(-5px); } 60% { transform: translateX(4px); } }
+
+/* ───────── 一关 ───────── */
+.cl-top { flex: none; display: flex; align-items: center; gap: 12px; height: 44px; margin-bottom: 12px; }
+.cl-back { height: 44px; padding: 0 12px; }
+.cl-title { min-width: 0; display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.cl-title .no { display: grid; place-items: center; height: 30px; padding: 0 9px; border-radius: 8px; background: var(--c); color: var(--on-bright); font: 800 13px var(--mono); }
+.cl-title b { font-size: 19px; }
+.cl-title .about { color: var(--muted); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; }
+.cl-steps { margin: 0 0 0 auto; padding: 0; list-style: none; display: flex; gap: 6px; flex: none; }
+.cl-steps li { margin: 0; display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px 0 6px; border-radius: 17px; background: var(--panel-3); color: var(--muted); font-size: 13px; font-weight: 700; white-space: nowrap; transition: background var(--t-move), color var(--t-move); }
+.cl-steps li i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--panel); font: 800 12px var(--mono); font-style: normal; }
+.cl-steps li.done { color: var(--ok); background: var(--ok-soft); }
+.cl-steps li.done i { background: var(--lamp-ok); color: var(--on-bright); }
+.cl-steps li[role="button"] { cursor: pointer; }
+.cl-steps li.now { background: var(--c); color: var(--on-bright); }
+.cl-steps li.now i { background: var(--on-bright); color: var(--c); }
+
+.cl-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(272px, 28%, 340px); gap: 16px; }
+.cl-stage { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 16px; background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius); box-shadow: 0 2px 0 var(--line); container-type: size; overflow: hidden; }
+.cl-side { min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.cl-say { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; padding: 12px 14px; border-radius: 4px var(--radius) var(--radius) var(--radius); background: var(--bubble); border: 1px solid var(--line); box-shadow: 0 2px 0 var(--line); }
+.cl-say p { margin: 0; font-size: 15.5px; line-height: 1.55; color: var(--text); min-height: 3.1em; }
+.cl-do { padding: 12px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+.cl-do .label { display: inline-block; margin-bottom: 6px; padding: 3px 8px; border-radius: 6px; background: var(--c); color: var(--on-bright); letter-spacing: .08em; }
+.cl-do p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--text-2); }
+.cl-name { padding: 11px 14px; border-radius: 0 12px 12px 0; border-left: 5px solid var(--c); background: var(--panel); font-size: 15px; line-height: 1.55; box-shadow: 0 1px 2px var(--shade-1); }
+.cl-name[hidden] { display: none; }
+.cl-side-more { margin-top: auto; display: flex; gap: 6px; justify-content: flex-end; }
+.cl-side-more .btn { height: 44px; padding: 0 14px; }
+.cl-side-more [hidden] { display: none; }
+.cl-side-foot { display: flex; gap: 10px; }
+.cl-side-foot .btn { height: 50px; }
+.cl-side-foot .btn.lg { flex: 1; }
+
+/* “用在机器上”：面板要尽量宽，所以这一屏不要右边那一栏 */
+.cl-lesson[data-step="machine"] .cl-body, .cl-lesson[data-step="done"] .cl-body { grid-template-columns: minmax(0, 1fr); }
+.cl-lesson[data-step="machine"] .cl-side { display: none; }
+.cl-lesson[data-step="machine"] .cl-stage { padding: 12px; }
+
+/* 学完 */
+.cl-done { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 14px; text-align: center; padding: 20px; background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius); }
+.cl-done h1 { font-size: 28px; }
+/* 这一关涨了多少经验（紧跟在标题下面的一小行） */
+.cl-gain { margin: -8px 0 0; font-size: 14px; color: var(--text-2); }
+.cl-gain b { font: 800 15px var(--mono); color: var(--accent-text); letter-spacing: .02em; }
+.cl-stars { display: flex; gap: 14px; font-size: 54px; line-height: 1; color: var(--star-off); }
+.cl-stars span { transition: color var(--t-move); }
+.cl-stars span.in { color: var(--star); animation: cl-star var(--t-show) var(--pop); text-shadow: 0 0 22px var(--yellow-glow); }
+@keyframes cl-star { from { transform: scale(2.6) translateY(-30px) rotate(-30deg); opacity: 0; } }
+.cl-take { max-width: 560px; padding: 14px 18px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); text-align: left; }
+.cl-take .label { display: block; margin-bottom: 6px; }
+.cl-take p { margin: 0; font-size: 16.5px; line-height: 1.65; }
+.cl-done-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; margin-top: 6px; }
+.cl-done-actions .btn { height: 46px; }
+
+/* ───────── 能玩的东西：公用 ───────── */
+.cl-toy { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.cl-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cl-row .btn:not(.sm) { height: 46px; }
+.cl-play { min-width: 112px; }
+.cl-note { min-height: 46px; font-size: 15px; line-height: 1.55; color: var(--text-2); }
+.cl-note .btn { vertical-align: 1px; margin-left: 4px; }
+.cl-cap { font: 700 12px/1.3 var(--mono); letter-spacing: .08em; color: var(--muted); }
+.cl-pass { margin-top: 6px; font-weight: 700; color: var(--ok); }
+.cl-lamps { display: flex; gap: 9px; align-items: center; }
+.cl-lamps i { width: 16px; height: 16px; border-radius: 50%; background: var(--key-lamp); box-shadow: 0 1px 2px var(--shade-3) inset; transition: background var(--t-move); }
+.cl-lamps i.on { background: var(--lamp-ok); box-shadow: 0 0 0 4px var(--lamp-ok-ring); }
+.cl-lamps i.miss { background: var(--lamp-bad); }
+.cl-seg button { min-height: 44px; min-width: 48px; padding: 0 14px; font-size: 14px; }
+.cl-big { display: flex; align-items: baseline; gap: 6px; }
+.cl-big b { font: 800 34px/1 var(--mono); }
+.cl-big small { font: 700 12px var(--mono); color: var(--muted); letter-spacing: .08em; }
+
+/* 大垫子 */
+.cl-pad { flex: 1; min-height: 96px; max-height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 22px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 7px 0 var(--key-edge); cursor: pointer; touch-action: none; transition: transform 50ms, box-shadow 50ms, background var(--t-press); }
+.cl-pad b { font-size: 30px; font-weight: 800; letter-spacing: .1em; }
+.cl-pad span { font-size: 13px; color: var(--muted); }
+.cl-pad.hit, .cl-pad:active { transform: translateY(7px); box-shadow: 0 0 0 var(--key-edge); background: var(--accent-soft); }
+
+/* 四个拍灯 */
+.cl-beats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.cl-beats i { height: 62px; display: grid; place-items: center; border-radius: 14px; font: 800 24px var(--mono); font-style: normal; color: var(--muted); background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 3px 0 var(--key-edge); transition: background 50ms, transform var(--t-press) var(--pop); }
+.cl-beats.sm i { height: 44px; font-size: 18px; }
+.cl-beats i.on { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }
+.cl-beats i.one.on { background: var(--accent); color: var(--accent-ink); transform: scale(1.06); }
+.cl-beats i.got { background: var(--lamp-ok); color: var(--on-bright); border-color: var(--lamp-ok); transform: scale(1.12); }
+[data-fx="rich"] .cl-beat.blind.playing .cl-beats i { animation: cl-breathe var(--beat) ease-in-out infinite alternate; }
+@keyframes cl-breathe { to { opacity: .5; } }
+
+/* 16 个格子：机器上那两排方键 */
+.cl-keys { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; width: 100%; max-width: 640px; align-self: center; }
+.cl-key { position: relative; aspect-ratio: 1; min-width: 0; padding: 0; border-radius: 11px; background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 3px 0 var(--key-edge); transition: transform var(--t-press), box-shadow var(--t-press); }
+.cl-key:nth-child(4n+1) { background: linear-gradient(var(--key-top-2), var(--key-bot-2)); }
+button.cl-key { cursor: pointer; }
+button.cl-key:active { transform: translateY(3px); box-shadow: 0 0 0 var(--key-edge); }
+.cl-key span { position: absolute; left: 6px; top: 4px; font: 700 12px var(--mono); color: var(--muted); }
+.cl-key::after { content: ""; position: absolute; left: 22%; right: 22%; top: 46%; height: 12%; min-height: 3px; border-radius: 3px; background: var(--key-lamp); }
+.cl-key.on::after { background: var(--yellow); box-shadow: 0 0 10px var(--yellow-glow), 0 0 0 1px var(--shade-2); }
+.cl-key.head { outline: 3px solid var(--text); outline-offset: 1px; }
+.cl-keys.small { gap: 4px; max-width: 320px; }
+.cl-keys.small .cl-key { border-radius: 4px; box-shadow: none; }
+.cl-keys.small .cl-key::after { left: 16%; right: 16%; top: 30%; height: 40%; }
+.cl-keys.small .cl-key.head { outline-width: 2px; outline-offset: 0; }
+
+/* 听一听，选一个 */
+.cl-quiz { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px; justify-content: center; }
+.cl-quiz.has-stage { justify-content: flex-start; gap: 12px; }
+.cl-quiz.has-stage > .fxlab { flex: 1; height: auto; }
+.cl-quiz-top { display: flex; align-items: center; gap: 16px; }
+.cl-quiz-top .cl-lamps { margin-left: auto; }
+.cl-listen { min-width: 150px; height: 54px !important; }
+.cl-opts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 12px; }
+.cl-opt { min-height: 66px; padding: 10px 12px; border-radius: 14px; font-size: 17px; font-weight: 700; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 2px solid var(--key-border); box-shadow: 0 4px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-press), box-shadow var(--t-press), border-color var(--t-move), background var(--t-move); }
+.cl-opt:active { transform: translateY(4px); box-shadow: 0 0 0 var(--key-edge); }
+.cl-opt.card { display: grid; place-items: center; padding: 14px; }
+.cl-opt.right { border-color: var(--lamp-ok); background: var(--ok-soft); }
+.cl-opt.wrong { border-color: var(--bad); background: var(--bad-soft); }
+
+/* T5：三层楼，每层 7 个键，同名的上下对齐 */
+.cl-floors { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.cl-floor { flex: 1; min-height: 56px; max-height: 170px; display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 8px; }
+.cl-floor > span { font: 700 13px var(--mono); color: var(--muted); }
+.cl-wkeys { height: 100%; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.cl-wkey { min-width: 0; display: grid; place-items: center; border-radius: 12px; color: var(--piano-ink); background: linear-gradient(var(--piano-w1), var(--piano-w2)); border: 1px solid var(--piano-edge); box-shadow: 0 5px 0 var(--piano-edge); cursor: pointer; touch-action: none; transition: transform 60ms, box-shadow 60ms, background var(--t-move); }
+.cl-wkey b { font: 800 22px var(--mono); }
+.cl-wkey.same { background: var(--c); color: var(--on-bright); border-color: var(--shade-3); }
+.cl-wkey.down, .cl-wkey:active { transform: translateY(5px); box-shadow: 0 0 0 var(--piano-edge); }
+
+/* T7：一把梯子 */
+.cl-bd { border-radius: 12px; transition: background var(--t-show) var(--out); }
+.cl-mood { display: inline-flex; padding: 4px; gap: 2px; border-radius: 16px; background: var(--panel-3); box-shadow: 0 1px 2px var(--shade-2) inset; }
+.cl-mood button { min-width: 104px; height: 50px; border: 0; border-radius: 12px; background: transparent; color: var(--text-2); font-size: 17px; font-weight: 800; cursor: pointer; transition: background var(--t-move), color var(--t-move); }
+.cl-mood button.on { background: var(--yellow); color: var(--yellow-ink); box-shadow: 0 2px 0 var(--shade-3); }
+.cl-bd.dark .cl-mood button.on { background: var(--blue); color: var(--on-bright); }
+.cl-rungs { flex: 1; min-height: 130px; max-height: 240px; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; padding-bottom: 26px; }
+.cl-rung { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; padding: 0 0 12px; border-radius: 12px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 4px 0 var(--key-edge); cursor: pointer; touch-action: none; transition: transform var(--t-move) var(--pop), background var(--t-move), border-color var(--t-move), box-shadow var(--t-press); }
+.cl-rung b { font: 800 20px var(--mono); }
+.cl-rung span { font: 700 12px var(--mono); color: var(--muted); }
+.cl-rung.moves { background: var(--warn-soft); border-color: var(--yellow); }
+.cl-bd.dark .cl-rung.moves { transform: translateY(22px); background: var(--blue-soft); border-color: var(--blue); }
+.cl-rung.down { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-2); box-shadow: 0 0 0 var(--key-edge); }
+.cl-rung.down span { color: var(--accent-ink); }
+
+/* T10：叠积木 */
+.cl-badge { min-height: 30px; padding: 4px 12px; border-radius: 15px; font-weight: 800; font-size: 14px; background: var(--panel-3); color: var(--text-2); }
+.cl-badge:empty { visibility: hidden; }
+.cl-badge[data-mood="major"] { background: var(--warn-soft); color: var(--warn); }
+.cl-badge[data-mood="minor"] { background: var(--blue-soft); color: var(--blue); }
+.cl-tower-wrap { flex: 1; min-height: 110px; display: grid; place-items: center; }
+.cl-tower { display: flex; flex-direction: column; gap: 6px; width: min(260px, 60%); }
+.cl-brick { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-radius: 10px; font-weight: 800; color: var(--on-bright); box-shadow: 0 3px 0 var(--shade-3); }
+.cl-brick span { font: 700 12px var(--mono); opacity: .9; }
+.cl-brick[data-layer="1"], .cl-skey.on[data-layer="1"] { --k: var(--accent); }
+.cl-brick[data-layer="2"], .cl-skey.on[data-layer="2"] { --k: var(--violet); }
+.cl-brick[data-layer="3"], .cl-skey.on[data-layer="3"] { --k: var(--cyan); }
+.cl-brick { background: var(--k); }
+.cl-skeys { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.cl-skey { min-width: 0; min-height: 78px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border-radius: 12px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 2px solid var(--key-border); box-shadow: 0 4px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-press), box-shadow var(--t-press), opacity var(--t-move), border-color var(--t-move); }
+.cl-skey:active { transform: translateY(4px); box-shadow: 0 0 0 var(--key-edge); }
+.cl-skey b { font: 800 18px var(--mono); }
+.cl-skey span { font-size: 12px; color: var(--muted); }
+.cl-skey em { min-height: 16px; font: 700 12px var(--mono); font-style: normal; color: var(--k, var(--muted)); }
+.cl-skey.on { border-color: var(--k); box-shadow: 0 4px 0 var(--k); transform: translateY(-6px); }
+.cl-skey.skip { opacity: .4; }
+
+/* T10：三张牌 */
+.cl-cards { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: center; }
+.cl-cardbox { display: flex; flex-direction: column; gap: 10px; align-items: stretch; transition: opacity var(--t-move); }
+.cl-cardbox .btn { height: 44px; }
+.cl-card { height: clamp(110px, 34cqh, 220px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border-radius: 18px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 2px solid var(--key-border); box-shadow: 0 6px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-press), box-shadow var(--t-press), border-color var(--t-move), background var(--t-move); }
+.cl-card:active { transform: translateY(6px); box-shadow: 0 0 0 var(--key-edge); }
+.cl-card b { font: 800 44px/1 var(--mono); }
+.cl-card span { font-size: 13px; color: var(--muted); }
+.cl-card.heard { border-color: var(--line-3); }
+.cl-cardbox.right .cl-card { border-color: var(--lamp-ok); background: var(--ok-soft); }
+.cl-cardbox.wrong .cl-card { border-color: var(--bad); background: var(--bad-soft); }
+.cl-cardbox.dim { opacity: .55; }
+
+/* R1：偏早还是偏晚 */
+.cl-count { font: 800 22px var(--mono); color: var(--text); min-width: 64px; text-align: right; }
+.cl-meter { position: relative; flex: none; height: 62px; border-radius: 14px; background: var(--field); border: 1px solid var(--line-2); box-shadow: 0 1px 3px var(--shade-2) inset; overflow: hidden; }
+.cl-meter .zone { position: absolute; top: 0; bottom: 0; left: 37.5%; width: 25%; background: var(--ok-soft); }
+.cl-meter .mid { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: var(--text); }
+.cl-meter .l, .cl-meter .r { position: absolute; top: 6px; font: 700 12px var(--mono); color: var(--muted); letter-spacing: .1em; }
+.cl-meter .l { left: 10px; }
+.cl-meter .r { right: 10px; }
+.cl-meter .dot { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); transition: opacity 5s linear; animation: cl-drop var(--t-move) var(--pop); }
+.cl-meter .dot.old { opacity: 0; }
+.cl-meter .dot.keep { opacity: .8; }
+@keyframes cl-drop { from { transform: translateY(-26px) scale(1.6); opacity: 0; } }
+
+/* R6：摇摆 */
+.cl-swingrow { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); padding: 14px 0; border-radius: 14px; background: var(--field); border: 1px solid var(--line-2); box-shadow: 0 1px 3px var(--shade-2) inset; }
+.cl-swingrow i { display: grid; place-items: center; height: 34px; transition: transform 120ms var(--out); }
+.cl-swingrow i::before { content: ""; width: 16px; height: 16px; border-radius: 50%; background: var(--line-3); transition: transform 60ms, background 60ms; }
+.cl-swingrow i.beat::before { background: var(--text); }
+.cl-swingrow i.late { transform: translateX(calc(var(--swing, 0) * 100%)); }
+.cl-swingrow i.late::before { background: transparent; border: 3px solid var(--accent); }
+.cl-swingrow i.on::before { transform: scale(1.5); background: var(--accent); }
+.cl-sliderow { display: flex; align-items: center; gap: 14px; font-weight: 700; color: var(--text-2); }
+/* 滑条：手指碰得到的范围有 44 像素高，画出来的槽只有中间那 10 像素 */
+.cl-range { height: 44px !important; box-shadow: none !important; background: linear-gradient(var(--panel-3), var(--panel-3)) center / 100% 10px no-repeat !important; touch-action: none; }
+.cl-range::-webkit-slider-thumb { width: 40px !important; height: 40px !important; }
+.cl-phase { font-size: 15px; color: var(--text-2); }
+.cl-ratio { position: relative; flex: none; height: 74px; margin-bottom: 4px; border-radius: 14px; background: var(--field); border: 1px solid var(--line-2); box-shadow: 0 1px 3px var(--shade-2) inset; }
+.cl-ratio .zone { position: absolute; top: 0; height: 46px; background: var(--ok-soft); border-left: 2px solid var(--lamp-ok); border-right: 2px solid var(--lamp-ok); transition: left var(--t-show) var(--out), width var(--t-show) var(--out); }
+.cl-ratio .tick { position: absolute; top: 0; height: 46px; width: 2px; margin-left: -1px; background: var(--line-3); }
+.cl-ratio span { position: absolute; bottom: 5px; transform: translateX(-50%); font: 700 12px var(--mono); color: var(--muted); white-space: nowrap; }
+.cl-ratio .dot { position: absolute; top: 23px; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); animation: cl-drop var(--t-move) var(--pop); transition: opacity var(--t-show); }
+.cl-ratio .dot.old { opacity: .25; }
+
+/* R8：三种律动 */
+.cl-groove-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.cl-groove { min-height: 84px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 16px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 2px solid var(--key-border); box-shadow: 0 5px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-press), box-shadow var(--t-press), background var(--t-move); }
+.cl-groove:active { transform: translateY(5px); box-shadow: 0 0 0 var(--key-edge); }
+.cl-groove b { font-size: 21px; }
+.cl-groove span { font: 700 12px var(--mono); color: var(--muted); }
+.cl-groove.on { background: linear-gradient(var(--pri-top), var(--pri-bot)); border-color: var(--pri-border); color: var(--accent-ink); box-shadow: 0 5px 0 var(--pri-edge), var(--pri-glow); }
+.cl-groove.on span { color: var(--accent-ink); }
+.cl-chart { flex: 1; min-height: 100px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.cl-chart:empty::before { content: "点一张牌，这里会画出它的鼓是怎么摆的"; color: var(--muted); text-align: center; }
+.cl-chart-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 10px; }
+.cl-chart-row > span { font-size: 13px; font-weight: 700; color: var(--text-2); }
+.cl-chart-row > div { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 4px; }
+.cl-chart-row i { height: clamp(18px, 6cqh, 30px); border-radius: 6px; background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); }
+.cl-chart-row i.beat { background: linear-gradient(var(--key-top-2), var(--key-bot-2)); }
+.cl-chart-row i.on { background: var(--c); border-color: var(--shade-3); }
+.cl-chart-row i.head { outline: 2px solid var(--text); outline-offset: 1px; }
+
+/* 效果线：实验台占满舞台 */
+.cl-fx > .fxlab { flex: 1; height: auto; }
+.cl-match .fxlab { flex: 1; }
+
+/* ───────── 用在机器上 ───────── */
+.cl-bench { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.cl-bench-panel { position: relative; flex: none; }
+.cl-bench .sim { gap: 8px; }
+.cl-bench .sim-say { min-height: 40px; padding: 7px 14px; }
+/* 没接真机：屏幕上这台要用手指点，所以放大，面板可以左右滑。接着真机时它只是镜子，整台摆出来 */
+.cl-bench:not(.live) .panel-wrap { padding: 8px 10px 6px; overscroll-behavior-x: contain; }
+.cl-bench:not(.live) .panel-svg { width: auto; min-width: 0; height: clamp(240px, calc(100cqh - 252px), 440px); aspect-ratio: 1178 / 346; }
+.cl-bench.live .panel-svg { max-height: calc(100cqh - 252px); }
+.cl-bench.live .cl-bench-text { font-size: 17px; }
+.cl-bench-slide { position: absolute; left: 14px; top: 10px; padding: 3px 9px; border-radius: 6px; background: var(--inv); color: var(--inv-text); font: 700 12px var(--mono); opacity: 0; pointer-events: none; transition: opacity var(--t-move); }
+.cl-bench-slide.show { opacity: .82; }
+.cl-bench-warn { flex: none; padding: 9px 14px; border-radius: 10px; border-left: 4px solid var(--accent); background: var(--accent-wash); color: var(--text-2); font-size: 14px; }
+.cl-bench-task { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 9px 14px 10px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line-2); overflow-y: auto; }
+.cl-bench.done .cl-bench-task { border-color: var(--lamp-ok); }
+.cl-bench-head { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.cl-bench-dots { display: flex; gap: 7px; }
+.cl-bench-dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--key-lamp); }
+.cl-bench-dots i.done { background: var(--lamp-ok); }
+.cl-bench-dots i.now { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-ring); }
+[data-fx="rich"] .cl-bench-dots i.now { animation: pulse var(--beat) infinite; }
+.cl-bench-btns { display: flex; gap: 8px; }
+.cl-bench-btns .btn { height: 44px; padding: 0 16px; font-size: 14px; }
+.cl-bench-text { font-size: 15.5px; line-height: 1.5; font-weight: 600; color: var(--text); }
+.cl-bench-foot { margin-top: auto; display: flex; align-items: flex-end; gap: 10px; }
+.cl-bench-status { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 14px; color: var(--text-2); }
+.cl-bench-status .pulse { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+[data-fx="rich"] .cl-bench-status .pulse { animation: pulse 1.2s infinite; }
+.cl-tick { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--lamp-ok); color: var(--on-bright); font-weight: 800; font-size: 13px; }
+.cl-bench-actions { flex: none; display: flex; gap: 8px; }
+.cl-bench-actions .btn { height: 44px; }
+
+/* 教练的栏打开、内容区变窄的时候：右边那一栏挪到下面 */
+@container (max-width: 800px) {
+  .cl-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .cl-side { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: end; }
+  .cl-say { display: none; }
+  .cl-do, .cl-name { grid-column: 1; }
+  .cl-side-more { grid-column: 2; grid-row: 1; margin: 0; }
+  .cl-side-foot { grid-column: 2; }
+  .cl-steps li { padding: 0 8px 0 4px; font-size: 12px; }
+  .cl-title .about { display: none; }
+  .cl-lines { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+  .cl-line { min-height: 300px; }
+}
+@container (max-width: 1010px) {
+  .cl-title .about { display: none; }
+}

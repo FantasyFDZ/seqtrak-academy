@@ -1,0 +1,13 @@
+{
+  "name": "seqtrak-academy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Yamaha SEQTRAK 互动教学：音游式练习 + AI 陪练",
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

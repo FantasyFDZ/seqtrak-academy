@@ -1,0 +1,207 @@
+// 曲目候选单。2026-11-11 按用户的要求整个换过：原来那 12 首（四种风格各三首，Daft Punk、Kraftwerk、Nujabes、Brian Eno……）
+// 他大多没听过，于是列了一批流行度高的让他勾“听过、能哼出来”的，这里就是他勾的那 11 首（Hip-hop 他只听过一首）。
+// 挑的标准还是“结构清楚、层次不多、适合在 SEQTRAK 上一层层搭出来”。这里只是元信息和学习要点；
+// 2026-11-11 晚些时候：他听完这 11 首说“编曲可以，但是太少了”，要再加“进过排行榜的”热门歌。我按四类各列了四首，他全勾了，
+// 于是又加了 16 首（新开一类“流行”）。这 16 首他不一定都听过（他勾的是想学的）。
+// 每首歌的 SEQTRAK 版分轨在 content/song-parts.js，照着搭的课在 content/song-lessons.js。BPM 是大约值。
+
+export const SONG_STYLES = {
+  house: { label: 'House / EDM', color: '#ff6a3d' },
+  hiphop: { label: 'Hip-hop', color: '#ffd166' },
+  synth: { label: '电子流行 / Synthwave', color: '#b48cff' },
+  ambient: { label: '舒缓电子 / Downtempo', color: '#5bd6c0' },
+  pop: { label: '流行 / Pop', color: '#ff7eb6' },
+};
+
+export const SONGS = [
+  {
+    id: 'animals', style: 'house', level: 2, bpm: 128,
+    title: 'Animals', artist: 'Martin Garrix', year: 2013,
+    why: '大舞台 EDM 的代表作。Drop 里几乎只有重重的四踩底鼓和一条低沉、短促的合成器乐句，没什么和弦。层次少、律动直，最适合练“鼓 + 一条乐句”把场子撑起来。',
+    learn: ['四踩鼓组', '短乐句的重复', 'Drop 前的铺垫'],
+    ready: '第 2 章后可以开始',
+  },
+  {
+    id: 'wake-me-up', style: 'house', level: 2, bpm: 124,
+    title: 'Wake Me Up', artist: 'Avicii', year: 2013,
+    why: '电子舞曲加民谣吉他。四个和弦从头转到尾，正好是 3.4 课的键 1 → 6 → 3 → 7，上面一句很好唱的旋律。和弦学完就能搭出它的骨架。',
+    learn: ['四个和弦转圈', '四踩鼓 + 反拍镲', '旋律跟着和弦走'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'levels', style: 'house', level: 3, bpm: 127,
+    title: 'Levels', artist: 'Avicii', year: 2011,
+    why: '那条一听就认得的合成器主旋律撑起了整首歌，下面是四踩鼓和几个和弦。旋律音多、要把音色调亮，适合学完音色之后再来。',
+    learn: ['合成器主旋律', '四踩鼓组', '用滤波器做“起势”'],
+    ready: '第 4 章（音色）后',
+  },
+  {
+    id: 'gangstas-paradise', style: 'hiphop', level: 2, bpm: 80,
+    title: "Gangsta's Paradise", artist: 'Coolio feat. L.V.', year: 1995,
+    why: '慢、暗、稳：一段循环的弦乐和合唱铺在下面，鼓干净利落，整首歌几乎就是一个循环转到底。速度是这里最慢的之一，适合练慢速的律动。',
+    learn: ['慢速 Hip-hop 鼓', '小调和弦循环', '用 Pad 铺底'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'bad-guy', style: 'synth', level: 2, bpm: 135,
+    title: 'bad guy', artist: 'Billie Eilish', year: 2019,
+    why: '几乎只有三样东西：一条弹来弹去的合成器贝斯、底鼓和响指。留白很多，每个声音都听得清，是练“贝斯当主角”和“少即是多”的好材料。',
+    learn: ['贝斯当主角', '响指 / 拍手的位置', '留白'],
+    ready: '第 2 章后可以开始',
+  },
+  {
+    id: 'starboy', style: 'synth', level: 2, bpm: 93,
+    title: 'Starboy', artist: 'The Weeknd feat. Daft Punk', year: 2016,
+    why: '和 Daft Punk 合作的暗色电子流行：一条低沉的合成器贝斯、几个很暗的和弦，鼓很简单。资料上标的是 186 BPM，按半速数是 93，听着并不快。',
+    learn: ['暗色的合成器和弦', '贝斯和底鼓咬在一起', '80 年代鼓机音色'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'blinding-lights', style: 'synth', level: 3, bpm: 171,
+    title: 'Blinding Lights', artist: 'The Weeknd', year: 2019,
+    why: '当代最成功的 80 年代复古。那句合成器主旋律非常上口，但速度快、音符密，适合放在后面当作挑战曲。',
+    learn: ['快速的主旋律', '驱动型贝斯', '完整的歌曲结构'],
+    ready: '第 6 章（编曲）后',
+  },
+  {
+    id: 'faded', style: 'ambient', level: 1, bpm: 90,
+    title: 'Faded', artist: 'Alan Walker', year: 2015,
+    why: '前奏那段钢琴旋律一响就知道是它。四个和弦从头转到尾，正好是 3.4 课的键 1 → 6 → 3 → 7；慢、层次清楚，旋律一拍一个音，是这一批里最好上手的一首。',
+    learn: ['四个和弦转圈', '钢琴主旋律', 'Pad 铺底'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'something-just-like-this', style: 'ambient', level: 2, bpm: 103,
+    title: 'Something Just Like This', artist: 'The Chainsmokers & Coldplay', year: 2017,
+    why: '前半段几乎只有钢琴和人声，副歌后面接一段很好记的合成器旋律，鼓到后面才进来。和弦转圈，最适合练“层次一点点加上去”。',
+    learn: ['钢琴和弦', '合成器旋律', '层次的进出'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'closer', style: 'ambient', level: 2, bpm: 95,
+    title: 'Closer', artist: 'The Chainsmokers feat. Halsey', year: 2016,
+    why: '软软的合成器和弦铺满整首，鼓简单，副歌后面那段合成器旋律很上口。慢、松，重点在把和弦的音色调“软”。',
+    learn: ['合成器和弦的音色', '简单的鼓', '副歌后的合成器旋律'],
+    ready: '第 4 章（音色）后',
+  },
+  {
+    id: 'teardrop', style: 'ambient', level: 3, bpm: 77,
+    title: 'Teardrop', artist: 'Massive Attack', year: 1998,
+    why: '像心跳一样的底鼓、带着摩擦感的军鼓、一串清冷的拨弦音（美剧《豪斯医生》的片头曲）。慢，但每个声音的质感都很讲究，是 Trip-hop 的教科书，也是音色和效果的综合练习。',
+    learn: ['用音色讲故事', '慢速律动的张力', '效果器的综合运用'],
+    ready: '第 7 章（效果）后',
+  },
+  // ── 2026-11-11 加的 16 首（排行榜热门，他全勾了） ──
+  {
+    id: 'happier', style: 'house', level: 2, bpm: 100,
+    title: 'Happier', artist: 'Marshmello feat. Bastille', year: 2018,
+    why: '在 Billboard 榜上待了一年多的热门。几个和弦从头转到尾，Drop 里一句干净的合成器旋律，鼓不复杂——层次少，这一组里最好上手。',
+    learn: ['四个和弦转圈', 'Drop 的合成器旋律', '层次的进出'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'one-kiss', style: 'house', level: 2, bpm: 124,
+    title: 'One Kiss', artist: 'Calvin Harris & Dua Lipa', year: 2018,
+    why: '英国榜连续八周第一。90 年代味道的 House：四踩鼓、一条一跳一跳的贝斯、一句像风琴的合成器。重复多、变化少，适合练 House 的律动。',
+    learn: ['House 鼓组', '跳动的贝斯', '和弦的节奏'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'the-nights', style: 'house', level: 3, bpm: 126,
+    title: 'The Nights', artist: 'Avicii', year: 2014,
+    why: '在国内也很火的那首。四个和弦撑起整首，副歌和 Drop 是同一句好唱的旋律；速度不慢、旋律音多一点。',
+    learn: ['四个和弦转圈', '舞曲旋律', '四踩鼓 + 反拍镲'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'lean-on', style: 'house', level: 3, bpm: 98,
+    title: 'Lean On', artist: 'Major Lazer & DJ Snake feat. MØ', year: 2015,
+    why: '当年全球播放最多的歌之一。慢一点的舞曲律动，Drop 里那段人声切片的旋律是钩子——这里先用合成器弹，原样的人声要等第 5 章采样。',
+    learn: ['人声切片式的旋律', '切分的鼓', '和弦循环'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'shape-of-you', style: 'pop', level: 1, bpm: 96,
+    title: 'Shape of You', artist: 'Ed Sheeran', year: 2017,
+    why: '全球榜冠军、播放量最高的歌之一。整首几乎就是一段像木琴的短循环加几个和弦，鼓很简单——非常适合在 SEQTRAK 上一层层搭。',
+    learn: ['短循环的旋律', '和弦循环', '简单的流行鼓'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'dance-monkey', style: 'pop', level: 2, bpm: 98,
+    title: 'Dance Monkey', artist: 'Tones and I', year: 2019,
+    why: '三十多个国家的榜首。一句很好记的钩子，下面是简单的鼓和几个和弦，速度友好。',
+    learn: ['钩子旋律', '和弦循环', '拍手 / 军鼓的位置'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'levitating', style: 'pop', level: 3, bpm: 103,
+    title: 'Levitating', artist: 'Dua Lipa', year: 2020,
+    why: 'Billboard 2021 年度第一。迪斯科味道的流行，一条跑来跑去的贝斯线是主角，上面再叠和弦和旋律。',
+    learn: ['迪斯科贝斯', '二、四拍军鼓 + 八分镲', '贝斯和旋律的对话'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'heat-waves', style: 'pop', level: 2, bpm: 81,
+    title: 'Heat Waves', artist: 'Glass Animals', year: 2020,
+    why: '在 Billboard 榜上爬了快一年才登顶的慢歌。慢、松，一个循环转到底，上面一句懒洋洋的旋律。',
+    learn: ['慢速律动', '和弦循环', '旋律的留白'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'believer', style: 'pop', level: 2, bpm: 125,
+    title: 'Believer', artist: 'Imagine Dragons', year: 2017,
+    why: '国内也很火的那首。重重的鼓和低音撑起整首，旋律少——最适合练“鼓 + 贝斯”的力量感。',
+    learn: ['重鼓', '低音跟着底鼓', '用静音做编曲'],
+    ready: '第 2 章后可以开始',
+  },
+  {
+    id: 'save-your-tears', style: 'synth', level: 2, bpm: 118,
+    title: 'Save Your Tears', artist: 'The Weeknd', year: 2020,
+    why: 'Billboard 冠军，和 Blinding Lights 同一个 80 年代味道，但慢不少。合成器旋律好记，和弦简单。',
+    learn: ['80 年代合成器旋律', '和弦循环', '鼓机音色'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'dont-start-now', style: 'synth', level: 3, bpm: 124,
+    title: "Don't Start Now", artist: 'Dua Lipa', year: 2019,
+    why: 'Billboard 前二。四踩鼓 + 弦乐，那条在根音和高八度之间跳来跳去的迪斯科贝斯就是它的钩子。',
+    learn: ['迪斯科贝斯', '四踩鼓', '弦乐铺底'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'get-lucky', style: 'synth', level: 2, bpm: 116,
+    title: 'Get Lucky', artist: 'Daft Punk feat. Pharrell Williams', year: 2013,
+    why: '多国榜首、格莱美年度制作。四个和弦从头转到尾，一把放克吉他和一条贝斯撑起整首。',
+    learn: ['放克律动', '四个和弦转圈', '贝斯和吉他的配合'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'as-it-was', style: 'synth', level: 3, bpm: 87,
+    title: 'As It Was', artist: 'Harry Styles', year: 2022,
+    why: 'Billboard 冠军 15 周。一句很亮、一直重复的合成器 riff 是它的标志。原曲 174 BPM，很快；这里按一半的速度数（87，一步 = 原曲的八分音符），机器上好搭，层次也少。',
+    learn: ['快速的合成器 riff', '和弦循环', '驱动的鼓'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'see-you-again', style: 'hiphop', level: 1, bpm: 80,
+    title: 'See You Again', artist: 'Wiz Khalifa feat. Charlie Puth', year: 2015,
+    why: '《速度与激情 7》的主题曲，Billboard 冠军 12 周。钢琴和弦为主、慢，鼓简单——好上手。',
+    learn: ['钢琴和弦', '慢速 Hip-hop 鼓', '旋律跟着和弦走'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'sunflower', style: 'hiphop', level: 2, bpm: 90,
+    title: 'Sunflower', artist: 'Post Malone & Swae Lee', year: 2018,
+    why: '《蜘蛛侠：平行宇宙》的插曲、Billboard 冠军。层次少、和弦简单，一句很好唱的旋律。',
+    learn: ['和弦循环', '轻松的鼓', '旋律'],
+    ready: '第 3 章后可以开始',
+  },
+  {
+    id: 'old-town-road', style: 'hiphop', level: 2, bpm: 68,
+    title: 'Old Town Road', artist: 'Lil Nas X', year: 2019,
+    why: 'Billboard 冠军 19 周的纪录。一段班卓琴的循环加上 808 鼓，按半速数很慢（资料上的 136 是两倍）——层次少，最适合练“循环 + 鼓”。',
+    learn: ['808 鼓', '循环乐句', '半速的律动'],
+    ready: '第 3 章后可以开始',
+  },
+];

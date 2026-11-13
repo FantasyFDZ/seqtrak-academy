@@ -1,0 +1,46 @@
+/* 效果实验台（public/js/fxlab.js）。颜色只用 app.css 里的变量，两套配色都跟着走。 */
+.fxlab { display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 16px; height: 100%; min-height: 0; }
+.fx-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; }
+
+/* 画面：一块嵌进去的小屏幕 */
+.fx-screen { position: relative; flex: 1; min-height: 120px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--line-2); box-shadow: 0 1px 4px var(--shade-2) inset; overflow: hidden; }
+.fx-scope { position: absolute; left: 14px; top: 34px; width: calc(100% - 28px); height: calc(100% - 44px); display: block; transition: opacity var(--t-move) var(--out); }
+.fx-scope.blind { opacity: 0; }
+.fx-legend { position: absolute; left: 14px; top: 9px; display: flex; gap: 14px; font: 700 12px/1.2 var(--mono); letter-spacing: .06em; color: var(--muted); }
+.fx-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.fx-legend .dry::before { background: var(--line-3); }
+.fx-legend .now::before { background: var(--accent); }
+/* 还没放的时候，空着的画面上说一句 */
+.fxlab:not(.playing):not(.blind) .fx-screen::after { content: "点「播放」，这里会动起来"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; color: var(--muted); pointer-events: none; }
+.fxlab.blind .fx-legend { visibility: hidden; }
+.fxlab.blind .fx-screen::after { content: "先用耳朵"; position: absolute; inset: 0; display: grid; place-items: center; font: 800 22px var(--font); color: var(--muted); letter-spacing: .2em; }
+[data-fx="rich"] .fxlab.blind.playing .fx-screen::after { animation: fx-breathe calc(var(--beat) * 2) ease-in-out infinite alternate; }
+@keyframes fx-breathe { to { opacity: .35; } }
+
+/* 下面一排：播放、原声 / 加效果、这种效果自己的选项。都按手指的大小做 */
+.fx-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.fx-play { min-width: 112px; }
+.fx-ab { display: inline-flex; padding: 4px; gap: 2px; border-radius: 14px; background: var(--panel-3); box-shadow: 0 1px 2px var(--shade-2) inset; }
+.fx-ab button { min-width: 82px; height: 44px; padding: 0 14px; border: 0; border-radius: 10px; background: transparent; color: var(--text-2); font-weight: 700; font-size: 15px; cursor: pointer; transition: background var(--t-move) var(--out), color var(--t-move), transform var(--t-press); }
+.fx-ab button:active { transform: translateY(2px); }
+.fx-ab button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px var(--shade-3); }
+.fx-ab button:last-child.on { background: var(--accent); color: var(--accent-ink); box-shadow: 0 2px 0 var(--accent-2), var(--pri-glow); }
+.fx-seg button { min-height: 44px; padding: 0 14px; font-size: 14px; }
+.fxlab.blind .fx-ab, .fxlab.blind .fx-seg, .fxlab.blind .fx-strip { visibility: hidden; }
+
+/* 竖着的触摸条：照着机器上的 [FX LEVEL] 做，桔红的槽、七道横线 */
+.fx-strip { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 0; }
+.fx-strip-label { font: 700 12px/1.2 var(--mono); letter-spacing: .1em; color: var(--muted); white-space: nowrap; }
+.fx-strip-track { position: relative; flex: 1; width: 78px; min-height: 150px; padding: 24px 0; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; background: var(--accent-2); border: 1px solid var(--pri-edge); box-shadow: 0 2px 8px var(--shade-4) inset; touch-action: none; cursor: ns-resize; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.fx-strip-track b { position: relative; z-index: 1; display: block; height: 3px; margin: 0 18px; border-radius: 2px; background: var(--shade-4); }
+.fx-strip-fill { position: absolute; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 62%, var(--yellow)); transition: height 60ms linear; }
+.fx-strip-thumb { position: absolute; z-index: 2; left: 8px; right: 8px; height: 8px; margin-bottom: -4px; border-radius: 4px; background: var(--knob-ring); box-shadow: 0 0 0 2px var(--shade-3), 0 0 12px var(--yellow-glow); transition: bottom 60ms linear; }
+.fx-strip-track.touch .fx-strip-thumb { box-shadow: 0 0 0 2px var(--shade-3), 0 0 22px var(--yellow); }
+.fx-strip-read { min-height: 20px; font-weight: 700; font-size: 14px; color: var(--text); white-space: nowrap; }
+.fx-strip.off { opacity: .4; pointer-events: none; }
+.fxlab:not(.wet) .fx-strip-fill { background: var(--shade-3); }
+
+@container (max-width: 520px) {
+  .fxlab { grid-template-columns: minmax(0, 1fr) 84px; gap: 10px; }
+  .fx-strip-track { width: 66px; }
+}
