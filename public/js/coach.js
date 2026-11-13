@@ -17,9 +17,12 @@ import { sfx } from './sfx.js';
 import { shownPanels } from './device-panel.js';
 import { CONTROLS, controlInfo } from './controls.js';
 import * as jiu from './jiu.js';
+import { TUNE_NAMES } from './bird-voice.js';
 import { findLesson } from './content/curriculum.js';
 import { levelById } from './content/classroom.js';
 
+// 让它唱歌（“唱首歌”“哼一段”“吹个口哨”“再来一首”……）：不问 AI，它自己唱（彩蛋，用户 2026-11-13）
+const SING_RE = /(唱|哼|吹).{0,4}(歌|曲|段|首|个|口哨|调)|来.?首|sing|whistle/i;
 const REVIEW = '请点评我刚才这一局，告诉我最该改进的一点，以及接下来怎么练。';
 const plain = (s) => String(s).replace(/<[^>]+>/g, '').replace(/\*\*/g, '');
 const readMs = (s) => clamp(1500 + plain(s).length * 130, 2400, 9000);
@@ -188,6 +191,9 @@ class Coach {
   #busy = null; // 'fast' 一句一句的 / 'note' 小纸条：正在等哪种回答
   #run = 0; // 第几次开口；开始新的一次，旧的那次不再往下说
   #stopPick = null;
+  #sings = 0; // 这次打开应用让它唱了几回：第一回唱一小段鸟叫，再要就吹口哨哼一首，要太多回就“吹不动啦”
+  #tails = []; // 排在“纸条本”前面的选项（彩蛋的“窝里的羽毛”），一直都在
+  #lastPaper = null; // 最近递出去、还没收进纸条本的那张：点外面收起来了，菜单里还能“看刚才那张纸条”
 
   /** 正在和你说着话（气泡开着，而且不是它主动冒出来的那一句） */
   get open() {
@@ -195,7 +201,10 @@ class Coach {
   }
 
   mount() {
-    jiu.mount(document.querySelector('#coach-toggle .jiu-nest'), { tap: () => this.toggle() });
+    jiu.mount(document.querySelector('#coach-toggle .jiu-nest'), {
+      tap: () => this.toggle(),
+      explain: (id) => this.explain(id, shownPanels().find((p) => p.has(id)) || findPanel()), // 被放在一个键上，点“讲讲它”
+    });
     this.refreshStatus();
   }
 
@@ -226,6 +235,11 @@ class Coach {
     };
   }
 
+  /** 一直都在的选项（排在后面）：list 是返回 [[文字, 点了做什么], …] 的函数 */
+  offerTail(list) {
+    this.#tails.push(list);
+  }
+
   async refreshStatus() {
     try {
       this.status = (await api.get('/api/status')).ai;
@@ -241,7 +255,10 @@ class Coach {
     if (ctx.lastResult && !out.some((c) => c[2]?.review)) out.push(['点评刚才那局', () => this.ask(REVIEW, { note: true })]);
     if (findPanel()) out.push(['这个键是干嘛的？', () => this.pickKey()]);
     if (out.length < 3) out.push(['打个比方', () => this.ask('用生活里的例子或者 DJ 的经验给我打个比方，讲讲我现在在学的东西。')]);
+    if (jiu.isFree()) out.push(['回窝吧', () => jiu.goHome()]); // 被你拖到别处了
     out.push(['打字问…', () => this.typeAsk()]);
+    if (this.#lastPaper && !this.#lastPaper.saved()) out.push(['刚才那张纸条', () => this.#lastPaper.show(false)]);
+    for (const t of this.#tails) for (const c of t() || []) if (c) out.push(c);
     if (notes().length) out.push([`纸条本 · ${notes().length}`, () => this.notebook()]);
     out.push(['没事', () => this.close(), { ghost: true }]);
     return out;
@@ -251,7 +268,7 @@ class Coach {
   menu() {
     this.#stopPick?.();
     this.#run++;
-    const line = this.#busy === 'note' ? '啾！刚才那张纸条我还在写，马上给你。现在要什么？' : '啾！怎么啦？';
+    const line = this.#busy === 'note' ? '刚才那张纸条我还在写，马上给你。现在要什么，啾？' : '怎么啦，啾？';
     jiu.say({ html: line, chips: this.#chips(), mood: 'listen', call: 'greet', act: 'hop' });
   }
 
@@ -275,6 +292,10 @@ class Coach {
    */
   ask(text, { note = false, format, engine } = {}) {
     this.#stopPick?.();
+    if (!note && !format && engine !== 'deep' && String(text).length <= 24 && SING_RE.test(text)) {
+      this.sing();
+      return;
+    }
     if (this.#busy) {
       jiu.say({ html: this.#busy === 'note' ? '刚才那张纸条我还在写呢，马上给你，等我一下！' : '等我说完这个～', mood: 'think', ms: 3200 });
       return;
@@ -312,7 +333,6 @@ class Coach {
     jiu.say({ html: '嗯……', mood: 'think', call: 'think' });
 
     const play = async () => {
-      let first = true;
       let last = '';
       for (;;) {
         if (run !== this.#run) break;
@@ -330,10 +350,11 @@ class Coach {
           pointed = key;
           unpoint = jiu.point(() => (panel.el.isConnected ? panel.spot([key]) : null));
           panel.flash?.(key);
+          await jiu.settled(); // 先飞过去停稳，再说这一句（用户 2026-11-13）
+          if (run !== this.#run) break;
         }
         last = s;
-        const why = await jiu.say({ html: rich(s), mood: 'talk', call: first ? 'chatter' : null, act: key ? 'peck' : null, next: true, ms: readMs(s) });
-        first = false;
+        const why = await jiu.say({ html: rich(s), mood: 'talk', call: 'speak', act: key ? 'peck' : null, next: true, ms: readMs(s) });
         if (why === 'replaced' || why === 'hushed') {
           run === this.#run && this.#run++;
           break;
@@ -407,7 +428,7 @@ class Coach {
   #note(text, { format = 'note' } = {}) {
     this.#busy = 'note';
     jiu.setMood('think');
-    jiu.say({ html: format === 'plan' ? '好，我来排一排……排好了写在小纸条上给你。' : '我把它写成一张小纸条，稍等一下。', mood: 'think', call: 'think', ms: 4200 });
+    jiu.say({ html: format === 'plan' ? '好，我来排一排，啾……排好了写在小纸条上给你。' : '我把它写成一张小纸条，稍等，啾。', mood: 'think', call: 'think', ms: 4200 });
     let full = '';
     api.chat({
       engine: 'fast',
@@ -456,12 +477,13 @@ class Coach {
             store.update((d) => {
               d.notes = [...(Array.isArray(d.notes) ? d.notes : []), { id: uid(), at: new Date().toISOString(), title, body, q: plain(question).slice(0, 200) }].slice(-80);
             });
-            jiu.say({ html: `收好啦。纸条本里现在有 ${notes().length} 张，点我就能翻。`, mood: 'happy', call: 'ok', act: 'nod', ms: 3200 });
+            jiu.say({ html: `收好啦，啾！纸条本里现在有 ${notes().length} 张，点我就能翻。`, mood: 'happy', call: 'ok', act: 'nod', ms: 3200 });
           }, { primary: true }],
           ['先不收', null, { ghost: true }],
         ],
       });
     };
+    this.#lastPaper = { show, saved: () => saved };
     const wait = () => (sfx.held ? setTimeout(wait, 1200) : show(true));
     wait();
   }
@@ -538,6 +560,32 @@ class Coach {
     });
   }
 
+  /** 让它唱：第一回唱一小段鸟叫（害羞），再要就吹口哨哼一首老曲子（轮着来），要到第 6 回就吹不动了 */
+  sing() {
+    const run = ++this.#run;
+    const n = ++this.#sings;
+    const more = [['再来一首', () => this.sing(), { primary: true }], ['好听，啾', null, { ghost: true }]];
+    if (n === 1) {
+      jiu.say({ html: '那我唱一小段，啾～', mood: 'happy', call: 'song', act: 'hop' });
+      setTimeout(() => run === this.#run && jiu.talking() && jiu.say({ html: '就这一小段，有点害羞，啾。', mood: 'happy', chips: more }), 1700);
+      return;
+    }
+    if (n >= 6) {
+      jiu.say({ html: '吹不动啦，啾……你在机器上弹一句，我学给你听。', mood: 'sleepy', call: 'sleepy', chips: [['好', null, { primary: true }]] });
+      return;
+    }
+    const name = TUNE_NAMES[(n - 2) % TUNE_NAMES.length];
+    jiu.say({ html: `那我吹个口哨：《${name}》，啾～`, mood: 'happy', act: 'flap' });
+    setTimeout(() => {
+      if (run !== this.#run) return;
+      const notes = jiu.chirp('tune', { name }) || [];
+      const last = notes[notes.length - 1];
+      const ms = last ? last[0] + last[1] * 1000 : 3000;
+      jiu.say({ html: `♪ 《${name}》……`, mood: 'happy' });
+      setTimeout(() => run === this.#run && jiu.talking() && jiu.say({ html: n === 2 ? '吹完了，啾！还想听吗？' : '吹完了，啾！', mood: 'happy', chips: more }), ms + 400);
+    }, 1100);
+  }
+
   /** 指哪讲哪：点机器图上的一个键，啾啾飞过去讲它是干什么的 */
   pickKey() {
     const panel = findPanel();
@@ -567,7 +615,7 @@ class Coach {
     this.#stopPick = stop;
     panel.el.classList.add('jiu-picking');
     addEventListener('pointerdown', onDown, true);
-    jiu.say({ html: '点一下你想问的那个键，我飞过去讲。', mood: 'listen', call: 'look', chips: [['算了', () => stop(), { ghost: true }]] });
+    jiu.say({ html: '点一下你想问的那个键，我飞过去讲，啾。', mood: 'listen', call: 'look', chips: [['算了', () => stop(), { ghost: true }]] });
   }
 
   /** 讲一个键：飞过去，一句一句说（按键百科里写的），最后给几个选项。back = 从小纸条点过来的：最后多一个“回到纸条” */
@@ -580,10 +628,13 @@ class Coach {
     const unpoint = panel ? jiu.point(() => (panel.el.isConnected ? panel.spot([id]) : null)) : null;
     panel?.flash?.(id);
     try {
+      // 先飞过去，停稳了再开口（用户 2026-11-13：问按钮作用时要等它停好再弹出回答）
+      if (panel) await jiu.settled();
+      if (run !== this.#run) return;
       for (let i = 0; i < lines.length; i++) {
         const lastOne = i === lines.length - 1;
         const why = await jiu.say({
-          html: lines[i], mood: 'talk', call: i === 0 ? 'look' : null, act: i === 0 ? 'peck' : null,
+          html: lines[i], mood: 'talk', call: i === 0 ? 'look' : 'speak', act: i === 0 ? 'peck' : null,
           next: !lastOne, ms: lastOne ? 30000 : readMs(lines[i]),
           chips: !lastOne ? [] : back ? [['回到纸条', back, { primary: true }], ['再问一个键', () => this.pickKey()]] : [['再问一个键', () => this.pickKey(), { primary: true }], ['懂了', null, { ghost: true }]],
         });
@@ -608,11 +659,11 @@ class Coach {
         if (b.point) {
           unpoint?.();
           unpoint = jiu.point(b.point);
-          await new Promise((r) => setTimeout(r, 380)); // 先飞过去，再开口
+          await jiu.settled(); // 先飞过去停稳，再开口
           if (run !== this.#run) return;
         }
         const why = await jiu.say({
-          html: b.html, mood: b.mood || 'talk', call: b.call ?? (i === 0 ? 'chatter' : null), act: b.act || null,
+          html: b.html, mood: b.mood || 'talk', call: b.call ?? 'speak', act: b.act || null,
           next: !lastOne, ms: lastOne ? 30000 : readMs(b.html), chips: lastOne ? end : [],
         });
         if (run !== this.#run || why === 'replaced' || why === 'hushed' || why === 'chip') return;

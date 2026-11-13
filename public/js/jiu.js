@@ -12,6 +12,7 @@ import { h, clamp } from './util.js';
 import { store } from './store.js';
 import { sfx } from './sfx.js';
 import { midi } from './midi.js';
+import { controlInfo } from './controls.js';
 
 const FOOT_X = 102 / 200; // 爪子在小鸟那张图里的位置（bird.js 的 FOOT）
 const FOOT_Y = 184 / 200;
@@ -40,6 +41,8 @@ let lastOops = 0;
 let following = false;
 
 const still = () => document.documentElement.hasAttribute('data-still');
+const calmFx = () => document.documentElement.dataset.fx === 'calm' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+let lapping = false; // 正在绕圈飞（彩蛋）：这时候不管该在哪儿
 const nest = { mode: 'perch', size: NEST, rect: () => (nestEl?.isConnected ? nestEl.getBoundingClientRect() : null) };
 
 const visible = (r) => !!r && r.width > 0 && r.height > 0 && r.bottom > 4 && r.top < innerHeight - 4 && r.right > 4 && r.left < innerWidth - 4;
@@ -67,6 +70,7 @@ const sizeOf = (spot) => Math.round(clamp(spot.size || NEST, 40, 96));
 
 /** 在这个位置时，爪子该落在哪儿 */
 function feetFor(spot, r, size) {
+  if (spot.mode === 'free') return spot.feet; // 被你放下的地方：爪子就在那一点
   const cx = r.left + r.width / 2;
   if (spot.mode === 'hover') {
     // 悬停在键的正上方；键上面没地方了（贴着屏幕上沿），就停到它下面
@@ -95,13 +99,51 @@ function go(spot, r) {
     bird.setAir(hover ? 'hover' : null);
     flying = false;
     settle(spot);
+    landed();
     return;
   }
   flying = true;
+  // 飞之前先把对话框收起来（用户 2026-11-13）：停稳了再弹出来
+  if (talk?.classList.contains('on')) talk.classList.remove('pop');
+  talk?.classList.add('away');
   (hover ? bird.hoverAt(x, y) : bird.flyTo(x, y)).then(() => {
     if (me !== moves) return;
     flying = false;
     settle(spot);
+    landed();
+  });
+}
+
+/** 停稳了：收着的对话框弹回来，等着它停稳再开口的人接着说 */
+const landWaiters = [];
+function landed() {
+  if (talk?.classList.contains('away')) {
+    talk.classList.remove('away');
+    if (talk.classList.contains('on')) {
+      void talk.offsetWidth;
+      talk.classList.add('pop');
+      placeTalk();
+    }
+  }
+  landWaiters.splice(0).forEach((f) => f());
+}
+
+/**
+ * 等它停稳（飞到要指的键上、落到位置上）。刚让它去一个新地方（point / perch）就调：
+ * 它要过一小会儿才起飞，所以先等一下再看；一直停不下来（比如窗口藏着，画面不动）最多等 2.5 秒。
+ */
+export function settled() {
+  return new Promise((resolve) => {
+    const cap = setTimeout(resolve, 2500);
+    setTimeout(() => {
+      if (!flying) {
+        clearTimeout(cap);
+        resolve();
+      } else landWaiters.push(() => {
+        clearTimeout(cap);
+        resolve();
+      });
+    }, 40);
   });
 }
 
@@ -119,7 +161,7 @@ function settle(spot) {
 
 /** 看一眼该在哪儿：换了位置就飞过去；位置跟着页面挪了一点（滚动、版式变了）就直接跟上 */
 function sync() {
-  if (!bird) return;
+  if (!bird || lapping || dragging) return;
   const [spot, r] = pick();
   if (!r) return;
   if (spot !== current) {
@@ -167,7 +209,7 @@ function addSpot(spot) {
 
 function applyMood() {
   if (!bird) return;
-  const want = talkMood || current?.mood || mood;
+  const want = playMood || talkMood || current?.mood || mood;
   if (bird.mood !== want) bird.setMood(want);
 }
 
@@ -243,7 +285,7 @@ function settlePending(why) {
  *   ask      { placeholder, onSubmit(text, asNote) }：带一个输入框；“问”= 一句一句地答，“写张小纸条”= asNote 为 true
  *   next     后面还有话：右下角一个 ▸，点一下气泡看下一句
  *   ms       多久之后往下走（next）或收起来；0 = 一直留着
- *   mood / call / act   这一句的神态、叫声（bird-voice.js 的叫法）、动作（bird.js 的 ACTIONS）
+ *   mood / call / act   这一句的神态、叫声（bird-voice.js 的叫法；'speak' = 照着这句话“说”一段）、动作（bird.js 的 ACTIONS）
  *   kind     'talk' 和你说着话（默认）/ 'nudge' 它主动冒出来说的一句
  *   quiet    内容和刚才一样、只是换了选项：不再弹一下、不再叫
  */
@@ -280,7 +322,8 @@ export function say({ html = '', paper = null, chips = [], ask = null, next = fa
   talk.classList.toggle('has-next', !!next);
   const wasOn = talk.classList.contains('on');
   talk.classList.add('on');
-  if (!quiet || !wasOn) {
+  talk.classList.toggle('away', flying); // 正在飞：先收着，停稳了再弹出来（landed）
+  if ((!quiet || !wasOn) && !flying) {
     talk.classList.remove('pop');
     void talk.offsetWidth;
     talk.classList.add('pop');
@@ -288,7 +331,8 @@ export function say({ html = '', paper = null, chips = [], ask = null, next = fa
   talkMood = m;
   applyMood();
   if (act && !quiet) bird.act(act);
-  if (call && !quiet) chirp(call);
+  // 'speak' = 照着这句话的样子“说”出来（长短、句尾的语气）
+  if (call && !quiet) chirp(call, call === 'speak' ? { text: talkBody.querySelector('.jiu-line')?.textContent || '' } : undefined);
   placeTalk();
   follow();
   if (ask) setTimeout(() => talk.querySelector('textarea')?.focus(), 60);
@@ -326,7 +370,7 @@ function askForm({ placeholder = '想问什么，直接写', onSubmit }) {
 /** 把气泡收起来 */
 export function hush() {
   clearTimeout(talkTimer);
-  if (talk) talk.classList.remove('on', 'pop');
+  if (talk) talk.classList.remove('on', 'pop', 'away');
   kind = '';
   talkMood = null;
   applyMood();
@@ -338,11 +382,11 @@ export const talking = () => (talk?.classList.contains('on') ? kind : '');
 
 // ───────────── 叫声、神态、动作 ─────────────
 
-/** 叫一声（叫法见 bird-voice.js）。界面音效关着、音游打着的时候只动嘴不出声 */
-export function chirp(call) {
+/** 叫一声（叫法见 bird-voice.js；opts 给 speak 传这句话）。界面音效关着、音游打着的时候只动嘴不出声 */
+export function chirp(call, opts) {
   if (!bird) return;
   voice.enabled = store.settings.uiSound !== false && !sfx.held;
-  bird.sing(call);
+  return bird.sing(call, opts); // 每个音的 [开始毫秒, 时长秒]
 }
 
 /** 换全局的神态；ms = 过这么久回到待机 */
@@ -374,12 +418,328 @@ export function groove(bpm) {
   grooveBpm = bpm > 0 ? bpm : 0;
   applyGroove();
 }
+let playingSince = 0;
 function applyGroove() {
   if (!bird) return;
   if (grooveBpm) bird.el.style.setProperty('--beat', `${(60 / grooveBpm).toFixed(3)}s`);
   else bird.el.style.removeProperty('--beat');
-  bird.el.classList.toggle('jiu-groove', grooveBpm > 0 || !!midi.playing);
+  const playing = !!midi.playing;
+  if (playing && !playingSince) playingSince = performance.now();
+  if (!playing) playingSince = 0;
+  bird.el.classList.toggle('jiu-groove', grooveBpm > 0 || playing);
+  // 彩蛋：机器放了半分钟以上，从点头变成跟着拍子蹦（音游里不蹦）
+  bird.el.classList.toggle('jiu-dance', playing && !grooveBpm && performance.now() - playingSince > 30000);
 }
+
+// ───────────── 彩蛋用的几样（什么时候用见 jiu-eggs.js） ─────────────
+
+/**
+ * 绕着一块地方飞一圈（一节课三星、升级、连续练了好几天）。getRect = 那一块的矩形（视口坐标）。
+ * 克制档、截图用的“直接到位”、音游打着的时候不飞。飞完回到原来该在的地方。
+ */
+export function lap(getRect, { turns = 1, ms = 2200, song = true } = {}) {
+  return new Promise((resolve) => {
+    const r = getRect?.();
+    if (!bird || lapping || !visible(r) || still() || sfx.held || calmFx()) return resolve();
+    lapping = true;
+    moves++; // 正在飞的那一趟作废
+    flying = true;
+    talk?.classList.add('away');
+    const size = bird.el.offsetWidth;
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2 + size * 0.4; // 爪子绕着转，身子正好绕着中心
+    const rx = Math.min(innerWidth / 2 - size, r.width / 2 + size * 0.7);
+    const ry = Math.min(innerHeight / 2 - size, r.height / 2 + size * 0.6);
+    const [sx, sy] = feetNow();
+    const a0 = Math.atan2((sy - cy) / ry, (sx - cx) / rx);
+    const at = (p) => {
+      const a = a0 - p * Math.PI * 2 * turns;
+      return [cx + rx * Math.cos(a), cy + ry * Math.sin(a)];
+    };
+    bird.setAir('fly');
+    if (song) chirp('song');
+    const t0 = performance.now();
+    let last = [sx, sy];
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / ms);
+      let [x, y] = at(p);
+      if (p < 0.15) {
+        const k = p / 0.15;
+        const e = k * k * (3 - 2 * k);
+        x = sx + (x - sx) * e;
+        y = sy + (y - sy) * e;
+      }
+      if (Math.abs(x - last[0]) > 0.5) bird.face(x < last[0] ? 'left' : 'right');
+      const pitch = Math.atan2(y - last[1], Math.abs(x - last[0]) + 0.01) * (180 / Math.PI) * 0.5;
+      bird.el.style.setProperty('--pitch', `${Math.max(-20, Math.min(20, pitch)).toFixed(1)}deg`);
+      bird.placeAt(x, y);
+      last = [x, y];
+      if (p < 1) requestAnimationFrame(step);
+      else {
+        lapping = false;
+        flying = false;
+        current = null; // 飞回该在的地方
+        sync();
+        resolve();
+      }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+/** 嘴里叼着一样东西（一根羽毛）；null = 放下 */
+export function carry(node) {
+  if (!bird) return;
+  bird.el.querySelector('.jiu-carry')?.remove();
+  if (node) bird.el.append(h('span', { class: 'jiu-carry', 'aria-hidden': 'true' }, node));
+}
+
+/** 回窝一趟（比如叼羽毛回去）：返回“走了”的函数 */
+export function goNest() {
+  return addSpot({ mode: 'perch', size: NEST, rect: nest.rect });
+}
+
+/** 连点它 5 下：晕了 */
+function dizzy(line = '别戳啦，啾……头好晕。') {
+  hush();
+  bird.act('dizzy');
+  chirp('surprised');
+  setTimeout(() => say({ kind: 'nudge', html: line, mood: 'oops', ms: 2400 }), 1000);
+}
+
+// ───────────── 拎起来玩（用户 2026-11-13：鼠标可以拖着啾啾挪到任何地方，随意把玩，它会有各种反应） ─────────────
+//   拎起来：吓一跳，扑腾着翅膀、腿悬着，跟着手走；拎着走一会儿不晃，它当是坐飞机，高兴起来。
+//   放下：就站在那儿（这一页上，直到换页、双击它、或者把它拖回窝）。站在机器的某个键上，它说脚下是哪个键，可以让它讲讲。
+//   用力一甩：被甩出去一截，扑腾几下稳住。来回猛晃：晃晕了。拖到窝里：回家。拖到屏幕最上沿：有点怕高。
+//   不按键、用鼠标在它身上来回蹭：舒服地理理羽毛。音游打着的时候拎不起来。
+let dragging = null;
+let dragged = false; // 刚拖完：紧跟着的那个 click 不算点它
+let freeSpot = null;
+let playMood = null;
+let playTimer = 0;
+let onKey = null;
+const DROP_LINES = ['这儿视野不错，啾～', '就待这儿吧，啾。', '新地方，啾！', '嗯？这是哪儿，啾？', '挺好，啾～'];
+
+function setPlayMood(m, ms = 0) {
+  clearTimeout(playTimer);
+  playMood = m;
+  applyMood();
+  if (ms) playTimer = setTimeout(() => setPlayMood(null), ms);
+}
+
+/** 不再站在被放下的地方：回到该在的地方（窝或者页面给它留的位置） */
+function dropFree() {
+  if (!freeSpot) return;
+  const i = spots.indexOf(freeSpot);
+  if (i >= 0) spots.splice(i, 1);
+  if (current === freeSpot) current = null;
+  freeSpot = null;
+  syncSoon();
+}
+/** 叫它回来（双击它、双击窝、双击首页问候卡的圆盘）：被挪到别处了就回到该在的地方；本来就在，就应一声 */
+export function callBack() {
+  if (!bird) return;
+  if (freeSpot) return goHome();
+  hush();
+  bird.act('hop');
+  say({ kind: 'nudge', html: '在呢，啾！', mood: 'happy', call: 'greet', ms: 1400 });
+}
+/** 被你挪到别处了吗 */
+export const isFree = () => !!freeSpot;
+/** 回窝（或者回页面给它留的位置） */
+export function goHome() {
+  if (!freeSpot) return;
+  dropFree();
+  say({ kind: 'nudge', html: '回窝啦，啾。', mood: 'happy', call: 'greet', ms: 1800 });
+}
+
+function clampFeet(x, y) {
+  const s = bird.el.offsetWidth;
+  return [clamp(x, s * 0.45, innerWidth - s * 0.45), clamp(y, s * 0.95, innerHeight - 2)];
+}
+
+function beginDrag(e, start) {
+  dragging = { ox: start.fx - start.x, oy: start.fy - start.y, samples: [], flips: 0, lastSign: [0, 0], since: performance.now(), happy: false };
+  moves++; // 正在飞的那一趟作废
+  flying = false;
+  hush();
+  bird.el.classList.add('jiu-held');
+  document.documentElement.classList.add('jiu-dragging');
+  bird.setAir('hover');
+  setPlayMood('surprised');
+  chirp('surprised');
+  moveDrag(e);
+}
+
+function moveDrag(e) {
+  const d = dragging;
+  const [x, y] = clampFeet(e.clientX + d.ox, e.clientY + d.oy);
+  const now = performance.now();
+  const prev = d.samples[d.samples.length - 1];
+  if (prev) {
+    const dx = x - prev[1];
+    const dy = y - prev[2];
+    if (Math.abs(dx) > 1) bird.face(dx < 0 ? 'left' : 'right');
+    // 数来回晃了几下：同一个方向上走了 6 像素以上又掉头，算一下
+    [dx, dy].forEach((v, k) => {
+      if (Math.abs(v) < 6) return;
+      const sign = Math.sign(v);
+      if (d.lastSign[k] && sign !== d.lastSign[k]) d.flips++;
+      d.lastSign[k] = sign;
+    });
+  }
+  d.samples.push([now, x, y]);
+  if (d.samples.length > 12) d.samples.shift();
+  bird.placeAt(x, y);
+  // 拎着慢慢走一会儿：当是坐飞机；猛晃：不高兴
+  if (d.flips >= 4) setPlayMood('oops');
+  else if (!d.happy && now - d.since > 1500) {
+    d.happy = true;
+    setPlayMood('happy');
+  }
+}
+
+async function endDrag() {
+  const d = dragging;
+  dragging = null;
+  bird.el.classList.remove('jiu-held');
+  document.documentElement.classList.remove('jiu-dragging');
+  dragged = true;
+  setTimeout(() => (dragged = false), 0);
+  // 松手那一下的速度（最近 100 毫秒）
+  const now = performance.now();
+  const last = d.samples[d.samples.length - 1];
+  const first = d.samples.find(([t]) => now - t < 100) || d.samples[0];
+  const dt = Math.max(16, last[0] - first[0]);
+  const vx = (last[1] - first[1]) / dt;
+  const vy = (last[2] - first[2]) / dt;
+  let [x, y] = [last[1], last[2]];
+  const thrown = Math.hypot(vx, vy) > 1.4 && !calmFx(); // 松手时还快得像在甩（每毫秒 1.4 像素以上）
+  if (thrown) [x, y] = clampFeet(x + vx * 260, y + vy * 260);
+  // 拖回窝里：回家
+  const n = nest.rect();
+  if (n && x > n.left - 20 && x < n.right + 20 && y > n.top - 30 && y < n.bottom + 30) {
+    dropFree();
+    current = null;
+    syncSoon();
+    setPlayMood(null);
+    say({ kind: 'nudge', html: '回家啦，啾～', mood: 'happy', call: 'ok', ms: 1800 });
+    return;
+  }
+  // 放在这儿：以后就待在这儿（这一页上）
+  if (freeSpot) {
+    const i = spots.indexOf(freeSpot);
+    if (i >= 0) spots.splice(i, 1);
+  }
+  const spot = { mode: 'free', feet: [x, y], size: bird.el.offsetWidth, born: performance.now(), rect: () => ({ left: x - 1, top: y - 1, right: x + 1, bottom: y + 1, width: 2, height: 2 }) };
+  spots.push(spot);
+  freeSpot = spot;
+  current = spot;
+  if (thrown) {
+    const me = ++moves;
+    flying = true;
+    setPlayMood('surprised');
+    say({ kind: 'nudge', html: '哇——！', mood: 'surprised', ms: 900 });
+    await bird.flyTo(x, y, { duration: 480 });
+    if (me !== moves) return;
+    flying = false;
+    landed();
+  } else {
+    bird.setAir(null);
+  }
+  bird.act('flap');
+  setPlayMood(null);
+  react(x, y, { thrown, shaken: d.flips >= 6, rode: now - d.since > 1500 });
+}
+
+/** 放下以后说点什么 */
+function react(x, y, { thrown, shaken, rode }) {
+  if (shaken) return dizzy('晃晕了，啾……');
+  if (thrown) return say({ kind: 'nudge', html: '好险，啾！差点没抓住。', mood: 'surprised', call: 'surprised', ms: 2600 });
+  // 脚下踩着机器上的哪个键
+  const under = document.elementsFromPoint(x, y + 3).find((n) => !layer.contains(n));
+  const key = under?.closest?.('.panel-wrap [data-id]');
+  const info = key && controlInfo(key.dataset.id);
+  if (info) {
+    bird.act('peck');
+    return say({ kind: 'nudge', html: `踩在 <b>${info.en}</b> 上啦，啾！`, mood: 'happy', call: 'look', ms: 6000, chips: [['讲讲它', () => onKey?.(key.dataset.id), { primary: true }], ['好', null, { ghost: true }]] });
+  }
+  if (y < bird.el.offsetWidth * 1.6) return say({ kind: 'nudge', html: '好高，啾！有点怕。', mood: 'surprised', call: 'surprised', ms: 2400 });
+  if (rode) return say({ kind: 'nudge', html: '坐飞机咯，啾～', mood: 'happy', call: 'ok', ms: 2200 });
+  bird.act(Math.random() < 0.5 ? 'preen' : 'hop');
+  return say({ kind: 'nudge', html: DROP_LINES[Math.floor(Math.random() * DROP_LINES.length)], mood: 'listen', call: 'look', ms: 2200 });
+}
+
+/** 装上拎、放、蹭这几样 */
+function installPlay(passingNow) {
+  let press = null;
+  bird.el.addEventListener('pointerdown', (e) => {
+    if (passingNow() || sfx.held || e.button > 0) return; // 身后的键收到了这一下；音游打着的时候拎不起来
+    const [fx, fy] = feetNow();
+    press = { id: e.pointerId, x: e.clientX, y: e.clientY, fx, fy };
+    const move = (ev) => {
+      if (ev.pointerId !== press?.id) return;
+      if (!dragging) {
+        if (Math.hypot(ev.clientX - press.x, ev.clientY - press.y) < 6) return;
+        beginDrag(ev, press);
+        return;
+      }
+      ev.preventDefault();
+      moveDrag(ev);
+    };
+    const up = (ev) => {
+      if (ev.pointerId !== press?.id) return;
+      removeEventListener('pointermove', move, true);
+      removeEventListener('pointerup', up, true);
+      removeEventListener('pointercancel', up, true);
+      press = null;
+      if (dragging) endDrag();
+    };
+    addEventListener('pointermove', move, true);
+    addEventListener('pointerup', up, true);
+    addEventListener('pointercancel', up, true);
+  });
+  // 双击它：回到该在的地方
+  bird.el.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    callBack();
+  });
+  // 不按键、在它身上来回蹭：舒服
+  let rub = 0;
+  let rubFlips = 0;
+  let rubSign = 0;
+  let rubAt = 0;
+  let lastPet = 0;
+  let petted = false;
+  bird.el.addEventListener('pointermove', (e) => {
+    if (e.buttons || dragging || e.pointerType !== 'mouse') return;
+    const now = performance.now();
+    if (now - rubAt > 1200) {
+      rub = 0;
+      rubFlips = 0;
+    }
+    rubAt = now;
+    rub += Math.abs(e.movementX) + Math.abs(e.movementY);
+    const sign = Math.sign(e.movementX);
+    if (sign && rubSign && sign !== rubSign) rubFlips++;
+    if (sign) rubSign = sign;
+    if (rub > 160 && rubFlips >= 2 && now - lastPet > 3000) {
+      lastPet = now;
+      rub = 0;
+      rubFlips = 0;
+      setPlayMood('happy', 1800);
+      bird.act(Math.random() < 0.6 ? 'preen' : 'hop');
+      chirp('chatter');
+      if (!petted) {
+        petted = true;
+        say({ kind: 'nudge', html: '好舒服，啾～', mood: 'happy', ms: 1800 });
+      }
+    }
+  });
+  // 换了一页：从被放下的地方回去
+  addEventListener('hashchange', () => dropFree());
+}
+
 
 // ───────────── 位置 ─────────────
 
@@ -404,10 +764,11 @@ export function point(rect, { size = 44, mood: m = null } = {}) {
 // ───────────── 装上 ─────────────
 
 /** 装上小鸟。nest = 导航栏里给它留的窝；tap = 点了小鸟要做什么 */
-export function mount(nestHost, { tap } = {}) {
+export function mount(nestHost, { tap, explain } = {}) {
   if (layer) return;
   nestEl = nestHost;
   onTap = tap;
+  onKey = explain; // 站在一个键上时点“讲讲它”
   bird = createBird({ size: NEST });
   bird.el.setAttribute('title', '啾啾：点一下和它说话');
   // 它悬停着指键的时候，身子会挡住后面的键（比如指着第 9 个方键时挡住第 1 个）：点到它身上、身后正好是机器图上的一个键，
@@ -435,9 +796,26 @@ export function mount(nestHost, { tap } = {}) {
     addEventListener('pointerup', up, true);
     addEventListener('pointercancel', up, true);
   });
+  // 点它的身体：开 / 关对话框（等 0.26 秒看是不是双击：双击是叫它回去，不开对话框）。
+  // 连着快点的那几下不来回开关；2.5 秒里点满 5 下，它就晕了（彩蛋）
+  let pokes = [];
+  let tapTimer = 0;
+  installPlay(() => passing);
   bird.el.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (!passing) onTap?.();
+    if (passing || dragged) return;
+    const now = performance.now();
+    pokes = pokes.filter((t) => now - t < 2500);
+    pokes.push(now);
+    if (pokes.length >= 5) {
+      pokes = [];
+      clearTimeout(tapTimer);
+      dizzy();
+      return;
+    }
+    clearTimeout(tapTimer);
+    if (pokes.length >= 2 && now - pokes[pokes.length - 2] < 500) return; // 双击的第二下、连着快点
+    tapTimer = setTimeout(() => onTap?.(), 260);
   });
   talkBody = h('div', { class: 'jiu-body' });
   talk = h('div', { class: 'jiu-talk', role: 'status', 'aria-live': 'polite' }, h('i', { class: 'jiu-tail', 'aria-hidden': 'true' }), talkBody);
@@ -476,8 +854,18 @@ export function mount(nestHost, { tap } = {}) {
   };
   addEventListener('pointerdown', wake, true);
   addEventListener('keydown', wake, true);
+
+  // 点对话框以外的地方，对话框就收起来（用户 2026-11-13）。不算“以外”的：小鸟自己、导航栏里它的窝（那两处是开 / 关它）、
+  // “指哪讲哪”时等你点的那张机器图（那一下交给 coach.js 去讲那个键）
+  addEventListener('pointerdown', (e) => {
+    if (!talk.classList.contains('on')) return;
+    const t = e.target;
+    if (talk.contains(t) || bird.el.contains(t) || t.closest?.('#coach-toggle, .jiu-picking')) return;
+    hush();
+  }, true);
   midi.on('noteon', wake);
   setInterval(() => {
+    applyGroove(); // 机器放够半分钟了没有（跳舞）
     if (sfx.held || talking() || mood !== 'idle' || document.hidden) return;
     if (performance.now() - lastInput > SLEEP_AFTER) setMood('sleepy');
   }, 5000);

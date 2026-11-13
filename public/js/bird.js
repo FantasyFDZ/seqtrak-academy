@@ -22,8 +22,8 @@ export const MOODS = ['idle', 'talk', 'think', 'happy', 'cheer', 'oops', 'surpri
 export const MOOD_NAMES = { idle: '待机', talk: '说话', think: '在想', happy: '开心', cheer: '欢呼', oops: '可惜', surprised: '吃惊', sleepy: '困了', listen: '在听' };
 export const AIRS = ['fly', 'glide', 'hover', 'land'];
 export const AIR_NAMES = { fly: '扑翅飞', glide: '收翅滑', hover: '悬停', land: '刹车落地' };
-export const ACTIONS = ['hop', 'nod', 'shake', 'peck', 'sing', 'flap', 'flip', 'preen'];
-export const ACTION_NAMES = { hop: '跳一下', nod: '点头', shake: '摇头', peck: '啄一下', sing: '唱一段', flap: '拍翅膀', flip: '翻个跟头', preen: '理羽毛' };
+export const ACTIONS = ['hop', 'nod', 'shake', 'peck', 'sing', 'flap', 'flip', 'preen', 'dizzy'];
+export const ACTION_NAMES = { hop: '跳一下', nod: '点头', shake: '摇头', peck: '啄一下', sing: '唱一段', flap: '拍翅膀', flip: '翻个跟头', preen: '理羽毛', dizzy: '晕了' };
 
 // 爪子、嘴、头中心在图上的位置（viewBox 0 0 200 200 里）
 const FOOT = { x: 102, y: 184 };
@@ -52,6 +52,9 @@ const CSS = `
 .bird .b-legs path { fill: none; stroke: var(--b-leg); stroke-width: 3.6; stroke-linecap: round; stroke-linejoin: round; }
 .bird .b-shadow { fill: var(--b-shadow); transform-origin: 102px 187px; transition: opacity .2s; }
 .bird .b-line { fill: none; stroke: var(--b-ink); stroke-width: 3.6; stroke-linecap: round; opacity: 0; }
+/* 晕了（动作 dizzy）：眼睛变成 ×，一会儿就好 */
+.bird.b-dizzy :is(.b-eye-open, .b-eye-happy, .b-eye-closed) { opacity: 0 !important; }
+.bird.b-dizzy .b-eye-dizzy .b-line { opacity: 1; }
 
 /* 每一块绕着哪儿转（viewBox 里的坐标） */
 .bird .b-act, .bird .b-rig, .bird .b-pose { transform-origin: ${FOOT.x}px ${FOOT.y}px; }
@@ -205,11 +208,11 @@ const CSS = `
 
 function injectCss() {
   const old = document.getElementById('bird-css');
-  if (old?.dataset.v === '3') return;
+  if (old?.dataset.v === '4') return;
   old?.remove();
   const s = document.createElement('style');
   s.id = 'bird-css';
-  s.dataset.v = '3';
+  s.dataset.v = '4';
   s.textContent = CSS;
   document.head.append(s);
 }
@@ -268,6 +271,7 @@ function svgMarkup(id) {
       </g>
       <path class="b-line b-eye-happy" d="M124 77 Q 133 65.5 142 77"/>
       <path class="b-line b-eye-closed" d="M125 75 Q 133 81.5 141 75"/>
+      <g class="b-eye-dizzy"><path class="b-line" d="M127.5 68.5 L 138.5 79.5"/><path class="b-line" d="M138.5 68.5 L 127.5 79.5"/></g>
       <path class="b-line b-brow" d="M125 63.5 L 141 58.5" style="stroke-width: 3"/>
       <g class="b-upperg"><path class="b-upper" d="M148 72.5 C 159 72.5, 170 77, 178 83.5 C 168 86, 158 86.4, 148 85 Z"/></g>
       <g class="b-lower"><path class="b-lowerbill" d="M149 85 C 158 85.8, 167 85.5, 175 84.4 C 167 90, 157 91.6, 149 90.4 Z"/></g>
@@ -498,6 +502,13 @@ export function createBird({ size = 120, mood = 'idle', air = null, calm = false
         case 'preen':
           anim('.b-wingact', [{ transform: 'rotate(0)' }, { transform: 'rotate(14deg)', offset: 0.3 }, { transform: 'rotate(14deg)', offset: 0.75 }, { transform: 'rotate(0)' }], { duration: 1200 });
           return anim('.b-headact', [{ transform: 'translate(0,0) rotate(0)' }, { transform: 'translate(-18px,12px) rotate(-38deg)', offset: 0.3 }, { transform: 'translate(-16px,14px) rotate(-30deg)', offset: 0.45 }, { transform: 'translate(-18px,12px) rotate(-38deg)', offset: 0.6 }, { transform: 'translate(-16px,14px) rotate(-30deg)', offset: 0.75 }, { transform: 'translate(0,0) rotate(0)' }], { duration: 1200, easing: 'ease-in-out' });
+        case 'dizzy':
+          // 晕了：原地转两圈（左右翻面），头画着圈晃，眼睛变成 ×，过一会儿缓过来
+          el.classList.add('b-dizzy');
+          setTimeout(() => el.classList.remove('b-dizzy'), 2000);
+          anim('.b-headact', [{ transform: 'translate(0,0) rotate(0)' }, { transform: 'translate(-4px,3px) rotate(-12deg)', offset: 0.2 }, { transform: 'translate(3px,5px) rotate(10deg)', offset: 0.4 }, { transform: 'translate(-3px,2px) rotate(-9deg)', offset: 0.6 }, { transform: 'translate(2px,3px) rotate(7deg)', offset: 0.8 }, { transform: 'translate(0,0) rotate(0)' }], { duration: 1800, easing: 'ease-in-out' });
+          anim('.b-tail', [{ transform: 'rotate(0)' }, { transform: 'rotate(18deg)', offset: 0.3 }, { transform: 'rotate(10deg)', offset: 0.8 }, { transform: 'rotate(0)' }], { duration: 1800 });
+          return anim('.b-act', [{ transform: 'scaleX(1) rotate(0)' }, { transform: 'scaleX(-1) rotate(-6deg)', offset: 0.18 }, { transform: 'scaleX(1) rotate(6deg)', offset: 0.36 }, { transform: 'scaleX(-1) rotate(-5deg)', offset: 0.5 }, { transform: 'scaleX(1) rotate(8deg)', offset: 0.64 }, { transform: 'scaleX(1) rotate(-6deg)', offset: 0.8 }, { transform: 'scaleX(1) rotate(0)' }], { duration: 1600, easing: 'ease-in-out' });
         case 'sing':
           return api.sing('song');
         default:
@@ -509,8 +520,11 @@ export function createBird({ size = 120, mood = 'idle', air = null, calm = false
       const onsets = voice.play(call, opts) || [];
       onsets.forEach(([ms, dur], i) => setTimeout(() => {
         beak(Math.max(90, Math.min(240, dur * 1000 * 1.2)));
-        if (call === 'song' || call === 'ok' || call === 'greet') note(i);
+        if (call === 'song' || call === 'ok' || call === 'greet' || (call === 'tune' && i % 2 === 0)) note(i);
       }, ms));
+      // 吹口哨哼曲子：头跟着慢慢晃，一直晃到吹完
+      const last = onsets[onsets.length - 1];
+      if (call === 'tune' && last) anim('.b-headact', [{ transform: 'rotate(0)' }, { transform: 'rotate(-7deg)', offset: 0.25 }, { transform: 'rotate(5deg)', offset: 0.5 }, { transform: 'rotate(-6deg)', offset: 0.75 }, { transform: 'rotate(0)' }], { duration: last[0] + last[1] * 1000, easing: 'ease-in-out' });
       if (call === 'song') anim('.b-headact', [{ transform: 'rotate(0)' }, { transform: 'rotate(-8deg)', offset: 0.3 }, { transform: 'rotate(4deg)', offset: 0.7 }, { transform: 'rotate(0)' }], { duration: 1400 });
       return onsets;
     },

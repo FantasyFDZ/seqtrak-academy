@@ -12,6 +12,8 @@ import { setCoachMood } from './coach-face.js';
 import { celebrateLevel } from './celebrate.js';
 import { LEVELS } from './levels.js';
 import { nudge } from './coach-nudge.js';
+import { initEggs } from './jiu-eggs.js';
+import { callBack } from './jiu.js';
 import { toast } from './ui.js';
 import { connectDevice } from './device-connect.js';
 import { homeView } from './views/home.js';
@@ -144,8 +146,12 @@ $('#skin-toggle').addEventListener('click', () => {
   store.update((d) => (d.settings.skin = next));
 });
 
-// 啾啾的窝：点一下就是点啾啾（它在别处的时候，气泡从它那儿冒出来）
-$('#coach-toggle').addEventListener('click', () => coach.toggle());
+// 啾啾的窝：用鼠标单击不开对话框（点啾啾的身体才开，用户 2026-11-13），双击是叫它回来；
+// 用键盘按回车 / 空格（click 的 detail 是 0）还是打开对话框，免得只用键盘的时候找不到它
+$('#coach-toggle').addEventListener('click', (e) => {
+  if (e.detail === 0) coach.toggle();
+});
+$('#coach-toggle').addEventListener('dblclick', () => callBack());
 
 // ───────────── 涨经验、升级、拿徽章 ─────────────
 // 升级是全屏的庆祝（celebrate.js；克制档是一条提示条），徽章和整节课这样的大数是提示条 + 彩带。
@@ -223,6 +229,7 @@ async function boot() {
   theme.on('change', renderSkin);
   installPressSounds();
   coach.mount();
+  initEggs(); // 啾啾的彩蛋：窝里的羽毛、学舌、连续练习的天数……
   window.addEventListener('hashchange', render);
   await render();
   // 开发用：地址里带 ?fake 时接上一台“假真机”（js/dev/fake-seqtrak.js），没有硬件也能测真机镜像；?fake=demo 还会自动演一段，
@@ -250,7 +257,7 @@ async function boot() {
     celebrateLevel({ from: prev ? { lv: prev.lv, name: prev.name } : null, to });
   }
   if (params.has('talk')) setTimeout(() => coach.toggle(true), 300);
-  if (params.has('nudge')) nudge('这一步停了有一会儿了。卡住的话点我，我看看你停在哪儿。', { mood: 'cheer', ask: '我卡在这一步了，帮我看看可能是哪里没做对。', ms: 600000 });
+  if (params.has('nudge')) nudge('停了有一会儿了，啾？卡住的话点我，我看看你停在哪儿。', { mood: 'cheer', ask: '我卡在这一步了，帮我看看可能是哪里没做对。', ms: 600000 });
   if (fake !== null) return;
   // 以前授权过就自动连上，不再弹窗
   try {

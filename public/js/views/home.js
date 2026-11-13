@@ -17,7 +17,8 @@ import { coach } from '../coach.js';
 import { toast } from '../ui.js';
 import { countUp, typeOut } from '../fx.js';
 import { coachFace, setCoachMood } from '../coach-face.js';
-import { chirp } from '../jiu.js';
+import { homeHello } from '../jiu-eggs.js';
+import { callBack } from '../jiu.js';
 import { firmwareBehind } from '../device-connect.js';
 
 const svg = (cls, box, inner) => h('svg', { class: cls, viewBox: box, 'aria-hidden': 'true', html: inner });
@@ -32,7 +33,8 @@ const REGION_TINT = ['var(--t-SYNTH2)', 'var(--t-KICK)', 'var(--t-SYNTH1)', 'var
 
 function hello() {
   const hr = new Date().getHours();
-  return hr < 5 ? '夜深了' : hr < 11 ? '早上好' : hr < 13 ? '中午好' : hr < 18 ? '下午好' : '晚上好';
+  // 啾啾的口头禅：短话后面带一个“啾”（用户 2026-11-13 定的说法）
+  return hr < 5 ? '夜深了，啾' : hr < 11 ? '早，啾' : hr < 13 ? '中午好，啾' : hr < 18 ? '下午好，啾' : '晚上好，啾';
 }
 
 function daysSince(day) {
@@ -46,7 +48,7 @@ function greeting(p, nextUp, started) {
   const last = store.data.lastResult;
   const days = store.data.practiceDays;
   const away = daysSince(days[days.length - 1]);
-  const parts = [`${hello()}。`];
+  const parts = [`${hello()}！`];
   let mood = 'idle';
 
   if (p.intro && p.xp > 0) {
@@ -161,7 +163,6 @@ function curves(pts) {
 
 // ───────────── 页面 ─────────────
 
-let greeted = false;
 
 export function homeView(view) {
   ctx.set('路线图首页');
@@ -177,15 +178,16 @@ export function homeView(view) {
   // ── 接着练：啾啾飞过来打招呼 + 下一关 ──
   const face = coachFace({ size: 64 });
   cleanup.push(() => face.release());
-  const openCoach = () => coach.toggle(true);
+  // 问候卡上那个圆盘：鼠标单击不开对话框（点啾啾的身体才开），双击叫它回来；键盘按回车还是打开对话框
+  const openCoach = (e) => {
+    if (e.detail === 0) coach.toggle(true);
+  };
   const askPlan = () => coach.ask('看看我的进度和最近几局的数据：今天这半小时我该怎么练？给我一个三步的小计划。', { format: 'plan' });
   cleanup.push(coach.offer([['今天怎么练？', askPlan]]));
-  // 这次打开应用第一次来首页：它叫一声打招呼（之后回首页就不叫了，免得烦）
-  if (!greeted) {
-    greeted = true;
-    setTimeout(() => chirp('greet'), 700);
-  }
+  // 这次打开应用第一次来首页：它叫一声打招呼（之后回首页就不叫了，免得烦）；今天第一次打开还是个彩蛋：按时间换个开头、唱一段（jiu-eggs.js）
+  const hello = homeHello();
   const said = greeting(p, nextUp, started);
+  if (hello) said.text = said.text.replace(/^[^。]*。/, hello); // 换掉开头那句“早上好。”
   const sayText = h('span', { class: 'say-text' });
   const say = h('div', { class: 'say' }, sayText,
     h('button', { class: 'say-more', type: 'button', onclick: askPlan }, '今天怎么练？让啾啾写张小纸条 →'));
@@ -221,7 +223,7 @@ export function homeView(view) {
   }
   const resume = h('section', { class: 'resume' },
     h('div', { class: 'greet' },
-      h('button', { class: 'greet-face', type: 'button', 'data-sfx': 'none', title: '和啾啾说话', 'aria-label': '和啾啾说话', onclick: openCoach }, face.el),
+      h('button', { class: 'greet-face', type: 'button', 'data-sfx': 'none', title: '点啾啾和它说话；双击这里叫它回来', 'aria-label': '和啾啾说话', onclick: openCoach, ondblclick: () => callBack() }, face.el),
       say),
     resumeBody,
   );

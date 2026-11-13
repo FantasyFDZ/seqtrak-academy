@@ -8,10 +8,13 @@
 //
 // 叫法（一种情绪一种）：
 //   greet 打招呼   ok 做对了   look 看这里   oops 可惜   think 在想   surprised 吃惊   sleepy 困了   song 唱一段（过关、欢呼）
-//   chatter 小声嘀咕（说话时）
+//   tune 吹口哨哼一首曲子（opts.name 是 TUNE_NAMES 里的一首；用户 2026-11-13：一再让它唱，它就吹口哨哼一段）
+//   echo 学舌：把你在机器上弹的一小句用鸟叫学回来（opts.notes = [[开始的秒, MIDI 音符, 时长秒], …]）
+//   chatter 小声嘀咕   speak 说一句话（跟着这句话：长短随字数，问句尾巴往上挑，感叹句最后一下亮，平常往下落）
 //
 //   voice.play('ok')                         → 返回每个音的 [开始的毫秒, 时长秒]，小鸟用它来张嘴
 //   voice.play('song', { tonic: 62 })        → 换一个调（这里是 D；MIDI 音符号，会自动搬到小鸟的音域）
+//   voice.play('speak', { text: '这是 MUTE。' }) → 说这一句话时的“说话声”
 //   voice.enabled = false                    → 不出声（嘴照样动）
 const PENTA = [0, 2, 4, 7, 9]; // 大调五声
 const MINOR_PENTA = [0, 3, 5, 7, 10];
@@ -118,6 +121,27 @@ const CALLS = {
     }
     return seq;
   },
+  // 说一句话（啾啾回答时每一句都配一段，用户 2026-11-13 要的“用鸟叫表示正在说话”）：
+  // 嘀几下跟着这句话的长短（3–7 下），音高在中间一带随口起伏；最后一下看句尾——问句往上挑，感叹句又高又亮，平常的话往下落
+  speak: ({ text = '' } = {}) => {
+    const s = String(text).trim();
+    const n = Math.max(3, Math.min(7, Math.round(s.replace(/s/g, '').length / 7) + 2));
+    const fit = (x) => Math.max(0, Math.min(5, x));
+    const seq = [];
+    let t = 0;
+    let a = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < n - 1; i++) {
+      const b = fit(a + (Math.random() < 0.5 ? 1 : -1));
+      seq.push([t, a, b, 0.055 + Math.random() * 0.025, { vol: 0.055, vib: 0 }]);
+      a = fit(a + [-1, 0, 1, 1, -1, 2, -2][Math.floor(Math.random() * 7)]);
+      t += 0.075 + Math.random() * 0.045;
+    }
+    t += 0.03;
+    if (/[？?]$/.test(s)) seq.push([t, a, a + 3, 0.17, { vol: 0.07, vib: 0.012 }]);
+    else if (/[！!]$/.test(s)) seq.push([t, a + 2, a + 4, 0.12, { vol: 0.08, vib: 0 }]);
+    else seq.push([t, a + 1, a - 1, 0.13, { vol: 0.06, vib: 0.008 }]);
+    return seq;
+  },
   // 唱一段：几个现成的乐句里挑一个，有重复、有颤音、最后落回主音
   song: () => {
     const PHRASES = [
@@ -132,6 +156,14 @@ const CALLS = {
   },
 };
 
+// 吹口哨哼的几首老曲子（都早过了版权期）：[MIDI 音, 几拍]，原调写在 C 大调，播的时候整句搬进小鸟的音域
+const TUNES = {
+  小星星: [[60, 1], [60, 1], [67, 1], [67, 1], [69, 1], [69, 1], [67, 2], [65, 1], [65, 1], [64, 1], [64, 1], [62, 1], [62, 1], [60, 2]],
+  两只老虎: [[60, 1], [62, 1], [64, 1], [60, 1], [60, 1], [62, 1], [64, 1], [60, 1], [64, 1], [65, 1], [67, 2], [64, 1], [65, 1], [67, 2]],
+  欢乐颂: [[64, 1], [64, 1], [65, 1], [67, 1], [67, 1], [65, 1], [64, 1], [62, 1], [60, 1], [60, 1], [62, 1], [64, 1], [64, 1.5], [62, 0.5], [62, 2]],
+};
+export const TUNE_NAMES = Object.keys(TUNES);
+
 export const voice = {
   enabled: true,
   /** 主音（MIDI）；会搬到 1.1–2.3 kHz 这一段（D6 附近） */
@@ -140,10 +172,13 @@ export const voice = {
   names: Object.keys(CALLS),
 
   /** 叫一声，返回 [[开始毫秒, 时长秒], …]（不出声时也返回，小鸟照样张嘴） */
-  play(name, { tonic, minor } = {}) {
+  play(name, opts = {}) {
+    const { tonic, minor } = opts;
+    if (name === 'echo') return this.echo(opts.notes || []);
+    if (name === 'tune') return this.whistle(TUNES[opts.name] || TUNES[TUNE_NAMES[0]], opts.beat || 0.34);
     const make = CALLS[name];
     if (!make) return [];
-    const seq = make();
+    const seq = make(opts);
     const scale = (minor ?? this.minor) ? MINOR_PENTA : PENTA;
     let base = tonic ?? this.tonic;
     while (base < 81) base += 12; // 搬到小鸟的音域：主音落在 A5–G#6
@@ -159,6 +194,52 @@ export const voice = {
       const to = mtof(deg(b));
       const from = a === b ? to * 1.035 : mtof(deg(a));
       tweet(t0 + t, from, to, dur, opts);
+    }
+    return onsets;
+  },
+
+  /** 吹口哨：一个音一个音吹，每个音从稍高一点滑进来，长音带一点慢颤音 */
+  whistle(list, beat) {
+    const mids = list.map(([m]) => m).sort((a, b) => a - b);
+    let shift = 0;
+    const mid = mids[Math.floor(mids.length / 2)];
+    while (mid + shift < 81) shift += 12;
+    while (mid + shift > 93) shift -= 12;
+    const seq = [];
+    let t = 0;
+    for (const [m, len] of list) {
+      seq.push([t, m + shift, len * beat, len]);
+      t += len * beat;
+    }
+    const onsets = seq.map(([at, , dur]) => [Math.round(at * 1000), dur]);
+    if (!this.enabled) return onsets;
+    const c = audio();
+    if (!c) return onsets;
+    const t0 = c.currentTime + 0.03;
+    for (const [at, m, dur, len] of seq) {
+      const to = mtof(m);
+      tweet(t0 + at, to * 1.02, to, dur * 0.94, { vol: 0.1, vib: len >= 2 ? 0.018 : 0.006, vibRate: 6, attack: 0.02 });
+    }
+    return onsets;
+  },
+
+  /** 学舌：照着弹的音高和节奏叫回来（整句搬进小鸟的音域，最长 3 秒、最多 12 个音） */
+  echo(notes) {
+    const list = notes.slice(0, 12).filter(([t]) => t <= 3);
+    if (!list.length) return [];
+    const mids = list.map(([, m]) => m).sort((a, b) => a - b);
+    let shift = 0;
+    const mid = mids[Math.floor(mids.length / 2)];
+    while (mid + shift < 81) shift += 12;
+    while (mid + shift > 93) shift -= 12;
+    const onsets = list.map(([t, , dur]) => [Math.round(t * 1000), Math.min(0.3, dur)]);
+    if (!this.enabled) return onsets;
+    const c = audio();
+    if (!c) return onsets;
+    const t0 = c.currentTime + 0.02;
+    for (const [t, m, dur] of list) {
+      const to = mtof(m + shift);
+      tweet(t0 + t, to * 1.03, to, Math.max(0.06, Math.min(0.3, dur)), { vol: 0.09, vib: 0.012 });
     }
     return onsets;
   },

@@ -677,12 +677,33 @@ body { overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color:
    全应用只有一只，待在盖在最上面的一层里（.jiu-layer），在页面留给它的地方（.jiu-perch）、导航栏的窝（.jiu-nest）、要按的键之间飞来飞去。 */
 .jiu-layer { position: fixed; inset: 0; z-index: 75; pointer-events: none; }
 .jiu-layer .bird { position: absolute; left: 0; top: 0; pointer-events: none; transition: width .45s var(--out), height .45s var(--out); }
-.jiu-layer .bird svg .b-act { pointer-events: auto; cursor: pointer; } /* 只有画出来的那只鸟能点，图框的空白处点得到下面的东西 */
+.jiu-layer .bird svg .b-act { pointer-events: auto; cursor: grab; touch-action: none; } /* 能拎起来拖着走（jiu.js 的“拎起来玩”） */
+.jiu-layer .bird.jiu-held { filter: drop-shadow(0 10px 8px rgba(0, 0, 0, .22)); transition: none; }
+:root.jiu-dragging, :root.jiu-dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; } /* 只有画出来的那只鸟能点，图框的空白处点得到下面的东西 */
 [data-skin="neon"] .jiu-layer .bird { filter: drop-shadow(0 0 10px #ffd83d55); }
 /* 机器在放的时候，蹲着的啾啾跟着拍子点头 */
 .jiu-layer .bird.jiu-groove:not([data-air]):is([data-mood="idle"], [data-mood="listen"]) .b-headpose { animation: jiu-groove var(--beat) ease-in-out infinite; }
 @keyframes jiu-groove { 0%, 100% { transform: rotate(0); } 22% { transform: translate(1px, 2.5px) rotate(9deg); } }
 [data-fx="calm"] .jiu-layer .bird.jiu-groove .b-headpose { animation: none; }
+/* 彩蛋：机器放了半分钟以上，蹲着的啾啾跟着拍子蹦（jiu.js 的 applyGroove） */
+.jiu-layer .bird.jiu-dance:not([data-air]):is([data-mood="idle"], [data-mood="listen"]) .b-pose { animation: jiu-dance var(--beat) cubic-bezier(.3, .7, .4, 1) infinite; }
+.jiu-layer .bird.jiu-dance:not([data-air]):is([data-mood="idle"], [data-mood="listen"]) .b-wingact { animation: jiu-dance-wing var(--beat) ease-in-out infinite; }
+@keyframes jiu-dance { 0%, 100% { transform: translateY(0) scale(1.05, .93); } 35% { transform: translateY(-9px) scale(.97, 1.05); } 70% { transform: translateY(-2px) scale(1, 1); } }
+@keyframes jiu-dance-wing { 0%, 100% { transform: rotate(0); } 35% { transform: rotate(28deg); } }
+[data-fx="calm"] .jiu-layer .bird.jiu-dance :is(.b-pose, .b-wingact) { animation: none; }
+/* 叼着的东西（一根羽毛）：挂在嘴尖上，跟着小鸟转向 */
+.jiu-carry { position: absolute; left: 84%; top: 42%; width: 22%; transform: translate(-30%, -40%) rotate(-62deg); transform-origin: 50% 90%; pointer-events: none; }
+.bird.b-left .jiu-carry { left: 16%; transform: translate(-70%, -40%) rotate(62deg); }
+.jiu-carry svg, .jiu-feathers svg { display: block; width: 100%; height: auto; overflow: visible; }
+/* 窝里攒的羽毛：从树枝中间往两边扇开，插在小鸟身后（jiu-eggs.js 画） */
+.jiu-feathers { position: absolute; left: 50%; bottom: 8%; width: 0; height: 0; pointer-events: none; }
+.jiu-feathers i { position: absolute; left: -4px; bottom: 0; width: 8px; transform-origin: 50% 100%; transform: rotate(var(--a)) translateY(-2px); }
+.jiu-feathers i.new { animation: jiu-feather-in .6s cubic-bezier(.34, 1.56, .64, 1) both; }
+@keyframes jiu-feather-in { from { opacity: 0; transform: rotate(var(--a)) translateY(-14px) scale(.4); } }
+.jiu-feather-list { list-style: none; margin: 0; padding: 0; max-height: min(46vh, 360px); overflow-y: auto; }
+.jiu-feather-list li { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 2px; border-bottom: 1px dashed var(--paper-edge); }
+.jiu-feather-list i { flex: none; width: 10px; }
+.jiu-feather-list b { font-size: 15px; } .jiu-feather-list small { color: var(--paper-muted); font-size: 12px; margin-left: auto; text-align: right; }
 
 /* 页面上给它留的地方、导航栏里的窝：一小截树枝（它飞走了，树枝还在） */
 .jiu-perch, .jiu-nest { position: relative; display: inline-block; flex: none; vertical-align: bottom; }
@@ -693,6 +714,8 @@ body { overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color:
 .jiu-talk { position: fixed; left: 0; top: 0; width: max-content; max-width: min(340px, calc(100vw - 20px)); padding: 12px 14px; border-radius: 16px; background: var(--inv); color: var(--inv-text);
   font-size: 15px; line-height: 1.55; box-shadow: 0 12px 34px var(--shade-4), 0 0 0 1px var(--inv-line) inset; pointer-events: auto; visibility: hidden; opacity: 0; transition: opacity .16s, visibility 0s .16s; }
 .jiu-talk.on { visibility: visible; opacity: 1; transition: opacity .16s; }
+/* 啾啾飞的时候对话框先收起来（缩向它），停稳了再弹出来（jiu.js 的 go / landed） */
+.jiu-talk.on.away { visibility: hidden; opacity: 0; transform: scale(.6); pointer-events: none; transition: opacity .12s, transform .12s, visibility 0s .12s; }
 [data-fx="rich"] .jiu-talk.on.pop { animation: grow var(--t-move) var(--pop); }
 .jiu-talk[data-tail="bottom"] { transform-origin: var(--tail, 50%) 100%; }
 .jiu-talk[data-tail="left"] { transform-origin: 0 var(--tail, 50%); }

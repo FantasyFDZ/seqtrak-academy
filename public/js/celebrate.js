@@ -5,6 +5,7 @@ import { h } from './util.js';
 import { sfx } from './sfx.js';
 import { confetti } from './fx.js';
 import { coachFace, setCoachMood } from './coach-face.js';
+import { lap } from './jiu.js';
 
 let current = null; // 现在盖着的那一张：{ el, close }
 
@@ -117,6 +118,8 @@ export function celebrateLesson({ no, title, stars = 3, gained = 0, from, to, ba
   if (up) me.later(() => { sfx.play('levelup'); confetti(card, 40, { spread: 220 }); }, fillAt + PACE.fill * 0.85);
   else if (badges.length) me.later(() => sfx.play('badge'), fillAt + PACE.fill * 0.6);
   setCoachMood('happy', fillAt + PACE.fill + 1500);
+  // 彩蛋：三星的时候啾啾绕着卡片飞一圈
+  if (stars === 3) me.later(() => lap(() => (card.isConnected ? card.getBoundingClientRect() : null)), after + 300);
   return me;
 }
 
@@ -131,12 +134,14 @@ export function celebrateLevel({ from, to }) {
       h('div', {}, h('small', {}, from ? `Lv ${from.lv} ${from.name} →` : '现在是'), h('b', {}, `Lv ${to.lv} ${to.name}`))),
     xp.el,
     h('div', { class: 'cel-say' }, coachFace({ size: 48, follow: false, mood: 'happy', act: 'flip' }).el,
-      h('p', {}, to.next ? `「${to.name}」到手。下一级是「${to.next.name}」，接着练就到。` : `「${to.name}」，到顶了。接下来就是上台的事。`)),
+      h('p', {}, to.next ? `「${to.name}」到手，啾！下一级是「${to.next.name}」，接着练就到。` : `「${to.name}」，到顶了，啾！接下来就是上台的事。`)),
     h('div', { class: 'cel-actions' }, h('button', { class: 'btn primary lg', type: 'button', onclick: () => me.close() }, '继续')),
   );
   const me = show(card);
   me.later(() => { sfx.play('levelup'); confetti(card, 56, { spread: 260 }); }, 450 + PACE.rise * 0.5);
   me.later(() => xp.fill(), 750 + PACE.rise);
   setCoachMood('happy', 750 + PACE.rise + PACE.fill + 1500);
+  // 彩蛋：升级的时候啾啾绕着卡片飞一圈
+  me.later(() => lap(() => (card.isConnected ? card.getBoundingClientRect() : null)), 1100);
   return me;
 }

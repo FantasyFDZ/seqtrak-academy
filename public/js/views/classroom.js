@@ -9,6 +9,7 @@ import { ctx } from '../context.js';
 import { coach } from '../coach.js';
 import { mirror } from '../mirror.js';
 import { coachFace } from '../coach-face.js';
+import { quizPerfect } from '../jiu-eggs.js';
 import { sfx } from '../sfx.js';
 import { confetti, pop, typeOut } from '../fx.js';
 import { LINES, LEVELS, OPEN_LEVELS, levelById, isOpen, nextOpen } from '../content/classroom.js';
@@ -196,6 +197,7 @@ function lessonPage(view, level) {
       touched() {},
       done(stars) {
         quizStars = Math.max(quizStars, stars);
+        if (stars >= 3) quizPerfect(); // 三星：啾啾唱一段
         nameBox.innerHTML = `<span class="stars">${starText(quizStars)}</span> 这一步拿到了 ${quizStars} 颗星。`;
         nameBox.hidden = false;
         pop(nameBox);

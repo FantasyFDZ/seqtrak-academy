@@ -35,6 +35,7 @@ import { confetti } from './fx.js';
 import { setCoachMood } from './coach-face.js';
 import { nudge, hushNudge } from './coach-nudge.js';
 import * as jiu from './jiu.js';
+import { quizPerfect } from './jiu-eggs.js';
 import { controlInfo } from './controls.js';
 import { celebrateLesson, closeCelebration, xpLine, badgeChip } from './celebrate.js';
 import { BENCH_VIEW, PROG_VIEW, fitView, benchView, refitOnResize } from './bench-view.js';
@@ -1000,7 +1001,7 @@ function stepDo(step, env, cleanup) {
         if (!hint) return;
         progress.innerHTML = rich(hint);
         jiu.oops();
-        if (++off === 3 && !spoke) spoke = nudge('试了几回都没对上。先看提示那一行说的是哪里不一样；还是不行，我来帮你看。', { key: `off:${nudgeKey}`, mood: 'cheer', ask: askHelp });
+        if (++off === 3 && !spoke) spoke = nudge('试了几回都没对上，啾？先看提示那一行说的是哪里不一样；还是不行，我来帮你看。', { key: `off:${nudgeKey}`, mood: 'cheer', ask: askHelp });
       }));
       // 真机的状态要过一会儿才读回来：读到之后，要是明摆着不对（停在演示曲上、这条轨道不在第 1 段乐句、
       // 选中的不是要操作的那条轨道、旋钮不在第 1 页……），先提醒
@@ -1017,7 +1018,7 @@ function stepDo(step, env, cleanup) {
       const arm = () => {
         clearTimeout(stuck);
         stuck = setTimeout(() => {
-          if (!spoke) spoke = nudge('这一步停了有一会儿了。卡住的话点我，我看看你停在哪儿。', { key: `stuck:${nudgeKey}`, mood: 'cheer', ask: askHelp });
+          if (!spoke) spoke = nudge('停了有一会儿了，啾？卡住的话点我，我看看你停在哪儿。', { key: `stuck:${nudgeKey}`, mood: 'cheer', ask: askHelp });
         }, 45000);
       };
       arm();
@@ -1108,7 +1109,7 @@ function stepGame(step, env, cleanup) {
       if (panel.passed()) env.setReady(true);
       // 连着两局没过：结算卡片上的话说完之后，教练再出来提一句（打着的时候它不出来）
       fails = r.passed ? 0 : fails + 1;
-      if (fails === 2) setTimeout(() => nudge('连着两局没过。把右边的速度调到 70% 再来，打稳了再提回去；想听我细说就点我。', { key: `slow:${env.id}:${env.index}`, mood: 'cheer', ask: '这个练习我连着两局没过，告诉我最该先改的一点，以及怎么练。' }), 1800);
+      if (fails === 2) setTimeout(() => nudge('连着两局没过，别急，啾。把右边的速度调到 70% 再来，打稳了再提回去；想听我细说就点我。', { key: `slow:${env.id}:${env.index}`, mood: 'cheer', ask: '这个练习我连着两局没过，告诉我最该先改的一点，以及怎么练。' }), 1800);
     },
     onPass: () => {
       env.setReady(true);
@@ -1125,6 +1126,7 @@ function stepQuiz(step, env, cleanup) {
   cleanup.push(() => player.stop());
   const total = step.questions.length;
   const solved = step.questions.map(() => false);
+  let anyWrong = false; // 有没有错过：一题都没错就是“全对”（啾啾唱一段，jiu-eggs.js）
   const show = (i) => items.forEach((item, j) => (item.hidden = j !== i));
   const items = step.questions.map((q, qi) => {
     const explain = h('div', { class: 'quiz-explain' });
@@ -1145,12 +1147,16 @@ function stepQuiz(step, env, cleanup) {
           confetti(btn, 10, { spread: 90 });
           setCoachMood('happy', 1400);
           more.hidden = qi >= total - 1;
-          if (solved.every(Boolean)) env.setReady(true);
+          if (solved.every(Boolean)) {
+            env.setReady(true);
+            if (!anyWrong) quizPerfect();
+          }
         } else {
           btn.disabled = true; // 按错的那个灰掉，剩下的接着选
+          anyWrong = true;
           sfx.play('nope');
           retrigger(btn, 'shake');
-          if (++wrongs === 2) nudge('这题绕住了？点我，我换个说法讲给你。', { key: `quiz:${env.id}:${env.index}:${qi}`, mood: 'cheer', ask: `这道小测我没想明白：「${String(q.q).replace(/\*\*/g, '').slice(0, 80)}」。别直接说答案，换个说法给我讲讲该怎么想。` });
+          if (++wrongs === 2) nudge('这题绕住了，啾？点我，我换个说法讲给你。', { key: `quiz:${env.id}:${env.index}:${qi}`, mood: 'cheer', ask: `这道小测我没想明白：「${String(q.q).replace(/\*\*/g, '').slice(0, 80)}」。别直接说答案，换个说法给我讲讲该怎么想。` });
         }
       });
       return btn;
@@ -1509,9 +1515,9 @@ const LAYOUT = { do: 'stage', program: 'stage', game: 'stage', tour: 'stage', fr
 // 各节课计分的步骤不一样（练习、找按键、编程挑战），笼统地说“把练习再打一遍”在没有练习的课上就说错了
 const weakStep = (title) => (title ? `「${title}」那一步` : '计分的那几步');
 const FINISH_SAY = {
-  3: () => '三颗星，每一步都做扎实了。',
+  3: () => '三颗星，啾！每一步都做扎实了。',
   2: (title) => `过了。想把星星补满，把${weakStep(title)}再做一遍就行。`,
-  1: (title) => `过了就是过了。回头把${weakStep(title)}再做做，星星会涨。`,
+  1: (title) => `过了就是过了，啾。回头把${weakStep(title)}再做做，星星会涨。`,
 };
 
 // ───────────── 播放器 ─────────────
