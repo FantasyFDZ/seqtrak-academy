@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>SEQTRAK Academy</title>
+  <!-- 能装成应用（js/install.js）：清单、图标；装好以后标题栏的颜色跟着配色变（theme.js 改 theme-color） -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#e6e7e9">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="SEQTRAK">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23ff6a3d'/><rect x='6' y='13' width='4' height='6' rx='1' fill='%23fff'/><rect x='12' y='9' width='4' height='14' rx='1' fill='%23fff'/><rect x='18' y='13' width='4' height='6' rx='1' fill='%23fff'/><rect x='24' y='11' width='3' height='10' rx='1' fill='%23fff'/></svg>">
   <script>
     // 配色存在进度文件里，要等它读回来才知道；为了开页面那一瞬间不“先浅后深”地闪一下，theme.js 在浏览器里留了一份上次的选择

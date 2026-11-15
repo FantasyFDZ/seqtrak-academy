@@ -109,7 +109,7 @@ function go(spot, r) {
   // 飞之前先把对话框收起来（用户 2026-11-13）：停稳了再弹出来
   if (talk?.classList.contains('on')) talk.classList.remove('pop');
   talk?.classList.add('away');
-  (hover ? bird.hoverAt(x, y) : bird.flyTo(x, y)).then(() => {
+  (hover ? bird.hoverAt(x, y, { duration: spot.dur }) : bird.flyTo(x, y, { duration: spot.dur })).then(() => {
     if (me !== moves) return;
     flying = false;
     settle(spot);
@@ -775,8 +775,8 @@ export function perch(el, { size, mood: m = null, act: a = null, top = false } =
 }
 
 /** 飞到 rect() 那里（视口坐标的矩形；返回 null = 现在指不了）的上方悬停着，指给你看。返回“不指了”的函数 */
-export function point(rect, { size = 44, mood: m = null } = {}) {
-  return addSpot({ mode: 'hover', rect, size, mood: m });
+export function point(rect, { size = 44, mood: m = null, top = false, dur } = {}) {
+  return addSpot({ mode: 'hover', rect, size, mood: m, top, dur }); // dur：飞过去用多少毫秒（不给就按距离算）；top：比页面留的位置优先（开屏用）
 }
 
 // ───────────── 装上 ─────────────

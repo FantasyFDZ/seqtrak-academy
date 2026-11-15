@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>应用图标</title>
+<!--
+  开发用：画应用的图标（安装成应用后 Dock、启动台里看到的那个），tools/make-icons.sh 用无界面的 Chrome 把它截成 PNG 放进 public/icons/。
+  样子跟开屏一样：浅色的机身底，四根桔红的条（第三根是深色的），啾啾站在最高那根上。
+  地址参数：size=多大（像素）；top=往下挪多少像素（截图用）；mask=1 是“可裁切”的版本（底色铺满整块，图案放在中间 80% 的安全区里，系统自己切圆角）；
+  不带 mask 是普通版本：按 macOS 图标的格子，圆角方块占 82%，四周透明，带一点投影。
+-->
+<style>
+  html, body { margin: 0; background: transparent; }
+  .icon { position: relative; overflow: hidden; }
+  .tile { position: absolute; background: linear-gradient(180deg, #fbfbf9 0%, #eceded 55%, #dcdde0 100%); }
+  .tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 -2px 0 rgba(0,0,0,.06), inset 0 2px 0 rgba(255,255,255,.9); }
+  .glow { position: absolute; border-radius: 50%; background: radial-gradient(closest-side, rgba(255,106,61,.22), rgba(255,106,61,0)); }
+  .bars { position: absolute; display: flex; align-items: flex-end; }
+  .bars i { display: block; background: #f0562b; box-shadow: 0 0 0 0 transparent; }
+  .bars i:nth-child(3) { background: #24272d; }
+  .perch { position: absolute; }
+  .bird { position: absolute !important; }
+</style>
+</head>
+<body>
+<div class="icon" id="icon"></div>
+<script type="module">
+import { createBird } from '/js/bird.js';
+
+const q = new URLSearchParams(location.search);
+const S = Number(q.get('size')) || 512;
+const mask = q.get('mask') === '1';
+const icon = document.getElementById('icon');
+icon.style.width = icon.style.height = `${S}px`;
+icon.style.marginTop = `${Number(q.get('top')) || 0}px`; // 截图时往下挪一点（tools/make-icons.sh 从中间裁正方形）
+
+// 圆角方块：普通版按 macOS 的格子（1024 里内容 824、圆角约 185）；可裁切版铺满
+const C = mask ? S : Math.round(S * 0.805);
+const off = (S - C) / 2;
+const tile = Object.assign(document.createElement('div'), { className: 'tile' });
+Object.assign(tile.style, { left: `${off}px`, top: `${off}px`, width: `${C}px`, height: `${C}px`, borderRadius: mask ? '0' : `${C * 0.225}px` });
+if (!mask) tile.style.boxShadow = `0 ${S * 0.012}px ${S * 0.03}px rgba(0,0,0,.28)`;
+icon.append(tile);
+
+// 图案放在“安全区”里：可裁切版只用中间 70%，普通版用方块的 84%
+const A = mask ? S * 0.7 : C * 0.84;
+const ax = (S - A) / 2;
+const ay = (S - A) / 2;
+const glow = Object.assign(document.createElement('div'), { className: 'glow' });
+Object.assign(glow.style, { left: `${ax - A * 0.1}px`, top: `${ay + A * 0.05}px`, width: `${A * 1.2}px`, height: `${A * 1.0}px` });
+icon.append(glow);
+
+// 四根条：高度按导航栏那个标志的比例 10 : 22 : 14 : 18
+const H = A * 0.5;
+const W = A * 0.105;
+const G = A * 0.06;
+const heights = [10, 22, 14, 18].map((x) => (x / 22) * H);
+const bars = document.createElement('div');
+bars.className = 'bars';
+const totalW = 4 * W + 3 * G;
+Object.assign(bars.style, { left: `${ax + (A - totalW) / 2}px`, top: `${ay + A * 0.93 - H}px`, height: `${H}px`, gap: `${G}px` });
+for (const hgt of heights) {
+  const b = document.createElement('i');
+  Object.assign(b.style, { width: `${W}px`, height: `${hgt}px`, borderRadius: `${W / 2}px` });
+  bars.append(b);
+}
+icon.append(bars);
+
+// 啾啾站在第二根（最高的）上面
+const B = A * 0.46;
+const bird = createBird({ size: B, mood: 'happy', calm: true });
+const barX = ax + (A - totalW) / 2 + W + G + W / 2; // 第二根的中线
+const barTop = ay + A * 0.93 - H;
+// 爪子在图里的位置（bird.js 的 FOOT：102 / 200，184 / 200）
+Object.assign(bird.el.style, { left: `${barX - B * 0.51}px`, top: `${barTop - B * 0.92 + B * 0.02}px` });
+icon.append(bird.el);
+document.title = `icon ${S}${mask ? ' maskable' : ''}`;
+</script>
+</body>
+</html>

@@ -70,6 +70,8 @@ class Theme extends Emitter {
     this.#painted = true;
     root.dataset.skin = this.skin;
     root.dataset.fx = this.fx;
+    // 装成应用以后，窗口标题栏的颜色跟着配色走（机身浅灰 / 霓虹深色）
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', this.skin === 'neon' ? '#0d0e12' : '#e6e7e9');
     this.#cache.clear();
     if (changed) this.emit('change', { skin: this.skin, fx: this.fx });
   }

@@ -10,6 +10,7 @@ import { toast, segmented } from '../ui.js';
 import { theme } from '../theme.js';
 import { sfx } from '../sfx.js';
 import { playSplash } from '../splash.js';
+import { installed, canInstall, install, onInstallChange } from '../install.js';
 
 const DEEP_REASON = {
   'not-found': '这台电脑上没有找到 codex 命令。',
@@ -175,6 +176,26 @@ export async function settingsView(view) {
     ),
   );
 
+  // ── 装成应用（install.js）：装好了说一声；Chrome 说能装就给一个按钮；都不是就告诉他地址栏右边的安装图标 ──
+  const appRow = h('div', { class: 'pref' });
+  const renderApp = () => {
+    const note = (t) => h('span', { class: 'small muted' }, t);
+    if (installed()) {
+      appRow.replaceChildren(h('b', {}, '应用'), note('已经是装好的应用了：以后从 Dock 或启动台打开它。有自己的窗口，开屏的背景律动一打开就有声音。'));
+    } else if (canInstall()) {
+      appRow.replaceChildren(
+        h('button', { class: 'btn primary sm', type: 'button', onclick: async () => {
+          if (await install()) toast('装好了：以后从 Dock 或启动台打开 SEQTRAK Academy', 'ok', 5000);
+          renderApp();
+        } }, '安装成应用'),
+        note('装好以后它有自己的窗口，Dock 和启动台里有啾啾的图标，开屏的背景律动一打开就有声音（浏览器标签页里要先点一下）。本地服务照旧要开着。'));
+    } else {
+      appRow.replaceChildren(h('b', {}, '应用'), note('想装成应用：用 Chrome 打开这一页，地址栏右边会出现一个安装图标（电脑屏幕加一个向下的箭头），点它。装好以后有自己的窗口，开屏一打开就有声音。'));
+    }
+  };
+  renderApp();
+  const offInstall = onInstallChange(renderApp);
+
   // ── 界面：配色、动效、界面音效 ──
   const onOff = [{ value: true, label: '开' }, { value: false, label: '关' }];
   const skinSlot = h('div');
@@ -204,6 +225,7 @@ export async function settingsView(view) {
           setTimeout(() => chirp('greet'), 250);
         }
       }, '界面音效'), h('span', { class: 'small muted' }, '按键的轻响、啾啾的叫声，拿到徽章、升级时的提示音。比机器和音游的声音小得多；音游打着的时候不响。')),
+      appRow,
       h('div', { class: 'pref' }, segmented([{ value: 'home', label: '每次从首页进' }, { value: 'daily', label: '每天第一次' }, { value: 'off', label: '不放' }], store.settings.intro || 'home', (v) => store.update((d) => (d.settings.intro = v)), '开屏'),
         h('span', { class: 'small muted' }, '打开应用时的开场：一排步进键亮起来拼成标志，按 PLAY 开机，啾啾唱它的“声音标志”。“每次从首页进”是每次打开应用、第一页是首页就放（在某一页里刷新不放）；“每天第一次”是当天第一次放完整的，再打开只闪一下标志。 ',
           h('button', { class: 'btn sm', type: 'button', onclick: () => playSplash({ mode: 'full' }) }, '现在看一遍'))),
@@ -240,5 +262,5 @@ export async function settingsView(view) {
     h('div', { class: 'page-head' }, h('h1', {}, '设置'), h('p', {}, '上面两块是日常会动的：界面长什么样、动不动、响不响，和练习的两个开关。不常动的收在下面，点一下展开。')),
     h('div', { class: 'settings' }, look, prefs, engineFold, aboutFold, resetFold),
   );
-  return { destroy: offTheme };
+  return { destroy: () => { offTheme(); offInstall(); } };
 }

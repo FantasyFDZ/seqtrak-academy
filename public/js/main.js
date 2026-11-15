@@ -15,6 +15,7 @@ import { nudge } from './coach-nudge.js';
 import { initEggs } from './jiu-eggs.js';
 import { callBack } from './jiu.js';
 import { playSplash } from './splash.js';
+import { registerApp } from './install.js';
 import { toast } from './ui.js';
 import { connectDevice } from './device-connect.js';
 import { homeView } from './views/home.js';
@@ -231,6 +232,7 @@ async function boot() {
   installPressSounds();
   coach.mount();
   initEggs(); // 啾啾的彩蛋：窝里的羽毛、学舌、连续练习的天数……
+  registerApp(); // 能装成应用（install.js）
   // 开屏（splash.js）：先放上去，页面在它后面接着画。用户 2026-11-15 定的默认：每次从首页进（打开应用时第一页是首页）都放完整版
   // （按 PLAY 开机）；在某一页里刷新、直接打开别的页面不放。设置里可以改成“每天第一次”（当天第一次完整、再开短版）或“不放”。
   // 地址带 ?splash / ?splash=short 就照它放；

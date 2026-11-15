@@ -688,7 +688,7 @@ body { overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color:
 /* ───────── 开屏（splash.js）：“按 PLAY 开机” ─────────
    一排 16 个步进键扫一遍、四踩亮成桔红 → 四个灯升上去变成标志 → 啾啾落在最高那根条上 → 按 PLAY：一小节开场、它唱声音标志 → 标志缩回导航栏、淡出。 */
 html.splashing body::after { content: ""; position: fixed; inset: 0; z-index: 74; background: var(--bg); }
-.splash { position: fixed; inset: 0; z-index: 74; display: grid; place-items: center; padding: 24px; cursor: pointer; overflow: hidden; opacity: 0; transition: opacity .3s;
+.splash { position: fixed; inset: 0; z-index: 74; display: grid; place-items: center; padding: 24px; cursor: default; overflow: hidden; opacity: 0; transition: opacity .3s;
   background: radial-gradient(ellipse 60% 50% at 50% 42%, var(--accent-soft), transparent 70%), var(--bg); user-select: none; -webkit-user-select: none; }
 .splash.on { opacity: 1; }
 .splash.out { opacity: 0; transition: opacity .5s ease .12s; pointer-events: none; }
@@ -729,6 +729,11 @@ html.splashing body::after { content: ""; position: fixed; inset: 0; z-index: 74
 .splash.playing .spl-hint, .splash.playing .spl-skip { opacity: 0; }
 .spl-skip { position: absolute; right: 22px; top: 18px; padding: 8px 12px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; transition: opacity .2s; }
 .spl-skip:hover { color: var(--text); background: var(--panel-3); }
+/* 浏览器还不让出声（没点过页面）：右下角一个“开声音”，点它或者点页面别处，背景律动就响起来 */
+.spl-sound { position: absolute; right: 22px; bottom: 20px; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border: 1px solid var(--line-2); border-radius: 20px; background: var(--panel); color: var(--text-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 0 var(--key-edge); }
+.spl-sound[hidden] { display: none; }
+.spl-sound:hover { color: var(--text); border-color: var(--accent); }
+.splash.playing .spl-sound { display: none; }
 .splash.out .spl-center > :not(.spl-logo) { opacity: 0; transform: translateY(12px); transition: opacity .3s, transform .3s; }
 .splash.calm, .splash.calm * { animation: none !important; }
 .splash.calm .spl-steps, .splash.short .spl-steps, .splash.short .spl-go, .splash.short .spl-skip { display: none; }
