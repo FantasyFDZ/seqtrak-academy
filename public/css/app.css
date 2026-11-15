@@ -688,7 +688,7 @@ body { overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color:
 @keyframes jiu-groove { 0%, 100% { transform: rotate(0); } 22% { transform: translate(1px, 2.5px) rotate(9deg); } }
 [data-fx="calm"] .jiu-layer .bird.jiu-groove .b-headpose { animation: none; }
 /* ───────── 开屏（splash.js）：“按 PLAY 开机” ─────────
-   一排 16 个步进键扫一遍、四踩亮成桔红 → 四个灯升上去变成标志 → 啾啾落在最高那根条上 → 按 PLAY：一小节开场、它唱声音标志 → 标志缩回导航栏、淡出。 */
+   一排 16 个步进键扫一遍、四踩亮成桔红 → 标志从中间长出来、字从中间往两边展开 → 啾啾落在最高那根条上 → 按 PLAY：一小节开场、它唱声音标志 → 标志缩回导航栏、淡出。 */
 html.splashing body::after { content: ""; position: fixed; inset: 0; z-index: 74; background: var(--bg); }
 .splash { position: fixed; inset: 0; z-index: 74; display: grid; place-items: center; padding: 24px; cursor: default; overflow: hidden; opacity: 0; transition: opacity .3s;
   background: radial-gradient(ellipse 60% 50% at 50% 42%, var(--accent-soft), transparent 70%), var(--bg); user-select: none; -webkit-user-select: none; }
@@ -712,8 +712,9 @@ html.splashing body::after { content: ""; position: fixed; inset: 0; z-index: 74
 .spl-title { margin: 4px 0 0; font-size: 44px; font-weight: 800; letter-spacing: .02em; line-height: 1.1; color: var(--text); }
 .spl-title b { color: var(--accent); }
 .spl-sub { margin: -6px 0 0; font-size: 17px; color: var(--text-2); }
-.spl-title, .spl-sub { opacity: 0; transform: translateY(10px); transition: opacity .45s var(--out), transform .45s var(--out); }
-.splash.titled .spl-title, .splash.titled .spl-sub { opacity: 1; transform: none; }
+/* 标题、副标题从中间往两边展开（原来是从下面浮上来）。上下留出余量，字母的下伸部分不会被裁掉 */
+.spl-title, .spl-sub { opacity: 0; clip-path: inset(-30% 50% -30% 50%); transform: scale(.96); transition: opacity .35s var(--out), clip-path .6s var(--out), transform .6s var(--out); }
+.splash.titled .spl-title, .splash.titled .spl-sub { opacity: 1; clip-path: inset(-30% -4% -30% -4%); transform: none; }
 .splash.titled .spl-sub { transition-delay: .12s; }
 .spl-go { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 6px; opacity: 0; transition: opacity .4s; }
 .splash.ready .spl-go { opacity: 1; }

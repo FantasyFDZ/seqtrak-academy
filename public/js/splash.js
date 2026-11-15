@@ -5,7 +5,8 @@
 // 背景律动（一打开就开始，一直循环到你按 PLAY）：120 BPM，两小节一个来回。一排 16 个步进键跟着播放线一格一格跳，
 //   每拍第一格亮成桔红；四踩底鼓、反拍闭镲，单数小节加拍手，第二小节起加贝斯（D–A–G），双数小节有一句拨弦的旋律
 //   （D、F♯、A、B、A、F♯、E，D 大调五声）。
-//   第二小节第一拍，四个亮着的灯升上去变成项目的标志（四根条），落一个淡淡的 D 大三和弦；标题浮上来，下面是一颗跟着拍子闪的 PLAY 键。
+//   第二小节第一拍，项目的标志（四根条）从中间长出来，落一个淡淡的 D 大三和弦；标题和副标题从中间往两边展开，下面是一颗跟着拍子闪的 PLAY 键。
+//   （用户 2026-11-15：“频谱和下面的字应当是从中间长出来的感觉，而不是现在的飞进来”——原来是四个亮着的灯飞上去变成四根条、字从下面浮上来。）
 //   啾啾（他又说“飞进来可以慢一些，四处盘旋悬停一段时间”）：第一小节扫到一半叫着从右边慢慢飞进来，在标志右上方悬停；
 //   第四小节换到左上方再悬停；第六小节绕着标志盘旋一圈；第九小节（约 8.5 秒）落到最高那根条上，之后跟着拍子点头，隔一会儿嘀咕一声。
 //   没等它落下就按了 PLAY：它直接落下来。
@@ -58,17 +59,15 @@ function build() {
   return { el, logo, bars, perch, keys, steps, title, sub, play, hint, skip, sound };
 }
 
-/** 四个亮着的灯升上去变成标志的四根条（FLIP：从灯的位置和大小，变回条自己的位置和大小） */
+/** 标志的四根条从中间长出来：每根条就在自己的位置上，从腰部往上下两头长，长过头一点再回落；中间两根先长，两边两根跟上 */
 function rise(ui) {
   ui.bars.forEach((bar, n) => {
-    const led = ui.keys[n * 4].querySelector('i').getBoundingClientRect();
-    const r = bar.getBoundingClientRect();
-    const dx = led.left + led.width / 2 - (r.left + r.width / 2);
-    const dy = led.bottom - r.bottom;
+    const o = { transformOrigin: '50% 50%', opacity: 1 };
     bar.animate([
-      { transform: `translate(${dx}px, ${dy}px) scale(${led.width / r.width}, ${led.height / r.height})`, opacity: 1 },
-      { transform: 'translate(0, 0) scale(1, 1)', opacity: 1 },
-    ], { duration: 520, delay: n * 60, easing: 'cubic-bezier(.34, 1.4, .64, 1)', fill: 'backwards' });
+      { ...o, transform: 'scaleY(0)', easing: 'cubic-bezier(.25, .6, .4, 1)' }, // 长：一开始快、越长越慢
+      { ...o, transform: 'scaleY(1.12)', offset: 0.62, easing: 'ease-in-out' }, // 长过头一点，回落
+      { ...o, transform: 'scaleY(1)' },
+    ], { duration: 700, delay: n === 1 || n === 2 ? 0 : 120, fill: 'backwards' });
   });
 }
 
@@ -263,11 +262,11 @@ export async function playSplash({ mode = 'full' } = {}) {
     }
     if (s === 16 && !quiet) {
       ui.el.classList.add('formed');
-      rise(ui); // 四个灯升上去变成标志
+      rise(ui); // 标志从中间长出来
     }
     if (s === 18) ui.el.classList.add('titled');
     if (s === 21) ui.el.classList.add('ready');
-    if (s >= 20 && p % 4 === 0) bounce(ui);
+    if (s >= 24 && p % 4 === 0) bounce(ui); // 等标志长完（约 0.82 秒）再跟着拍子蹦，不然蹦一下会把还在长的条打断
     if (s === 80) jiu.groove(120); // 落稳了，跟着拍子点头
     if (s > 32 && s % 64 === 40) jiu.chirp('chatter'); // 等着的时候隔一会儿嘀咕一声
   });
