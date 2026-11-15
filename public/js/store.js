@@ -14,7 +14,7 @@ const blank = () => ({
   charts: {}, // 谱面 id → { plays, bestAccuracy, bestStars, lastAt }
   songs: { picked: [] },
   // skin：配色，'body' 机身（浅）/ 'neon' 霓虹（深）；motion：动效，'rich' 丰富 / 'calm' 克制；uiSound：界面音效
-  settings: { inputOffsetMs: 0, metronome: true, speak: false, unlockAll: false, engine: 'fast', skin: 'body', motion: 'rich', uiSound: true, splash: 'daily' },
+  settings: { inputOffsetMs: 0, metronome: true, speak: false, unlockAll: false, engine: 'fast', skin: 'body', motion: 'rich', uiSound: true, intro: 'home' },
   practiceDays: [], // 'YYYY-MM-DD'
   lastResult: null,
   drills: [], // AI 出过的定制练习
@@ -41,7 +41,10 @@ function merge(base, saved) {
   };
   if (out.settings.skin !== 'neon') out.settings.skin = 'body';
   if (out.settings.motion !== 'calm') out.settings.motion = 'rich';
-  if (!['daily', 'always', 'off'].includes(out.settings.splash)) out.settings.splash = 'daily'; // 开屏：每天第一次 / 每次 / 不放（splash.js）
+  // 开屏（splash.js）：'home' 每次从首页进都放完整版（默认，用户 2026-11-15 定的）/ 'daily' 每天第一次完整、当天再开短版 / 'off' 不放。
+  // 旧的 splash 那一项（当时默认 'daily'）不再看
+  if (!['home', 'daily', 'off'].includes(out.settings.intro)) out.settings.intro = 'home';
+  delete out.settings.splash;
   out.settings.uiSound = out.settings.uiSound !== false;
   return out;
 }

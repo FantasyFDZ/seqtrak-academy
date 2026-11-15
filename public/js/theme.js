@@ -47,7 +47,7 @@ class Theme extends Emitter {
     this.motion = settings.motion === 'calm' ? 'calm' : 'rich';
     // 留给下次开页面用的是设置里的选择，不是地址里临时看的那种
     // 开屏关没关也留一份：index.html 开头的小脚本据此决定要不要先盖一层底色
-    const keep = JSON.stringify({ skin: saved, motion: this.motion, splash: ['always', 'off'].includes(settings.splash) ? settings.splash : 'daily' });
+    const keep = JSON.stringify({ skin: saved, motion: this.motion, intro: ['daily', 'off'].includes(settings.intro) ? settings.intro : 'home' });
     if (keep !== this.#kept) {
       this.#kept = keep;
       try {
