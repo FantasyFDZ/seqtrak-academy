@@ -267,7 +267,7 @@ export const ch4 = {
             { widget: 'synthlab', lab: 'filter', knobs: ['cutoff', 'reso'], sweep: true, title: '先把 RESONANCE 往上拧，再点「自动扫一遍」' },
             '共鸣不拧，扫过去是“呼——”；共鸣拧高，扫过去是“哇——”。电子舞曲里副歌前那种越来越紧、越来越尖、然后一下放开的声音，很多就是滤波器加共鸣在扫。',
             { callout: 'warn', text: '共鸣要配着滤波器才听得出来：滤波器在正中间（原样）时，共鸣几乎听不见。共鸣拧得太高，切口那里会非常尖、非常响，戴耳机时慢慢加。' },
-            { classroom: 'F4', text: '小课堂里会有一关专门玩它（还在做）。' },
+            { classroom: 'F4', text: '小课堂里有一关专门玩它：几段声音按“不喵 → 最喵”排好。' },
           ],
         },
         {
@@ -419,7 +419,7 @@ export const ch4 = {
             ] },
             'MODULATION 这一类有 8 个预设：1 SPX CHORUS 合唱、2 TEMPO FLANGER 镶边、3 TEMPO PHASER 相位、4 ENSEMBLE DETUNE 合奏、5 AUTO PAN 自动声像、**6 TREMOLO 颤音**、7 VCM AUTO WAH 自动哇音、8 RING MODULATOR 环形调制。下一步用第 6 个。',
             { callout: 'warn', title: '这台机器上，LFO 在哪', text: '机器里每个音色其实都带着 LFO，但**机身上没有旋钮管它**：手册说要在官方 App 的音色编辑里才调得到。机身上让声音摆起来，用的是 [FX] 旋钮里 **MODULATION** 这一类效果——它们里面也是这样一只手，而且跟着机器的速度摆。下一步就在机器上做。' },
-            { classroom: 'F10', text: '小课堂里会有一关“晃动的声音”专门玩这一类（还在做）。' },
+            { classroom: 'F10', text: '小课堂里有一关“晃动的声音”专门玩这一类：颤音、镶边、合唱翻牌配对。' },
           ],
         },
         {

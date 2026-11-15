@@ -29,7 +29,7 @@ export function partLength(song, part) {
 }
 
 /** 一条分轨在整首循环里（或一段 n 步长的 Scene 里）每一步发什么：byStep[步] = [{ drum, vel } 或 { midis, len, voice, vel }] */
-function partEvents(song, part, n = song.bars * 16) {
+export function partEvents(song, part, n = song.bars * 16) {
   const own = partLength(song, part);
   const byStep = Array.from({ length: n }, () => []);
   if (part.steps) {

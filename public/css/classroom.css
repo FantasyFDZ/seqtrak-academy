@@ -17,7 +17,7 @@
 .cl-total b { font: 800 24px/1 var(--mono); color: var(--text); }
 .cl-total .stars { margin-left: 10px; }
 
-.cl-lines { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.cl-lines { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .cl-line { min-height: 0; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: 0 2px 0 var(--line); }
 .cl-line > header { flex: none; padding: 13px 16px 12px; border-top: 5px solid var(--c); border-bottom: 1px solid var(--line); }
 .cl-line-name { display: flex; align-items: baseline; gap: 10px; }
@@ -28,7 +28,7 @@
 .cl-line-bar i { display: block; height: 100%; border-radius: 3px; background: var(--c); transition: width var(--t-show) var(--out); }
 .cl-nodes { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 10px 14px; display: flex; flex-direction: column; gap: 8px; }
 
-.cl-node { flex: none; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 11px; min-height: 62px; padding: 8px 12px 8px 8px; border-radius: 13px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 3px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-press), box-shadow var(--t-press), border-color var(--t-move); }
+.cl-node { flex: none; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 60px; padding: 8px 12px 8px 8px; border-radius: 13px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 3px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-press), box-shadow var(--t-press), border-color var(--t-move); }
 .cl-node:hover { color: var(--text); border-color: var(--c); }
 .cl-node:active { transform: translateY(3px); box-shadow: 0 0 0 var(--key-edge); }
 .cl-node .no { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; font: 800 14px var(--mono); color: var(--muted); background: var(--panel-3); box-shadow: 0 1px 2px var(--shade-2) inset; transition: background var(--t-move), color var(--t-move); }
@@ -326,3 +326,325 @@ button.cl-key:active { transform: translateY(3px); box-shadow: 0 0 0 var(--key-e
 @container (max-width: 1010px) {
   .cl-title .about { display: none; }
 }
+
+/* ═════════ 2026-11-15 小课堂丰富版：四个入口、铜银金、卡册、每日五分钟、新的题型、DJ 线 ═════════
+   牌的三种颜色是从已有的变量调出来的，两套配色都跟着走 */
+.cl-page { --medal-1: color-mix(in srgb, var(--accent) 45%, var(--warn)); --medal-2: color-mix(in srgb, var(--line-3) 80%, var(--blue)); --medal-3: var(--star); }
+
+/* 页头：四个入口 */
+.cl-head-words { min-width: 0; }
+.cl-head-words p { font-size: 14px; }
+.cl-tabs { display: flex; gap: 6px; padding: 4px; border-radius: 14px; background: var(--panel-3); box-shadow: 0 1px 2px var(--shade-2) inset; }
+.cl-tab { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border-radius: 10px; color: var(--text-2); font-weight: 750; font-size: 14.5px; white-space: nowrap; transition: background var(--t-move), color var(--t-move); }
+.cl-tab:hover { color: var(--text); }
+.cl-tab.on { background: var(--seg-on); color: var(--text); box-shadow: 0 2px 0 var(--shade-2); }
+.cl-tab b { min-width: 22px; height: 20px; padding: 0 6px; border-radius: 10px; display: grid; place-items: center; font: 800 12px var(--mono); background: var(--panel); color: var(--muted); }
+.cl-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.cl-dot.on { background: var(--lamp-ok); box-shadow: 0 0 0 3px var(--lamp-ok-ring); }
+.cl-gold { margin-left: 8px; padding: 2px 8px; border-radius: 8px; background: color-mix(in srgb, var(--medal-3) 22%, transparent); color: var(--text); font-size: 13px; }
+
+/* 顶上一条：路线上的下一关 + 今天的五分钟 */
+.cl-nextbar { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; margin-bottom: 12px; }
+.cl-next, .cl-daily-mini { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 2px 0 var(--line); color: var(--text); min-width: 0; }
+.cl-next .no { display: grid; place-items: center; height: 28px; padding: 0 8px; border-radius: 7px; background: var(--c); color: var(--on-bright); font: 800 13px var(--mono); }
+.cl-next b { font-size: 16px; white-space: nowrap; }
+.cl-next .muted, .cl-daily-mini .muted { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-next .go { margin-left: auto; font: 800 18px var(--mono); color: var(--accent-text); }
+a.cl-next:hover, .cl-daily-mini:hover { border-color: var(--c, var(--accent)); color: var(--text); }
+.cl-daily-mini { border-left: 5px solid var(--accent); }
+.cl-daily-mini.done { border-left-color: var(--lamp-ok); }
+.cl-daily-mini b { white-space: nowrap; }
+
+/* 列表上的牌 */
+.cl-medal { font-size: 13px; letter-spacing: 1px; white-space: nowrap; color: var(--star-off); }
+.cl-medal.m1 { color: var(--medal-1); }
+.cl-medal.m2 { color: var(--medal-2); }
+.cl-medal.m3 { color: var(--medal-3); text-shadow: 0 0 10px var(--yellow-glow); }
+.cl-node .go { font-size: 13px; color: var(--muted); }
+.cl-mdot { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-size: 12.5px; font-weight: 800; color: var(--on-bright); background: var(--lamp-ok); box-shadow: 0 2px 0 var(--shade-3), 0 1px 0 var(--gloss) inset; }
+.cl-mdot.m1 { background: var(--medal-1); }
+.cl-mdot.m2 { background: var(--medal-2); }
+.cl-mdot.m3 { background: var(--medal-3); box-shadow: 0 2px 0 var(--shade-3), 0 0 10px var(--yellow-glow); }
+.cl-node .words span { -webkit-line-clamp: 1; }
+.cl-node.boss { border-style: solid; border-width: 2px; border-color: color-mix(in srgb, var(--c) 55%, var(--key-border)); }
+.cl-node.boss .no { background: color-mix(in srgb, var(--c) 18%, var(--panel-3)); color: var(--text); }
+.cl-node.done.boss .no { background: var(--c); color: var(--on-bright); }
+
+/* 推荐路线 */
+.cl-stops { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px; }
+.cl-route-tip { margin: 0 0 2px; color: var(--text-2); font-size: 14px; }
+.cl-stop { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 14px; align-items: center; padding: 10px 14px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); box-shadow: 0 2px 0 var(--line); }
+.cl-stop.done { border-color: var(--lamp-ok); }
+.cl-stop-name { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 10px; align-items: center; }
+.cl-stop-name .n { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--inv); color: var(--inv-text); font: 800 15px var(--mono); }
+.cl-stop.done .cl-stop-name .n { background: var(--lamp-ok); color: var(--on-bright); }
+.cl-stop-name b { display: block; font-size: 16px; }
+.cl-stop-name span { font-size: 12.5px; color: var(--muted); }
+.cl-stop-name .cl-link { grid-column: 1 / -1; justify-self: start; }
+.cl-stop-path { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px 6px; align-items: center; }
+.cl-stop-path li { display: flex; align-items: center; gap: 6px; margin: 0; }
+.cl-stop-path li + li::before { content: "→"; color: var(--line-3); font-weight: 800; }
+.cl-chip { display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 4px 10px 4px 5px; border-radius: 11px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 3px 0 var(--key-edge); white-space: nowrap; }
+.cl-chip .no { display: grid; place-items: center; min-width: 34px; height: 32px; padding: 0 5px; border-radius: 8px; font: 800 12px var(--mono); background: var(--panel-3); color: var(--muted); }
+.cl-chip b { font-size: 14px; }
+.cl-chip.done .no { background: var(--c); color: var(--on-bright); }
+.cl-chip.next { border: 2px solid var(--accent); box-shadow: 0 3px 0 var(--accent-2), 0 0 0 4px var(--accent-ring); }
+.cl-chip.boss b::after { content: " · 大关"; color: var(--muted); font-weight: 650; font-size: 12px; }
+.cl-chip .tag { font-size: 11.5px; }
+.cl-chip:hover { color: var(--text); border-color: var(--c); }
+
+/* 链到别处的小牌子：课程、曲目、音游 */
+.cl-link { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 3px 11px 3px 4px; border-radius: 9px; font-size: 13.5px; font-weight: 700; color: var(--text); background: var(--panel-2); border: 1px solid var(--line-2); white-space: nowrap; }
+.cl-link small { padding: 2px 6px; border-radius: 6px; font: 800 11px var(--mono); color: var(--on-bright); background: var(--line-3); }
+.cl-link.k-lesson small { background: var(--accent); }
+.cl-link.k-song small { background: var(--violet); }
+.cl-link.k-chart small { background: var(--cyan); }
+.cl-link:hover { border-color: var(--text-2); color: var(--text); }
+
+/* 知识卡册 */
+.cl-cards-page { position: relative; }
+.cl-cards-sum { flex: none; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-weight: 650; color: var(--text-2); }
+.cl-cards-sum > b { font: 800 26px/1 var(--mono); color: var(--text); }
+.cl-cards-sum .muted { font-weight: 500; font-size: 13.5px; }
+.cl-cardsets { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 14px; padding-bottom: 10px; }
+.cl-cardset h2 { display: flex; align-items: baseline; gap: 8px; margin: 0 0 8px; padding-left: 10px; border-left: 5px solid var(--c); font-size: 17px; }
+.cl-cardset h2 small { font: 700 13px var(--mono); color: var(--muted); }
+.cl-cardgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.cl-kcard { position: relative; min-height: 104px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 14px; text-align: left; color: var(--text); background: var(--panel); border: 2px solid var(--line-2); box-shadow: 0 3px 0 var(--line-2); cursor: pointer; transition: transform var(--t-press), box-shadow var(--t-press); }
+.cl-kcard:active { transform: translateY(3px); box-shadow: 0 0 0 var(--line-2); }
+.cl-kcard .no { font: 800 12px var(--mono); color: var(--c); }
+.cl-kcard b { font-size: 15px; line-height: 1.3; }
+.cl-kcard .about { font-size: 12px; color: var(--text-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.cl-kcard .cl-medal, .cl-kcard .lock { margin-top: auto; font-size: 12.5px; }
+.cl-kcard .lock { color: var(--muted); font-weight: 650; }
+.cl-kcard.locked { background: transparent; border-style: dashed; box-shadow: none; color: var(--muted); }
+.cl-kcard.locked b { color: var(--text-2); }
+.cl-kcard.got { border-top: 6px solid var(--c); }
+.cl-kcard.m1 { border-color: var(--medal-1); border-top-color: var(--c); }
+.cl-kcard.m2 { border-color: var(--medal-2); border-top-color: var(--c); }
+.cl-kcard.m3 { border-color: var(--medal-3); border-top-color: var(--c); background: linear-gradient(160deg, color-mix(in srgb, var(--medal-3) 16%, var(--panel)), var(--panel) 60%); box-shadow: 0 3px 0 color-mix(in srgb, var(--medal-3) 50%, var(--line-2)), 0 0 18px var(--yellow-glow); }
+.cl-feather { position: absolute; right: 8px; top: 8px; width: 12px; height: 26px; border-radius: 50% 50% 48% 48% / 60% 60% 40% 40%; background: linear-gradient(var(--c), color-mix(in srgb, var(--c) 60%, var(--panel))); transform: rotate(18deg); box-shadow: 0 1px 2px var(--shade-3); }
+.cl-card-detail { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(3px); }
+.cl-card-detail[hidden] { display: none; }
+.cl-cd { width: min(620px, 100%); max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 18px; background: var(--panel); border: 2px solid var(--line-2); border-top: 8px solid var(--c); box-shadow: 0 20px 50px var(--shade-3); }
+.cl-cd.m1 { border-color: var(--medal-1); border-top-color: var(--c); }
+.cl-cd.m2 { border-color: var(--medal-2); border-top-color: var(--c); }
+.cl-cd.m3 { border-color: var(--medal-3); border-top-color: var(--c); }
+.cl-cd header { display: flex; align-items: center; gap: 10px; }
+.cl-cd header .no { display: grid; place-items: center; height: 32px; padding: 0 9px; border-radius: 8px; background: var(--c); color: var(--on-bright); font: 800 14px var(--mono); }
+.cl-cd header > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cl-cd header b { font-size: 19px; }
+.cl-cd header span { font-size: 13px; color: var(--muted); }
+.cl-cd .btn.sm { height: 44px; min-width: 44px; }
+.cl-feather-note { margin: 0; font-size: 14px; font-weight: 650; }
+.cl-cd .cl-take { max-width: none; }
+.cl-cd-body .cl-toy { min-height: 260px; }
+.cl-cd-links, .cl-done-links { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
+.cl-cd-links { justify-content: flex-start; }
+.cl-cd-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.cl-cd-actions .btn { height: 46px; }
+.cl-done-links .label { margin-right: 4px; }
+.cl-card-got { margin: -4px 0 0; font-size: 14px; color: var(--text-2); }
+.cl-card-got:empty { display: none; }
+
+/* 一关：挑一档 */
+.cl-tiers { flex: none; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.cl-tiers-label { font: 700 12px var(--mono); letter-spacing: .08em; color: var(--muted); }
+.cl-tiers-say { margin-left: auto; font-size: 13.5px; color: var(--text-2); }
+.cl-tier { --m: var(--medal-1); display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 14px 0 6px; border-radius: 12px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 2px solid var(--key-border); box-shadow: 0 3px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-press), box-shadow var(--t-press), border-color var(--t-move); }
+.cl-tier.t2 { --m: var(--medal-2); }
+.cl-tier.t3 { --m: var(--medal-3); }
+.cl-tier b { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--m); color: var(--on-bright); font-size: 15px; box-shadow: 0 2px 0 var(--shade-3), 0 1px 0 var(--gloss) inset; }
+.cl-tier span { font-size: 13.5px; font-weight: 700; color: var(--text-2); }
+.cl-tier.got span { color: var(--ok); }
+.cl-tier.on { border-color: var(--m); box-shadow: 0 3px 0 var(--m), 0 0 0 4px color-mix(in srgb, var(--m) 25%, transparent); }
+.cl-tier:active { transform: translateY(3px); box-shadow: 0 0 0 var(--key-edge); }
+.cl-tier-host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cl-tier-host > .cl-bench { flex: 1; }
+.cl-name .cl-medal { font-size: 16px; margin-right: 4px; }
+
+/* 每日五分钟 */
+.cl-daily-dots { margin-left: auto; display: flex; gap: 6px; }
+.cl-daily-dots i { display: grid; place-items: center; min-width: 40px; height: 30px; padding: 0 6px; border-radius: 15px; font: 800 12px var(--mono); font-style: normal; background: var(--panel-3); color: var(--muted); }
+.cl-daily-dots i.now { background: var(--c); color: var(--on-bright); }
+.cl-daily-dots i.ok { background: var(--lamp-ok); color: var(--on-bright); }
+.cl-daily-dots i.miss { background: var(--bad-soft); color: var(--bad); }
+.cl-clock { min-width: 54px; text-align: right; font: 800 18px var(--mono); color: var(--text); }
+.cl-clock.over { color: var(--accent-text); }
+.cl-daily .cl-steps { display: none; }
+
+/* 排顺序 */
+.cl-order-pool { display: grid; gap: 12px; }
+.cl-order-pool .cl-card { height: clamp(84px, 20cqh, 150px); }
+.cl-order-pool .cl-card b { font-size: 34px; }
+.cl-cardbox.used { opacity: .45; }
+.cl-order-axis { display: flex; justify-content: space-between; font: 700 13px var(--mono); color: var(--muted); }
+.cl-order-slots { display: grid; gap: 10px; }
+.cl-slot { min-height: 56px; border-radius: 12px; font: 800 22px var(--mono); color: var(--muted); background: var(--field); border: 2px dashed var(--line-2); cursor: pointer; }
+.cl-slot.full { color: var(--text); border-style: solid; border-color: var(--c); background: color-mix(in srgb, var(--c) 10%, var(--field)); }
+.cl-slot.now { box-shadow: 0 0 0 4px var(--accent-ring); }
+.cl-slot.right { border-color: var(--lamp-ok); background: var(--ok-soft); }
+.cl-slot.wrong { border-color: var(--bad); background: var(--bad-soft); }
+
+/* 记忆配对 */
+.cl-mem { flex: 1; min-height: 0; display: grid; gap: 10px; align-content: center; }
+.cl-memcard { min-height: clamp(64px, 16cqh, 120px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; color: var(--muted); background: linear-gradient(var(--key-top), var(--key-bot)); border: 2px solid var(--key-border); box-shadow: 0 4px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-move) var(--pop), background var(--t-move), border-color var(--t-move); }
+.cl-memcard b { font: 800 22px var(--mono); }
+.cl-memcard span { font-size: 13px; font-weight: 700; min-height: 18px; }
+.cl-memcard.open { background: color-mix(in srgb, var(--c) 16%, var(--panel)); border-color: var(--c); color: var(--text); transform: translateY(-3px); }
+.cl-memcard.done { background: var(--ok-soft); border-color: var(--lamp-ok); color: var(--ok); box-shadow: none; cursor: default; }
+
+/* 格子听写：核对之后 */
+.cl-key.miss { outline: 3px dashed var(--accent); outline-offset: 1px; }
+.cl-key.extra { outline: 3px solid var(--bad); outline-offset: 1px; }
+.cl-dict .cl-keys { max-width: 560px; }
+
+/* 啾啾唱一句，你弹回来 */
+.cl-echo-typed { display: flex; gap: 10px; justify-content: center; }
+.cl-echo-typed i { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 14px; font: 800 22px var(--mono); font-style: normal; color: var(--muted); background: var(--field); border: 2px dashed var(--line-2); }
+.cl-echo-typed i.on { color: var(--on-bright); background: var(--c); border: 2px solid var(--c); }
+.cl-echo-keys { flex: 1; min-height: 0; display: flex; align-items: center; }
+.cl-echo-keys .cl-skeys { width: 100%; }
+.cl-skey.down { transform: translateY(4px); box-shadow: 0 0 0 var(--key-edge); background: color-mix(in srgb, var(--c) 18%, var(--panel)); }
+.cl-skey.hint { border-color: var(--accent); box-shadow: 0 4px 0 var(--accent); }
+
+/* 快问快答 */
+.cl-ask-q { font-size: 19px; font-weight: 750; line-height: 1.5; color: var(--text); }
+.cl-ask-opts .cl-opt { min-height: 54px; text-align: left; padding-left: 18px; font-size: 16px; }
+
+/* 节奏挑战：音游的舞台放进小课堂 */
+.cl-rhythm { gap: 8px; }
+.cl-rhythm-host { flex: 1; min-height: 0; display: flex; }
+.cl-rhythm-host .game { flex: 1; min-height: 0; border-radius: 14px; }
+.cl-rhythm-host .game-stage { flex: 1; height: auto; min-height: 180px; }
+.cl-rhythm-host .game-hud { padding: 6px 14px 4px; }
+.cl-rhythm-host .game-steps { display: none; }
+.cl-rhythm .cl-note { min-height: 0; }
+
+/* 数出来：“1 e & a” */
+.cl-words { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 4px; max-width: 640px; width: 100%; align-self: center; }
+.cl-words i { display: grid; place-items: center; height: 34px; border-radius: 8px; font: 800 15px var(--mono); font-style: normal; color: var(--muted); background: var(--panel-2); transition: background 60ms, color 60ms, transform 60ms; }
+.cl-words i.beat { color: var(--text); }
+.cl-words i.on { background: var(--accent); color: var(--accent-ink); transform: scale(1.12); }
+.cl-count16 .cl-pad { max-height: 130px; }
+.cl-two-grids { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cl-two-grids > div { display: flex; flex-direction: column; gap: 6px; }
+.cl-two-grids .cl-keys.small { max-width: none; }
+.cl-two-pads { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cl-two-pads .cl-pad { max-height: none; }
+
+/* 乐理的几样新玩具 */
+.cl-chroms { flex: 1; min-height: 120px; max-height: 260px; display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 5px; }
+.cl-chrom { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; padding-bottom: 10px; border-radius: 10px; color: var(--piano-ink); background: linear-gradient(var(--piano-w1), var(--piano-w2)); border: 1px solid var(--piano-edge); box-shadow: 0 4px 0 var(--piano-edge); cursor: pointer; touch-action: none; }
+.cl-chrom.black { color: var(--inv-text); background: linear-gradient(var(--piano-b1), var(--piano-b2)); border-color: var(--piano-b-edge); box-shadow: 0 4px 0 var(--piano-b-edge); }
+.cl-chrom b { font: 800 14px var(--mono); }
+.cl-chrom span { font: 700 11px var(--mono); opacity: .7; }
+.cl-chrom.here { background: var(--c); color: var(--on-bright); border-color: var(--c); transform: translateY(4px); box-shadow: 0 0 0 var(--piano-edge); }
+.cl-chrom.from { outline: 3px dashed var(--c); outline-offset: 2px; }
+.cl-penta-keys { flex: 1; min-height: 120px; max-height: 240px; display: grid; gap: 8px; }
+.cl-penta-keys .cl-wkey.black { color: var(--inv-text); background: linear-gradient(var(--piano-b1), var(--piano-b2)); border-color: var(--piano-b-edge); box-shadow: 0 5px 0 var(--piano-b-edge); }
+.cl-penta-keys .cl-wkey.down { transform: translateY(5px); box-shadow: none; background: var(--c); color: var(--on-bright); }
+.cl-penta-keys .cl-wkey b { font-size: 18px; }
+.cl-iv .cl-skeys { flex: 1; min-height: 0; align-content: center; }
+.cl-iv .cl-skey.on { border-color: var(--c); box-shadow: 0 4px 0 var(--c); transform: translateY(-6px); }
+.cl-ground { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; border-radius: 12px; background: color-mix(in srgb, var(--c) 14%, var(--panel-2)); border: 2px solid var(--c); font-weight: 800; }
+.cl-ground span { font: 800 16px var(--mono); color: var(--text-2); }
+.cl-prog { flex: 1; min-height: 120px; max-height: 220px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.cl-ptile { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 16px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 2px solid var(--key-border); box-shadow: 0 5px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-move) var(--pop), border-color var(--t-move); }
+.cl-ptile b { font: 800 24px var(--mono); }
+.cl-ptile span { font: 800 15px var(--mono); color: var(--text-2); }
+.cl-ptile em { font-size: 12px; font-style: normal; color: var(--muted); }
+.cl-ptile.now { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, var(--panel)); transform: translateY(-4px); }
+.cl-trans .cl-skeys { flex: 1; min-height: 0; align-content: center; }
+
+/* 做一次铺垫：两条“按住才有”的触摸条 */
+.cl-build-strips { flex: 1; min-height: 0; display: grid; grid-template-columns: 96px 96px minmax(0, 1fr); gap: 16px; }
+.cl-build-strips .fx-strip-track { min-height: 120px; }
+.cl-build-how { align-self: center; padding: 12px 14px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14.5px; line-height: 1.7; color: var(--text-2); white-space: pre-line; }
+
+/* 关底大关：几段接力 */
+.cl-relay { gap: 10px; }
+.cl-relay-chips { flex: none; margin: 0; padding: 0; list-style: none; display: flex; gap: 6px; flex-wrap: wrap; }
+.cl-relay-chips li { margin: 0; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 5px; border-radius: 16px; background: var(--panel-3); color: var(--muted); font-size: 13px; font-weight: 700; }
+.cl-relay-chips li i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--panel); font: 800 12px var(--mono); font-style: normal; }
+.cl-relay-chips li.now { background: var(--c); color: var(--on-bright); }
+.cl-relay-chips li.now i { color: var(--c); }
+.cl-relay-chips li.done { background: var(--ok-soft); color: var(--ok); }
+.cl-relay-chips li.done i { background: var(--lamp-ok); color: var(--on-bright); }
+.cl-relay-bar { flex: none; display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14.5px; color: var(--text-2); }
+.cl-relay-bar .cl-pass { margin: 0; }
+.cl-relay-host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* ───────── DJ 线 ───────── */
+.cl-dj { gap: 12px; }
+.cl-dj-songs { flex-wrap: wrap; }
+.cl-dj-songs button { min-height: 40px; font-size: 13.5px; }
+.cl-dj-count { display: flex; align-items: center; gap: 12px; }
+.cl-dj-count .cl-beats { width: 190px; gap: 6px; }
+.cl-dj-count .cl-beats i { height: 38px; font-size: 16px; }
+.cl-dj-bar { display: flex; align-items: baseline; gap: 4px; min-width: 96px; }
+.cl-dj-bar b { font: 800 30px/1 var(--mono); }
+.cl-dj-bar small { font: 700 12px var(--mono); color: var(--muted); }
+.cl-dj-bar.hidden { visibility: hidden; }
+.cl-dj-info { font-size: 14px; color: var(--text-2); }
+.cl-dj-tap { flex: 1; min-height: 110px; max-height: 220px; }
+.cl-dj-blind { display: grid; place-items: center; min-height: 54px; border-radius: 12px; border: 2px dashed var(--line-2); color: var(--muted); font-weight: 700; }
+.cl-dj-blind.sm { min-height: 44px; padding: 0 12px; font-size: 13.5px; }
+.cl-tl-box { flex: none; }
+.cl-tl-box.tall .cl-tl-row { height: clamp(120px, 34cqh, 240px); align-items: stretch; }
+.cl-tl { position: relative; }
+.cl-tl-row { display: flex; gap: 3px; height: 54px; }
+.cl-tl-block { position: relative; min-width: 0; display: flex; align-items: flex-end; justify-content: center; border-radius: 8px; background: color-mix(in srgb, var(--k) 28%, var(--panel-2)); border: 1px solid color-mix(in srgb, var(--k) 60%, transparent); overflow: hidden; cursor: default; transition: background var(--t-move), transform var(--t-move); }
+.cl-tl-block[role="button"] { cursor: pointer; }
+.cl-tl-block i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--k); opacity: .85; border-radius: 6px 6px 0 0; }
+.cl-tl-block span { position: relative; z-index: 1; padding: 0 3px 4px; font-size: 11.5px; font-weight: 750; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-tl-block.now { background: color-mix(in srgb, var(--k) 55%, var(--panel)); box-shadow: 0 0 0 3px var(--k); }
+.cl-tl-head { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-left: -1px; border-radius: 2px; background: var(--text); display: none; }
+.cl-decks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cl-deck { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 12px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--line-2); }
+.cl-deck > i { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 10px; background: var(--inv); color: var(--inv-text); font: 800 20px var(--mono); font-style: normal; }
+.cl-deck > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cl-deck b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-deck span { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-low { flex: none; height: 44px; }
+.cl-low.on { background: var(--ok-soft); border-color: var(--lamp-ok); color: var(--ok); }
+.cl-xrow { display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: center; gap: 10px; font: 800 20px var(--mono); text-align: center; }
+.cl-xfader { width: 100%; }
+.cl-xmeter { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cl-xmeter i { height: 8px; border-radius: 4px; background: var(--accent); width: 100%; transition: width 120ms linear; }
+.cl-xmeter i.b { background: var(--violet); justify-self: end; }
+.cl-bpm { display: flex; align-items: baseline; gap: 4px; }
+.cl-bpm b { font: 800 26px/1 var(--mono); }
+.cl-bpm small { font: 700 11px var(--mono); color: var(--muted); }
+.cl-bmrow .btn { height: 46px; }
+.cl-bmrow .cl-cap { min-width: 76px; }
+.cl-drift { position: relative; flex: none; height: 54px; border-radius: 14px; background: var(--field); border: 1px solid var(--line-2); box-shadow: 0 1px 3px var(--shade-2) inset; }
+.cl-drift .mid { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: var(--text); }
+.cl-drift .dot { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: var(--violet); box-shadow: 0 0 0 4px color-mix(in srgb, var(--violet) 25%, transparent); transition: left 80ms linear; }
+.cl-drift .l, .cl-drift .r { position: absolute; top: 6px; font: 700 12px var(--mono); color: var(--muted); }
+.cl-drift .l { left: 10px; }
+.cl-drift .r { right: 10px; }
+.cl-clash { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 12px; background: var(--panel-2); font-weight: 700; color: var(--text-2); }
+.cl-clash i { width: 18px; height: 18px; border-radius: 50%; background: var(--key-lamp); }
+.cl-clash i.on { background: var(--lamp-bad); }
+.cl-clash b { margin-left: 6px; color: var(--text); }
+
+@container (max-width: 1010px) {
+  .cl-head-words p { display: none; }
+  .cl-tab { padding: 0 10px; }
+  .cl-node .words span { font-size: 12px; }
+  .cl-nodes { padding: 8px 6px 12px 8px; scrollbar-width: thin; }
+  .cl-node { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 7px; padding: 6px 7px 6px 6px; }
+  .cl-node .no { width: 36px; height: 36px; font-size: 12.5px; }
+  .cl-node .words b { font-size: 14.5px; }
+}
+@container (max-width: 800px) {
+  .cl-list-head { flex-wrap: wrap; }
+  .cl-lines { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cl-stop { grid-template-columns: minmax(0, 1fr); }
+  .cl-nextbar { grid-template-columns: minmax(0, 1fr); }
+}
+/* 动手关的挑战：上面多了一排牌、右边还有一栏，机器图矮一点，给下面的任务说明留地方 */
+.cl-lesson[data-step="quiz"] .cl-tier-host .cl-bench:not(.live) .panel-svg { height: clamp(200px, calc(100cqh - 340px), 400px); }
+.cl-lesson[data-step="quiz"] .cl-tier-host .cl-bench.live .panel-svg { max-height: calc(100cqh - 340px); }
+.cl-lesson[data-step="quiz"] .cl-tier-host .cl-bench-task { min-height: 112px; }

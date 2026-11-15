@@ -3,7 +3,7 @@
 //   2 连续练到 3 / 7 / 30 天：绕着屏幕飞一圈、唱一段（同一段连续里每个天数只庆祝一次）
 //   3 小测全对：用机器当前的调唱一段（lesson.js 的小测、小课堂的“试一试”拿三星时调 quizPerfect()）
 //   4 一节课三星、升级：绕着庆祝卡飞一圈（celebrate.js 直接调 jiu.lap）
-//   5 掌握一个知识点（小课堂一关拿三星、学完一整章）：叼一根羽毛回窝里。窝里的羽毛越攒越多，点开啾啾有“窝里的羽毛”
+//   5 掌握一个知识点（小课堂一关拿金牌 = 卡册里一张金卡、学完一整章）：叼一根羽毛回窝里。窝里的羽毛越攒越多，点开啾啾有“窝里的羽毛”
 //   6 连点它 5 下：晕了（jiu.js）
 //   7 学舌：不在上课、音游、设备页的时候，在机器的 Synth keys 上弹一小句，它学着叫回来
 //   8 机器放了半分钟以上：从点头变成跟着拍子蹦（jiu.js）
@@ -96,13 +96,13 @@ export function quizPerfect() {
 }
 
 // ───── 5 羽毛 ─────
-const COLORS = { chapter: '#EC3A2A', theory: '#FFC61F', rhythm: '#8DB83A', fx: '#3FA9F5' };
-const KIND = { chapter: '学完一章', theory: '乐理', rhythm: '节奏', fx: '效果' };
+const COLORS = { chapter: '#EC3A2A', theory: '#FFC61F', rhythm: '#8DB83A', fx: '#3FA9F5', dj: '#7250D8' };
+const KIND = { chapter: '学完一章', theory: '乐理', rhythm: '节奏', fx: '效果', dj: 'DJ' };
 function featherSvg(f) {
   const c = COLORS[f.kind] || '#FF8A24';
   return h('svg', { viewBox: '0 0 10 24', html: `<path d="M5 .8 C 9.4 6, 9.6 15, 5.2 23.2 C .6 15, .8 6, 5 .8 Z" fill="${c}" stroke="rgba(0,0,0,.18)" stroke-width=".5"/><path d="M5 3 L 5.1 23.4" stroke="rgba(0,0,0,.35)" stroke-width=".8" fill="none"/><path d="M5 9 L 8 7 M5 13 L 8.4 11 M5 9 L 2 7 M5 13 L 1.6 11" stroke="rgba(255,255,255,.5)" stroke-width=".6" fill="none"/>` });
 }
-/** 掌握了的知识点：学完的整章、小课堂里拿了三星的关 */
+/** 掌握了的知识点：学完的整章、小课堂里拿了金牌（三星）的关——也就是卡册里的金卡 */
 export function feathers() {
   const out = [];
   for (const c of CHAPTERS) {
@@ -110,7 +110,7 @@ export function feathers() {
     if (c.lessons.every((l) => store.data.lessons[l.id]?.done)) out.push({ id: `ch:${c.no}`, kind: 'chapter', title: `第 ${c.no} 章 ${c.title}` });
   }
   for (const l of LEVELS) {
-    if ((store.data.classroom?.[l.id]?.stars || 0) >= 3) out.push({ id: `cl:${l.id}`, kind: l.line, title: `${l.id} ${l.title}`, sub: l.about });
+    if ((store.data.classroom?.[l.id]?.stars || 0) >= 3 && store.data.classroom[l.id].done) out.push({ id: `cl:${l.id}`, kind: l.line, title: `${l.id} ${l.title}`, sub: l.about });
   }
   return out;
 }
@@ -166,11 +166,11 @@ function showFeathers() {
     paper: {
       title: `窝里的羽毛 · ${list.length} 根`,
       node: h('div', {},
-        h('p', { class: 'jiu-paper-tip', style: { margin: '0 0 8px' } }, '你每掌握一个知识点（小课堂一关拿三星，或者学完一整章），我就叼一根羽毛回窝里。'),
+        h('p', { class: 'jiu-paper-tip', style: { margin: '0 0 8px' } }, '你每掌握一个知识点（小课堂一关拿金牌，或者学完一整章），我就叼一根羽毛回窝里。小课堂的金牌也会让卡册里那张卡变成金卡。'),
         h('ul', { class: 'jiu-feather-list' }, list.map((f) => h('li', {}, h('i', {}, featherSvg(f)), h('b', {}, f.title), h('small', {}, f.sub || KIND[f.kind] || ''))))),
     },
     mood: 'happy',
-    chips: [['合上', null, { primary: true }]],
+    chips: [['看卡册', () => (location.hash = '#/classroom/cards')], ['合上', null, { primary: true }]],
   });
 }
 

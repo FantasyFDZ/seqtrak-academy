@@ -169,7 +169,8 @@ for id in $(node -e "import('./public/js/content/arrangement-lessons.js').then((
   walk "?fake&walk=$id" 400000
 done
 
-# 小课堂（乐理、节奏、效果的小关）：列表上该有 32 关，其中 12 关开放、20 关“还没开放”；开放的 12 关各打开一次，看能玩的东西摆出来没有。
+# 小课堂（乐理、节奏、效果、DJ 四条线的小关）：2026-11-15 起列表上 39 关全部开放（open=39 soon=0）；每关各打开一次，看能玩的东西摆出来没有。
+# 另有推荐路线（7 站、39 个关的小牌子）、卡册（39 张卡）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
 # 再看“试一试”和“用在机器上”那两屏：?clstep=quiz / machine 是开发用的参数，直接从那一步开始（public/js/views/classroom.js）。
 # “用在机器上”有三种样子：模拟机、效果关用的效果模拟机、接着假真机时的真机镜像（class 里带 live）。窗口按最小的平板 1024 × 768 开。
 # 把每一关真的从头走到尾（要点、要拍、要等声音）在无界面的浏览器里做不了：那是 public/js/dev/walk-classroom.js，在开着的浏览器里跑。
@@ -180,11 +181,19 @@ classroom '#/classroom'
 echo "classroom -> levels=$(count 'class="cl-node[ "]') open=$(count '<a class="cl-node') soon=$(count 'class="cl-node soon"') errors=$(count '这一页出错了')"
 playable=0
 broken=''
-for id in T1 T5 T7 T10 R1 R3 R6 R8 F1 F2 F5 F6; do
+for id in T1 T2 T5 T6 T7 T8 T9 T10 T11 T12 TB R1 R2 R3 R4 R5 R6 R7 R8 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
   classroom "#/classroom/$id"
   if [[ $(count 'class="cl-toy') -ge 1 && $(count 'class="cl-say"') -eq 1 && $(count '这一页出错了') -eq 0 ]]; then playable=$((playable + 1)); else broken="$broken $id"; fi
 done
-echo "classroom levels -> playable=$playable/12 broken=[${broken# }]"
+echo "classroom levels -> playable=$playable/39 broken=[${broken# }]"
+classroom '#/classroom/route'
+echo "classroom route -> stops=$(count 'class="cl-stop[ "]') chips=$(count 'class="cl-chip[ "]') next=$(count 'class="cl-next"') errors=$(count '这一页出错了')"
+classroom '#/classroom/cards'
+echo "classroom cards -> cards=$(count 'class="cl-kcard[ "]') locked=$(count 'cl-kcard locked') errors=$(count '这一页出错了')"
+classroom '#/classroom/daily'
+echo "classroom daily -> dots=$(count '<i class="[^"]*">[A-Z][0-9B]*</i>') toy=$(count 'class="cl-toy') errors=$(count '这一页出错了')"
+classroom '?clstep=quiz#/classroom/R2'
+echo "classroom rhythm -> tiers=$(count 'class="cl-tier[ "]') game=$(count 'game-canvas') errors=$(count '这一页出错了')"
 classroom '?clstep=quiz#/classroom/R3'
 echo "classroom quiz -> options=$(count 'class="cl-opt[ "]') pattern-keys=$(count 'class="cl-key[ "]') errors=$(count '这一页出错了')"
 classroom '?clstep=machine#/classroom/T10'
@@ -196,9 +205,10 @@ echo "classroom machine (mirror) -> bench-live=$(count 'class="cl-bench live"') 
 
 # 首页（闯关地图）、两套配色、经验值和徽章。
 # 先放进一份“改版之前的旧进度”（没有 game 那一段，设置里也没有配色）：页面要按机身配色打开，并把经验值和徽章回算出来、写回去。
-# 这份进度应该算出：573 经验 = Lv 3 节拍手，13 个徽章里拿到 3 个（第一声、连练 3 天、通关一章）；
-# 地图上 20 个点（map-nodes）= 15 关 + 章开头挂着的 5 个小课堂的小关（minis：第 1 章前 T1 R1，第 2 章前 T5 T7，第 3 章前 T10；
-# 这份进度里一个都没学，minis-done=0）；done / now / locked 只数课：3 关已通过，现在这一关是 1.1；
+# 这份进度应该算出：573 经验 = Lv 3 节拍手，15 个徽章里拿到 3 个（第一声、连练 3 天、通关一章）；
+# 地图上 49 个点（map-nodes）= 35 节课 + 章开头挂着的 14 个小课堂的小关（minis：第 1 章前 T1 R1，第 2 章前 T5 T7，第 3 章前 T10 T11，
+# 第 4 章前 F2 F4，第 6 章前 D1 D4，第 7 章前 F5 F6，第 8 章前 D3 D5；这份进度里一个都没学，minis-done=0）；
+# done / now / locked 只数课：3 关已通过，现在这一关是 1.1，锁着 31 关（2026-11-15 小课堂丰富版之后实测的数）；
 # 左边的导航栏上亮着的入口是路由表里有页面的那几个（小课堂接上之后是 7 个，之前是 6 个）。窗口按平板横屏 1180 × 820 开。
 put() { curl -s -X PUT -H 'Content-Type: application/json' -d "$1" $BASE/api/progress > /dev/null; }
 OLD='"version":1,"lessons":{"0-1":{"stepIndex":0,"done":true,"stars":3},"0-2":{"stepIndex":0,"done":true,"stars":3},"0-3":{"stepIndex":0,"done":true,"stars":2},"1-1":{"stepIndex":2,"done":false,"stars":0}},"charts":{"pulse-kick":{"plays":4,"bestAccuracy":0.98,"bestStars":3}},"songs":{"picked":[]},"practiceDays":["2026-11-04","2026-11-05","2026-11-06"],"lastResult":null,"drills":[]'
@@ -220,7 +230,7 @@ ls -l tools/out/home-neon.png | awk '{print "screenshot -> " $NF " " $5 " bytes"
 
 # 小课堂接进经验值、徽章和地图。规则在 public/js/levels.js：学完一关 1 星 20 / 2 星 25 / 3 星 30，是从进度的 classroom 字段算出来的
 # （不另外记账），所以再学一遍不会重复给，旧进度里学过的关自动补上。还是用上面那份旧进度（573 经验）。
-# ?clstep=done 是开发用的参数：直接把这一关记成学完（跳过了“试一试”，所以是 1 星）。应该看到：
+# ?clstep=done 是开发用的参数：直接把这一关记成学完（跳过了挑战，没有牌：存的是 stars:0，经验按 1 星算）。应该看到：
 #   学完 T1：完成卡上写“+40 经验”（这一关 20 + 今天第一次练习 20），573 → 613；首页地图上 5 个小关亮了 1 个；
 #   再学一遍 T1：完成卡上没有那一行（gain 是空的），还是 613，times 变成 2；
 #   再学完 R1、F1：653；乐理、节奏、效果三条线都有了，多一个徽章“三线齐亮”（got 从 3 变成 4）；
