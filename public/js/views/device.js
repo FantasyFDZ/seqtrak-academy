@@ -11,8 +11,39 @@ import { connectDevice, firmwareBehind } from '../device-connect.js';
 import { calibrateWidget } from '../calibrate.js';
 import { probeWizard, holdWizard } from '../probe.js';
 import { SCALES, KEY_NAMES } from '../scales.js';
+import { learn } from '../learn-mode.js';
+import { keymapView, KEYMAP_LINES } from '../keymap.js';
+
+/**
+ * 键盘学习方式下的设备页：没有机器可连，这一页就是键位图——电脑键盘上哪个键是机器上的哪个键、怎么按住、怎么转。
+ * 延迟校准照样留着（音游用电脑键盘打，也要对表）。最下面一句：有了 SEQTRAK 怎么换回真机方式。
+ */
+function keyboardView(view) {
+  ctx.set('设备页（键盘学习方式：键位图）');
+  const calib = calibrateWidget();
+  const how = h('div', { class: 'card' },
+    h('h3', {}, '怎么按'),
+    h('ul', { class: 'km-lines' },
+      h('li', { html: rich('**按住**电脑上的键，就是按住机器上的键：组合键就是按着第一个、再按第二个。比如按着 〔1〕（[MUTE]）再按 〔Z〕（KICK）= 静音底鼓。按着 〔1〕 可以接连按 〔Z〕〔X〕〔C〕，一次静音好几条。') }),
+      h('li', { html: rich('**转旋钮**：按着轨道键再按 〔↑〕 / 〔↓〕，转的是那条轨道（换乐句）。按着 〔5〕（[OCTAVE]）或一个步进键再按 〔↑〕 / 〔↓〕，转的是 ALL（升降八度、改音长）。右边 4 个旋钮和 [FX]：**鼠标指着它**按 〔↑〕 / 〔↓〕。') }),
+      h('li', { html: rich('**触摸条**：按着 〔←〕 = 手指按在 [HIGH PASS] 上，按着 〔→〕 = 手指按在 [REPEATER] 上；按着时再按 〔↑〕 往上推、〔↓〕 往下拉，松开 = 手离开。两条可以一起按。') }),
+      h('li', { html: rich('**没有专门键的**（[VOL+] [VOL−] [REC SAMPLE] [UNDO/REDO] [CLEAR FX] [MASTER/SINGLE] [FX LEVEL]、右边 4 个旋钮）：用鼠标点；只想用键盘的话，按 Tab 选中它，回车 = 按它（按住回车 = 按住它），〔↑〕 / 〔↓〕 = 转它。') }),
+      h('li', { html: rich('输入框里打字的时候、模拟机不在屏幕上的时候，键盘不归模拟机管。音游、小课堂的敲击板照它们自己的键。任何时候按 〔?〕 弹出这张图。') })));
+  const back = h('div', { class: 'card' },
+    h('h3', {}, '手边有 SEQTRAK 了？'),
+    h('p', { class: 'muted small', style: { margin: '6px 0 12px' } }, '到「设置」里把学习方式换成“有 SEQTRAK”，再用 USB 线接上机器、点「连接」。接着机器的时候，课里那台机器就成了真机的镜子。'),
+    h('div', { class: 'row' }, h('a', { class: 'btn', href: '#/settings' }, '去设置')));
+  view.append(
+    h('div', { class: 'page-head' }, h('h1', {}, '键位'), h('p', {}, '键盘学习方式：手边没有 SEQTRAK，就用电脑键盘按屏幕上的模拟机。电脑键盘照着机器的样子排：字母上两排是那两排方键，最下一排是轨道旋钮，数字行是边上那一圈功能键。')),
+    h('div', { class: 'settings' },
+      h('div', { class: 'card' }, keymapView(), h('ul', { class: 'km-lines', style: { marginTop: '14px' } }, KEYMAP_LINES.map((t) => h('li', { html: rich(t) })))),
+      h('div', { class: 'grid-2 top' }, how, calib.el),
+      back));
+  return { destroy: () => calib.destroy() };
+}
 
 export function deviceView(view) {
+  if (learn.keyboard) return keyboardView(view);
   ctx.set('设备页');
   const offs = [];
   const statusCard = h('div', { class: 'card' });

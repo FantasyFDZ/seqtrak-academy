@@ -12,6 +12,7 @@ import { SongPlayer, layerOrder, partsIn } from './song-player.js';
 import { songParts, LAYERS } from './content/song-parts.js';
 import { SOUND_DESIGN_WIDGETS } from './synth-lab.js'; // 第 4 章的音色实验台：synthlab / trackfilter / catkeys
 import { CHAPTER_WIDGETS } from './chapter-toys.js'; // 第 5–8 章：samplelab / arranger / recorder
+import { keymapView } from './keymap.js';
 import { ARRANGEMENT_WIDGETS } from './arrangement-widgets.js'; // 完整版的课：arrangement（一排 scene）/ arrpattern（一段乐句的格子）
 
 function playButton(player, labels = ['▶ 播放', '■ 停止']) {
@@ -509,7 +510,10 @@ function song(spec) {
   return { el, destroy: () => player.stop() };
 }
 
-const WIDGETS = { bpm, count, grid, ab, swing, piano, synthkeys, chordstack, chordkeys, chordprog, calibrate: calibrateWidget, sim: simWidget, ledlegend: ledLegend, panelexplore: panelExplore, song, ...SOUND_DESIGN_WIDGETS, ...CHAPTER_WIDGETS, ...ARRANGEMENT_WIDGETS };
+/** 键盘学习方式的整张键位图（第 0 章键盘版用） */
+const keymap = () => ({ el: h('div', { class: 'widget' }, keymapView()), destroy() {} });
+
+const WIDGETS = { bpm, count, grid, ab, swing, piano, synthkeys, chordstack, chordkeys, chordprog, calibrate: calibrateWidget, sim: simWidget, ledlegend: ledLegend, panelexplore: panelExplore, song, keymap, ...SOUND_DESIGN_WIDGETS, ...CHAPTER_WIDGETS, ...ARRANGEMENT_WIDGETS };
 
 export function createWidget(spec) {
   const make = WIDGETS[spec.widget];

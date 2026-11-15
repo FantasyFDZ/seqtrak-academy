@@ -13,7 +13,10 @@ import { celebrateLevel } from './celebrate.js';
 import { LEVELS } from './levels.js';
 import { nudge } from './coach-nudge.js';
 import { initEggs } from './jiu-eggs.js';
-import { callBack } from './jiu.js';
+import { callBack, say as jiuSay, talking as jiuTalking } from './jiu.js';
+import { rich } from './util.js';
+import { learn } from './learn-mode.js';
+import { initKeyboard, showKeymap } from './keyboard.js';
 import { playSplash } from './splash.js';
 import { registerApp } from './install.js';
 import { toast } from './ui.js';
@@ -78,14 +81,27 @@ $$('.rail a[data-nav]').forEach((a) => (a.hidden = !routes.some((r) => r.nav ===
 const deviceDot = $('#device-chip .dot');
 const deviceText = $('#device-chip span');
 
+// 「设备」那一格的图标：平时是插头；键盘学习方式下换成一块小键盘
+const chipIcon = $('#device-chip svg');
+const PLUG_ICON = chipIcon.innerHTML;
+const KEYS_ICON = '<rect x="3" y="7" width="18" height="11" rx="2"/><path d="M6.5 10.5h1M10 10.5h1M13.5 10.5h1M17 10.5h.5M6.5 14h1M9 14.5h6M17 14h.5"/>';
+
 function renderChip() {
   const el = $('#device-chip');
+  const icon = learn.keyboard && !midi.connected ? KEYS_ICON : PLUG_ICON;
+  if (chipIcon.innerHTML !== icon) chipIcon.innerHTML = icon;
   if (midi.state === 'connected') {
     const bpm = midi.tempoRounded || seqtrak.state.tempo;
     deviceDot.className = 'dot ok';
     deviceText.className = bpm ? 'bpm' : '';
     deviceText.textContent = bpm ? `${bpm}` : '已连接';
     el.title = `SEQTRAK 已连接${bpm ? `，${bpm} BPM` : ''}。点一下看设备页`;
+  } else if (learn.keyboard) {
+    // 键盘学习方式：这一格是键位图（设备页在键盘方式下就是键位图）
+    deviceDot.className = 'dot kbd';
+    deviceText.className = '';
+    deviceText.textContent = '键盘';
+    el.title = '键盘学习方式：用电脑键盘按屏幕上的模拟机。点一下看键位图（随时按 ? 也行）';
   } else if (midi.state === 'unsupported') {
     deviceDot.className = 'dot off';
     deviceText.className = '';
@@ -104,8 +120,18 @@ function renderChip() {
 
 // 还没连上的时候，点「设备」顺手就连（连接要用户亲手点一下才行，所以放在这一下里）；页面照常进设备页
 $('#device-chip').addEventListener('click', () => {
-  if (!midi.connected && midi.state !== 'unsupported') connectDevice();
+  if (!midi.connected && midi.state !== 'unsupported' && !learn.keyboard) connectDevice();
 });
+
+// 学习方式：设置里选了键盘、又没连着 SEQTRAK，就是键盘方式（连着机器时一律按真机方式）。变了的话当前这一页重画一遍：
+// 第 0 章的前两课在两种方式下是两套课，设备页也是两个样子
+const syncLearn = () => learn.set(!midi.connected && store.settings.learnMode === 'keyboard');
+let booted = false; // 开机时第一次读设置也会拨这个开关：那时页面还没画，不用重画
+learn.on('change', () => {
+  renderChip();
+  if (booted) render();
+});
+midi.on('state', syncLearn);
 
 midi.on('state', renderChip);
 midi.on('tempo', renderChip);
@@ -136,6 +162,7 @@ function renderSkin() {
 
 /** 设置变了（或者刚读进来）：落到页面上。 */
 function applySettings() {
+  syncLearn();
   theme.apply(store.settings);
   sfx.setEnabled(store.settings.uiSound);
   renderSkin();
@@ -223,6 +250,42 @@ const unlockAudio = () => audio.init();
 window.addEventListener('pointerdown', unlockAudio, { once: true });
 window.addEventListener('keydown', unlockAudio, { once: true });
 
+/**
+ * 第一次打开：开屏放完、首页的问候打完字之后，啾啾问一句“你手边有 SEQTRAK 吗，啾？”，点选项回答（存进设置的 learnMode，设置页随时能改）。
+ * 连着 SEQTRAK 就不问，直接记成真机方式。点了“先不说”或者点开了：这次打开就不再问，下次打开再问。
+ * 带着开发用的参数（截图、走查）不问，除非地址里有 ?ask。
+ */
+async function askLearnMode(splashDone, skip) {
+  if (store.settings.learnMode || skip) return;
+  await splashDone;
+  if (midi.connected) return store.update((d) => (d.settings.learnMode = 'device'));
+  const onHome = ['', '#', '#/'].includes(location.hash);
+  await new Promise((r) => setTimeout(r, onHome ? 4200 : 1600)); // 首页的问候是一个字一个字打出来的，等它打完
+  for (let i = 0; i < 20 && jiuTalking(); i++) await new Promise((r) => setTimeout(r, 1000)); // 它正说着别的：等它说完
+  if (store.settings.learnMode || midi.connected) return;
+  const pick = async (mode) => {
+    store.update((d) => (d.settings.learnMode = mode));
+    await new Promise((r) => setTimeout(r, 700)); // 换了学习方式，当前这一页会重画一遍（第 0 章换课）：画完再说，免得这句被冲掉
+    if (mode === 'keyboard') {
+      jiuSay({
+        html: rich('好，啾！那就用**电脑键盘**按屏幕上的模拟机：字母上两排是步进键，最下一排是轨道，〔空格〕是 [PLAY]，按住电脑上的键就是按住机器上的键。忘了哪个键是哪个，按 〔?〕 看键位图。'),
+        mood: 'happy', call: 'ok', act: 'hop',
+        chips: [['看键位图', () => showKeymap(), { primary: true }], ['好', null, { ghost: true }]],
+      });
+    } else {
+      jiuSay({
+        html: rich('好，啾！用 USB 线把它接上电脑，点左下角的「设备」连上，屏幕上的机器就成了它的镜子。哪天没带机器，到「设置」里换成键盘方式就行。'),
+        mood: 'happy', call: 'ok', act: 'hop', chips: [['好', null, { primary: true }]],
+      });
+    }
+  };
+  jiuSay({
+    html: rich('问你一件事：你手边有 **SEQTRAK** 吗，啾？没有也能学——用电脑键盘按屏幕上的模拟机，一样走完整套课。'),
+    mood: 'listen', call: 'greet', act: 'hop',
+    chips: [['有，用真机', () => pick('device'), { primary: true }], ['没有，用键盘', () => pick('keyboard'), { primary: true }], ['先不说', null, { ghost: true }]],
+  });
+}
+
 async function boot() {
   renderChip();
   await store.load();
@@ -237,7 +300,8 @@ async function boot() {
   // （按 PLAY 开机）；在某一页里刷新、直接打开别的页面不放。设置里可以改成“每天第一次”（当天第一次完整、再开短版）或“不放”。
   // 地址带 ?splash / ?splash=short 就照它放；
   // 带着开发用的参数（截图的 ?still、走查的 ?walk、假真机……）不放，免得挡住截图和走查
-  const asked = new URLSearchParams(location.search).get('splash');
+  const params0 = new URLSearchParams(location.search);
+  const asked = params0.get('splash');
   const devRun = /[?&](still|walk|fake|raf|nudge|talk|celebrate|finish|freeze|result|clstep|unfold|tab)\b/.test(location.search);
   let splashMode = asked === null ? null : asked === 'short' ? 'short' : 'full';
   const intro = store.settings.intro;
@@ -247,10 +311,13 @@ async function boot() {
     else splashMode = onHome ? 'full' : null;
     if (splashMode === 'full') store.update((d) => (d.jiu = { ...(d.jiu || {}), splashDay: today() }));
   }
-  if (splashMode) playSplash({ mode: splashMode });
-  else document.documentElement.classList.remove('splashing');
+  const splashDone = splashMode ? playSplash({ mode: splashMode }) : Promise.resolve();
+  if (!splashMode) document.documentElement.classList.remove('splashing');
+  initKeyboard(); // 键盘学习方式：电脑键盘 → 屏幕上的模拟机（keyboard.js；不是键盘方式时它什么都不接）
   window.addEventListener('hashchange', render);
   await render();
+  booted = true;
+  askLearnMode(splashDone, devRun && !params0.has('ask'));
   // 开发用：地址里带 ?fake 时接上一台“假真机”（js/dev/fake-seqtrak.js），没有硬件也能测真机镜像；?fake=demo 还会自动演一段，
   // ?fake=chords 演的是第 3 章那几样（选中 SYNTH 2、换音色、切到 CHORD、按两个和弦）
   const params = new URLSearchParams(location.search);
@@ -266,8 +333,11 @@ async function boot() {
   const walk = params.get('walk');
   if (walk) {
     const show = (result) => document.body.append(h('pre', { id: 'walk-result', style: { display: 'none' } }, JSON.stringify(result)));
+    // ?walkkeys = 同一份走查改用电脑键盘走（键盘学习方式；js/dev/walkthrough.js）：先把学习方式设成键盘
+    if (params.has('walkkeys') && store.settings.learnMode !== 'keyboard') store.update((d) => (d.settings.learnMode = 'keyboard'));
     // 第 4 章的课（?walk=4-1 … 4-4）走 js/dev/walk-ch4.js，第 5–8 章走 walk-ch5.js，别的照旧走 walk-ch3.js
-    import(walk.startsWith('4-') ? './dev/walk-ch4.js' : /^[5-8]-/.test(walk) ? './dev/walk-ch5.js' : walk.startsWith('arr-') ? './dev/walk-arr.js' : './dev/walk-ch3.js').then((m) => m.run(walk)).then(show, (e) => show({ lesson: walk, crashed: String(e?.message || e) }));
+    // 第 0–2 章（键盘学习方式做的时候补上的）走 walk-ch0.js
+    import(walk.startsWith('4-') ? './dev/walk-ch4.js' : /^[5-8]-/.test(walk) ? './dev/walk-ch5.js' : /^[0-2]-/.test(walk) ? './dev/walk-ch0.js' : walk.startsWith('arr-') ? './dev/walk-arr.js' : './dev/walk-ch3.js').then((m) => m.run(walk)).then(show, (e) => show({ lesson: walk, crashed: String(e?.message || e) }));
   }
   // 开发用（截图、检查版式）：?celebrate=level 摆出升级的全屏庆祝；?nudge 让啾啾冒出来说一句；?talk 点开啾啾（截图用）
   if (params.get('celebrate') === 'level') {
@@ -276,6 +346,7 @@ async function boot() {
     celebrateLevel({ from: prev ? { lv: prev.lv, name: prev.name } : null, to });
   }
   if (params.has('talk')) setTimeout(() => coach.toggle(true), 300);
+  if (params.has('keymap')) setTimeout(() => showKeymap(), 300); // 开发用（截图）：弹出整张键位图
   if (params.has('nudge')) nudge('停了有一会儿了，啾？卡住的话点我，我看看你停在哪儿。', { mood: 'cheer', ask: '我卡在这一步了，帮我看看可能是哪里没做对。', ms: 600000 });
   if (fake !== null) return;
   // 以前授权过就自动连上，不再弹窗
@@ -287,6 +358,6 @@ async function boot() {
   }
 }
 
-window.__app = { midi, seqtrak, audio, store, coach, theme, sfx };
+window.__app = { midi, seqtrak, audio, store, coach, theme, sfx, learn };
 
 boot();

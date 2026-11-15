@@ -171,6 +171,12 @@ export const ch7 = {
             '放着循环，手指在 [HIGH PASS] 上慢慢往上推，听低音被抽走；推到头停一会儿，在小节开头松手——低音“砰”地回来。再用 [REPEATER] 卡一下。',
             { callout: 'tip', text: '模拟机上：在触摸条上**按住鼠标往上拖**，松开鼠标 = 手指离开。' },
           ],
+          kbd: {
+            blocks: [
+              '放着循环，手指在 [HIGH PASS] 上慢慢往上推，听低音被抽走；推到头停一会儿，在小节开头松手——低音“砰”地回来。再用 [REPEATER] 卡一下。',
+              { callout: 'tip', text: '键盘上：**按着 〔←〕** = 手指按在 [HIGH PASS] 上，按着的时候每按一下 〔↑〕 往上推一格，〔↓〕 往下拉；**松开 〔←〕** = 手指离开。〔→〕 是 [REPEATER]，按法一样。' },
+            ],
+          },
           liveBlocks: [
             '放着循环，手指在 [HIGH PASS] 上慢慢往上推，听低音被抽走；推到头停一会儿，在小节开头松手——低音“砰”地回来。再用 [REPEATER] 卡一下。',
             LIVE_MANUAL('松手这一下，'),
@@ -235,6 +241,25 @@ export const ch7 = {
             { text: '在小节开头**松手**——“砰”。（模拟机上一次只能按一条：[REPEATER] 留到真机上加。）', liveText: '最后一小节加上 [REPEATER]，在小节开头两根手指一起**松开**——“砰”。', panel: ['HIGHPASS', 'REPEATER'], sim: { kind: 'highpass', on: false }, wait: '松开鼠标…', liveWait: '一起松手（做完点“我已经做了”）…' },
             STOP(),
           ],
+          // 键盘上两条触摸条能一起按（鼠标一次只能拖一条）：[REPEATER] 这一下在键盘上就能加
+          kbd: {
+            blocks: [
+              '**Animals**、**Levels** 进高潮之前，声音越来越薄、越来越紧，然后“砰”地全回来。用触摸条做一遍：',
+              { list: [
+                '放着循环，**按着 〔←〕**（[HIGH PASS]），每一小节按一下 〔↑〕，推三四小节推到头。',
+                '最后一小节，〔←〕 还按着，**再按住 〔→〕**（[REPEATER]）：两根“手指”一起按在两条上。',
+                '在小节开头 〔←〕〔→〕 **一起松开**。',
+              ] },
+            ],
+            tasks: [
+              PLAY(),
+              { text: '**按着 〔←〕**（[HIGH PASS]）不放，**每一小节按一下 〔↑〕**，三四小节推到头。', panel: ['HIGHPASS'], detect: { kind: 'highpass' }, wait: '按着 ← 慢慢按 ↑…', kbdHint: false },
+              { text: '最后一小节：〔←〕 还按着，**再按住 〔→〕**——[REPEATER] 把声音卡住了。', panel: ['HIGHPASS', 'REPEATER'], sim: { kind: 'repeater' }, wait: '按着 ← 再按住 →…', kbdHint: false },
+              { text: '在小节开头 〔←〕〔→〕 **一起松开**——“砰”。', panel: ['HIGHPASS', 'REPEATER'], sim: { kind: 'highpass', on: false }, wait: '在小节开头一起松开…', kbdHint: false },
+              STOP(),
+            ],
+            coach: '学生在用触摸条做铺垫（build-up），键盘学习方式：按着 ← = 手指在 [HIGH PASS] 上（按着时 ↑ / ↓ 推拉），按着 → = 手指在 [REPEATER] 上，两条能一起按；播放中 [HIGH PASS] 慢慢推三四小节，最后一小节加 [REPEATER]，在小节开头一起松开（手指离开就关）。参考他听过的 Animals、Levels 进 drop 前那段。',
+          },
           done: '这就是“铺垫 → 高潮”。下一课用静音把它演得更狠。',
           coach: '学生在用触摸条做铺垫（build-up）：播放中 [HIGH PASS] 慢慢推三四小节，最后一小节加 [REPEATER]，在小节开头一起松手（手指离开就关）。参考他听过的 Animals、Levels 进 drop 前那段。模拟机一次只能拖一条触摸条。',
         },

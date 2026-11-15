@@ -214,19 +214,21 @@ function spaceStep(song, spec) {
   const del = send.filter((p) => p.send.delay > 0);
   const dry = spec.parts.filter((p) => !p.send?.reverb && !p.send?.delay).map((p) => TRACK[p.track].label);
   const intro = `氛围感主要靠**混响**。机器上全部轨道共用一个混响、一个延迟，每条轨道自己决定往里**送多少**。最方便的调法是**混音台模式**：进去以后，右边那一列旋钮的第 3 个是“送混响”、第 4 个是“送延迟”，再转哪条轨道的旋钮，就是调哪条轨道送多少。${dry.length ? `${list(dry)} 不送。` : ''}`;
+  // 模拟机上也有混音台（simulator.js 的 #mixSelect / #mixTurn）：音量、混响 / 延迟送多少听得出来，每一项都认得出来；
+  // 真机上混音台应用读不出来，接着真机时还是自己点“做好了”
   return {
-    type: 'do', title: '加混响', song: song.id, role: 'space', bench: 'live',
-    blocks: [intro, { callout: 'warn', text: '模拟机没有做混音台和效果器：没接机器的话，这一步先读一遍、点“做好了”，等接上真机再回来做。' }],
+    type: 'do', title: '加混响', song: song.id, role: 'space',
+    blocks: [intro, { callout: 'tip', text: '模拟机上也有混音台：音量、混响和延迟送多少都听得出来（声像只做演示）。混音台里转轨道旋钮**不会**换乐句，放心转。' }],
     liveBlocks: [intro, { callout: 'tip', text: '混音台里转轨道旋钮**不会**换乐句，放心转。这一步应用看不见，做完自己点“做好了”。' }],
     tasks: [
-      { text: '进入混音台：**先按住 [ALL] 旋钮不放，再按一下左侧面的 [VOL +]**（最上面那个）。那列文字里 “MIXER” 会亮。', panel: ['ALL', 'VOL+', 'INDEX'] },
-      rev.length && { text: `按一下右边那一列**从上往下数第 3 个**旋钮（“REVERB” 亮），然后转这几条轨道的旋钮：${rev.map((p) => `${TRACK[p.track].label} ${amount(p.send.reverb)}`).join('、')}。`, panel: ['SD3', ...rev.map((p) => p.track)] },
-      del.length && { text: `按一下**第 4 个**旋钮（“DELAY” 亮），再转：${del.map((p) => `${TRACK[p.track].label} ${amount(p.send.delay)}`).join('、')}。`, panel: ['SD4', ...del.map((p) => p.track)] },
+      { text: '进入混音台：**先按住 [ALL] 旋钮不放，再按一下左侧面的 [VOL +]**（最上面那个）。那列文字里 “MIXER” 会亮。', panel: ['ALL', 'VOL+', 'INDEX'], sim: { kind: 'mixer', on: true }, wait: '等你进混音台…' },
+      rev.length && { text: `按一下右边那一列**从上往下数第 3 个**旋钮（“REVERB” 亮），然后转这几条轨道的旋钮：${rev.map((p) => `${TRACK[p.track].label} ${amount(p.send.reverb)}`).join('、')}。`, panel: ['SD3', ...rev.map((p) => p.track)], sim: { kind: 'mix', param: 'rev', dir: 1, count: rev.length * 2 }, wait: '往大转这几条轨道的混响送多少…' },
+      del.length && { text: `按一下**第 4 个**旋钮（“DELAY” 亮），再转：${del.map((p) => `${TRACK[p.track].label} ${amount(p.send.delay)}`).join('、')}。`, panel: ['SD4', ...del.map((p) => p.track)], sim: { kind: 'mix', param: 'dly', dir: 1, count: del.length * 2 }, wait: '往大转这几条轨道的延迟送多少…' },
       { text: '短按 [PLAY] 听听，空间感是不是出来了？', panel: ['PLAY'], detect: { kind: 'start' }, wait: '点 [PLAY]…', liveWait: '等你按 [PLAY]…' },
-      { text: '停下，再**按住 [ALL] + 按 [VOL +]** 退出混音台。', panel: ['PLAY', 'ALL', 'VOL+'] },
+      { text: '停下，再**按住 [ALL] + 按 [VOL +]** 退出混音台。', panel: ['PLAY', 'ALL', 'VOL+'], sim: { kind: 'mixer', on: false }, wait: '等你退出混音台…' },
     ].filter(Boolean),
     done: '混响加上了。',
-    coach: `学生在用混音台模式给《${song.title}》加发送混响和延迟（手册 3.15.1）：按住 [ALL] 旋钮 + [VOL+] 进出；Sound Design 旋钮 3 = REVERB SEND、旋钮 4 = DELAY SEND；转各轨道旋钮调该轨送多少。照分轨：${send.map((p) => `${TRACK[p.track].label} 混响 ${p.send.reverb || 0}、延迟 ${p.send.delay || 0}`).join('；')}（0–1）。模拟机没有混音台；真机上应用读不出来，学生自己点“做好了”。`,
+    coach: `学生在用混音台模式给《${song.title}》加发送混响和延迟（手册 3.15.1）：按住 [ALL] 旋钮 + [VOL+] 进出；Sound Design 旋钮 3 = REVERB SEND、旋钮 4 = DELAY SEND；转各轨道旋钮调该轨送多少。照分轨：${send.map((p) => `${TRACK[p.track].label} 混响 ${p.send.reverb || 0}、延迟 ${p.send.delay || 0}`).join('；')}（0–1）。模拟机上也有混音台（音量、混响 / 延迟送多少听得出来，声像只做演示），每一项自动打勾；真机上应用读不出来，学生自己点“做好了”。`,
   };
 }
 

@@ -11,6 +11,7 @@ import { knob } from './synth-lab.js';
 import { store } from './store.js';
 import { SONGS } from './content/songs.js';
 import { songLessonFor } from './content/song-lessons.js';
+import { learn } from './learn-mode.js';
 
 const C_MINOR = [0, 2, 3, 5, 7, 8, 10]; // 7 个 Synth keys 在 C 小调里比第 1 个高几个半音
 
@@ -293,8 +294,15 @@ function arranger({ bars = 2 } = {}) {
 
 // ───────────── 录音机 ─────────────
 
+// 键盘学习方式（没有 SEQTRAK）：录的是应用自己放出来的声音（模拟机、节拍器……），不用麦克风，也不用浏览器给权限。
+// 做法：在 audio.master 上接一个 MediaStreamDestination，录它的流。下拉框里只有这一项
+const APP_SOURCE = 'app';
+
 function recorder() {
-  const note = h('div', { class: 'sl-note' }, '用 USB 线接着机器时，Mac 上会多一个叫 SEQTRAK 的声音输入：机器放出来的声音从这里进电脑，选它就是录机器。第一次用浏览器会问能不能用麦克风，点“允许”。');
+  const appOnly = learn.keyboard;
+  const note = h('div', { class: 'sl-note' }, appOnly
+    ? '键盘方式下录的是应用自己放出来的声音——就是你听到的模拟机，不用麦克风，也不用接线。点“开始录”，再去左边的模拟机上演。'
+    : '用 USB 线接着机器时，Mac 上会多一个叫 SEQTRAK 的声音输入：机器放出来的声音从这里进电脑，选它就是录机器。第一次用浏览器会问能不能用麦克风，点“允许”。');
   const select = h('select', { class: 'input rec-select', 'aria-label': '从哪个声音输入录' });
   const level = h('i', { class: 'rec-level-fill' });
   const clock = h('span', { class: 'rec-clock' }, '0:00');
@@ -305,7 +313,18 @@ function recorder() {
   let raf = 0;
   let tick = 0;
   let started = 0;
+  let src0 = null;
+  let meter = null; // 音量条用的分析器（录完要从 audio.master 上拆下来）
+  let tap = null; // 录应用自己的声音时：接在 audio.master 上的那个 MediaStreamDestination
   async function devices() {
+    if (appOnly) {
+      select.replaceChildren(h('option', { value: APP_SOURCE }, '应用自己的声音（模拟机）'));
+      if (!window.MediaRecorder) {
+        note.textContent = '这个浏览器录不了音。在 Chrome 里打开这一页。';
+        recBtn.disabled = true;
+      }
+      return;
+    }
     if (!navigator.mediaDevices?.enumerateDevices) {
       note.textContent = '这个浏览器录不了音。在 Mac 的 Chrome 里打开这一页。';
       recBtn.disabled = true;
@@ -322,6 +341,20 @@ function recorder() {
     clearInterval(tick);
     stream?.getTracks().forEach((t) => t.stop());
     stream = null;
+    try {
+      if (meter) src0?.disconnect(meter);
+    } catch {
+      /* 已经断开了 */
+    }
+    meter = null;
+    if (tap) {
+      try {
+        audio.master.disconnect(tap);
+      } catch {
+        /* 已经断开了 */
+      }
+      tap = null;
+    }
   };
   recBtn.addEventListener('click', async () => {
     if (rec && rec.state === 'recording') {
@@ -330,11 +363,22 @@ function recorder() {
     }
     try {
       await audio.init();
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: select.value ? { exact: select.value } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-      await devices(); // 给了权限之后才看得到设备的名字
-      const src = audio.ctx.createMediaStreamSource(stream);
+      let src;
+      if (select.value === APP_SOURCE) {
+        // 应用自己的声音：从总音量那里分一路出来录（听到什么就录到什么）
+        tap = audio.ctx.createMediaStreamDestination();
+        audio.master.connect(tap);
+        stream = tap.stream;
+        src = audio.master;
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: select.value ? { exact: select.value } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+        await devices(); // 给了权限之后才看得到设备的名字
+        src = audio.ctx.createMediaStreamSource(stream);
+      }
       const an = audio.ctx.createAnalyser();
       src.connect(an);
+      meter = an;
+      src0 = src;
       const buf = new Uint8Array(an.fftSize);
       const draw = () => {
         an.getByteTimeDomainData(buf);
@@ -372,7 +416,7 @@ function recorder() {
       note.textContent = '正在录：上面那条绿色的会跟着声音跳。录完点“停止”。';
     } catch {
       stopAll();
-      note.textContent = '没能打开这个声音输入（浏览器没给权限，或者没接机器）。在 Chrome 地址栏左边的图标里把“麦克风”改成允许，再试一次。';
+      note.textContent = appOnly ? '这个浏览器录不了应用自己的声音。在 Chrome 里打开这一页再试。' : '没能打开这个声音输入（浏览器没给权限，或者没接机器）。在 Chrome 地址栏左边的图标里把“麦克风”改成允许，再试一次。';
     }
   });
   const el = h('div', { class: 'rec' },

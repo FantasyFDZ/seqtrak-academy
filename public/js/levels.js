@@ -6,6 +6,7 @@
 // 只有音游那部分是每打完一局往 game.playXp 里加。这样旧的进度文件不用迁移就有经验值，也不会重复给。
 import { CHAPTERS, allLessons, SONG_CHAPTER } from './content/curriculum.js';
 import { LINES as CLASS_LINES, levelById as classLevel } from './content/classroom.js';
+import { withKbd } from './learn-mode.js';
 
 // ───────────── 经验值 ─────────────
 
@@ -157,12 +158,13 @@ const FLAME = '<path d="M12 3c.6 3.2 4.5 4.6 4.5 9a4.5 4.5 0 0 1-9 0c0-1.6.6-2.8
 // icon 是 24×24 的线条图（徽章底座由样式画）；mark 是角标上的数字；tone 决定拿到之后是什么颜色。
 // test(data, ctx) 返回 false（还没有）、true 或拿到的时刻（有据可查时）。ctx = { streak }。
 export const BADGES = [
-  {
+  withKbd({
     id: 'first-sound', name: '第一声', tone: 'accent',
     how: '第一次在真机上出声：用 SEQTRAK 打完一局音游，或者学完 0.2「让真机出声」',
+    kbd: { how: '第一次让模拟机出声：学完 0.2「让模拟机出声」' }, // 键盘学习方式（learn-mode.js）：0.2 换了课
     icon: '<path d="M4 10v4h3l5 4V6L7 10H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.6 6.4a8 8 0 0 1 0 11.2"/>',
     test: (d) => d.game.stats.midiPlays > 0 || (done(d, '0-2') && doneAt(d, '0-2')),
-  },
+  }),
   {
     id: 'four-floor', name: '四踩', tone: 'accent',
     how: '编出第一个四踩：学完 1.2「16 个格子」',

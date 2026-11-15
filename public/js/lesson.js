@@ -39,16 +39,37 @@ import { quizPerfect } from './jiu-eggs.js';
 import { controlInfo } from './controls.js';
 import { celebrateLesson, closeCelebration, xpLine, badgeChip } from './celebrate.js';
 import { BENCH_VIEW, PROG_VIEW, fitView, benchView, refitOnResize } from './bench-view.js';
+import { learn, withKbd } from './learn-mode.js';
+import { keyHint, keyOf, kbdHtml } from './keymap.js';
+
+/** 键盘学习方式：一个任务在电脑键盘上怎么按（一行，接在任务后面）；不是键盘方式、或者这一项不用按键，就没有 */
+const keyLine = (task) => {
+  const html = learn.keyboard && !isLiveNow() ? keyHint(task) : '';
+  return html ? h('span', { class: 'key-hint', html: `<b>键盘</b>${html}` }) : null;
+};
+/** 交给教练的那份课文里，按键提示写成〔Z〕这样的字 */
+const keyText = (task) => keyHint(task).replace(/<kbd class="pc">([^<]*)<\/kbd>/g, '〔$1〕').replace(/<kbd>([^<]*)<\/kbd>/g, '[$1]').replace(/<[^>]+>/g, '');
+// 现在屏幕上陪练的是不是真机的镜子（键盘方式下也可能接着机器：那时按真机方式，不给键盘提示）
+const isLiveNow = () => mirror.available;
 
 const KIND_LABEL = { read: '讲解', tour: '导览', do: '动手', findkeys: '找按键', game: '练习', quiz: '小测', program: '编程挑战', free: '自由创作', reflect: '写下来' };
 const CALLOUT_TITLE = { dj: '用 DJ 的经验来理解', tip: '小贴士', warn: '注意', theory: '一点乐理' };
 
 // ───────────── 通用内容块 ─────────────
 
+// 课文里“模拟机上：长按出现黑圈、上下拖……”这种写给鼠标的小贴士：键盘方式下，讲手势的那几句换成键盘的说法，别的句子留着
+const MOUSE_WORDS = /长按|黑圈|拖|鼠标|滚轮|再点|点一下|点它|点方键|很快地连点/;
+const KEYBOARD_TIP = '键盘上：按着第一个键不放、再按第二个，就是组合键；转旋钮是按着轨道键按 〔↑〕〔↓〕（右边的旋钮、[FX]、[FX LEVEL] 用鼠标指着它按）；要按满 2 秒的就按住 2 秒。每一项下面那行“键盘：……”写着具体按哪几个键，忘了按 〔?〕。';
+function kbdCallout(text) {
+  if (!learn.keyboard || !/^模拟机/.test(text) || !MOUSE_WORDS.test(text)) return text;
+  const keep = text.replace(/^模拟机上[：:]?/, '').split(/(?<=[。；])/).filter((s) => s.trim() && !MOUSE_WORDS.test(s));
+  return [KEYBOARD_TIP, ...keep].join('');
+}
+
 function renderBlocks(blocks, cleanup) {
   return (blocks || []).map((b) => {
     if (typeof b === 'string') return h('p', { html: rich(b) });
-    if (b.callout) return h('div', { class: ['callout', b.callout] }, h('b', { class: 'label' }, b.title || CALLOUT_TITLE[b.callout]), h('span', { html: rich(b.text) }));
+    if (b.callout) return h('div', { class: ['callout', b.callout] }, h('b', { class: 'label' }, b.title || CALLOUT_TITLE[b.callout]), h('span', { html: rich(kbdCallout(b.text)) }));
     if (b.list) return h('ul', {}, b.list.map((i) => h('li', { html: rich(i) })));
     if (b.widget) {
       const w = createWidget(b);
@@ -226,7 +247,11 @@ function plainText(step) {
     else if (b.callout) parts.push(b.text);
     else if (b.list) parts.push(b.list.join('；'));
   }
-  for (const t of step.tasks || []) parts.push(`操作：${t.text}`);
+  for (const t0 of step.tasks || []) {
+    const t = withKbd(t0);
+    const k = learn.keyboard ? keyText(t) : '';
+    parts.push(`操作：${t.text}${k ? `（键盘上：${k}）` : ''}`);
+  }
   if (step.coach) parts.push(`教学要点：${step.coach}`);
   return parts.join('\n').replace(/\*\*/g, '').slice(0, 1800);
 }
@@ -809,7 +834,7 @@ function retrigger(el, cls) {
  *   task.live            接着真机时优先用的条件（detect / sim 的写法相同）
  */
 function stepDo(step, env, cleanup) {
-  const tasks = step.tasks || [];
+  const tasks = (step.tasks || []).map(withKbd); // task.kbd = 键盘方式下换用的说法（和 liveText 一样的意思）
   const useBench = step.panel !== false;
   const list = h('ol');
   const status = h('div', { class: 'task-status' });
@@ -899,6 +924,8 @@ function stepDo(step, env, cleanup) {
     }
     items.forEach((it, i) => {
       it.text.innerHTML = rich(textOf(i));
+      const k = !isLive() && keyLine(tasks[i]);
+      if (k) it.text.append(k);
     });
   }
 
@@ -938,7 +965,8 @@ function stepDo(step, env, cleanup) {
     const doable = tasks.map((x, j) => j).filter((j) => !skipped(tasks[j]));
     bubble.replaceChildren(
       h('span', { class: 'n' }, doable.length > 1 ? `第 ${doable.indexOf(i) + 1} 步 / 共 ${doable.length} 步` : '现在做这个'),
-      h('span', { html: rich(textOf(i)) }));
+      h('span', { html: rich(textOf(i)) }),
+      ...[!isLive() && keyLine(t)].filter(Boolean)); // replaceChildren 不认 null（会写成“null”）
     retrigger(bubble, 'in');
     items[i].li.scrollIntoView?.({ block: 'nearest' });
     model?.highlight(t.panel || []);
@@ -949,7 +977,9 @@ function stepDo(step, env, cleanup) {
     };
     const progress = h('span', {});
     const live = isLive();
-    const waitText = (live && t.liveWait) || t.wait;
+    // 键盘方式下，写给鼠标的那句“等你……”（长按、点、拖）换成看键盘那一行；task.kbd.wait 写了就用它
+    const kbWait = learn.keyboard && model && !live && /长按|点|拖|鼠标|滑/.test(t.wait || '') ? '照着上面“键盘”那一行按…' : t.wait;
+    const waitText = (live && t.liveWait) || kbWait;
     const onProgress = (c, n) => {
       if (n > 1) progress.textContent = `${waitText || '继续'}（${c}/${n}）`;
     };
@@ -989,7 +1019,8 @@ function stepDo(step, env, cleanup) {
     progress.textContent = !watching ? (midi.connected && (t.detect || t.sim) ? '这一步机器不会上报：做完后点右边。' : '照着做，然后点右边。')
       : t.detect?.kind === 'connected' ? (t.wait || '等待连接…')
         : live ? `${waitText || '等你操作…'}（在真机上做，屏幕上这台是它的镜子）`
-          : (t.wait || '在左边的模拟机上做这一步…');
+          : learn.keyboard && model ? `${kbWait || '在左边的模拟机上做这一步…'}（用键盘按，或者用鼠标点）`
+            : (t.wait || '在左边的模拟机上做这一步…');
     // 做偏了的时候给一句提示；连着偏了三回，教练出来问一声
     const nudgeKey = `${env.id}:${env.index}:${i}`;
     const askHelp = `我在做「${String(textOf(i)).replace(/\*\*/g, '').slice(0, 60)}」这一步，没做对，帮我看看可能是哪里出了问题。`;
@@ -1032,7 +1063,11 @@ function stepDo(step, env, cleanup) {
   // 点啾啾时多出来的两个选项
   const taskText = () => String(current < tasks.length ? textOf(current) : '');
   const plainTask = () => taskText().replace(/\*\*/g, '').replace(/\[([^\]]+)\]/g, '$1');
-  const keyName = (id) => controlInfo(id)?.en || id;
+  const keyName = (id) => {
+    const name = controlInfo(id)?.en || id;
+    const k = learn.keyboard && !isLive() && keyOf(id);
+    return k ? `${name}（电脑上是 ${kbdHtml(k)}）` : name;
+  };
   cleanup.push(coach.offer(() => (current >= tasks.length ? [] : [
     ['我卡住了', () => {
       const ids = (model && tasks[current].panel) || [];
@@ -1328,9 +1363,11 @@ function stepProgram(step, env, cleanup) {
     view.apply();
     const refit = setTimeout(() => view.apply(), 0); // 挂到页面上之后量得到高矮了，再取一次景
     refresh();
-    tipLine.textContent = live
+    tipLine.innerHTML = rich(live
       ? '在真机上：先按轨道旋钮选中它，再按亮步进键。每改一格，上面“现在的”那一排都会跟着变，全对了自动过关。'
-      : '在左边的模拟机上先点轨道旋钮选中它，再按亮步进键；想听就点“看整台”，短按左下角的 [PLAY]。接上真机后，左边会变成真机的实时镜像。';
+      : learn.keyboard
+        ? '用键盘：先按轨道键选中它（最下一排：〔Z〕 KICK、〔X〕 SNARE、〔C〕 CLAP、〔V〕 HAT 1……），再按 〔Q〕–〔I〕、〔A〕–〔K〕 把步进键按亮；按 〔空格〕 听。忘了哪个键是哪个，按 〔?〕。'
+        : '在左边的模拟机上先点轨道旋钮选中它，再按亮步进键；想听就点“看整台”，短按左下角的 [PLAY]。接上真机后，左边会变成真机的实时镜像。');
     host.append(
       warn,
       h('div', { class: 'do-machine' }, benchEl),
@@ -1472,6 +1509,7 @@ function stepFree(step, env, cleanup) {
         note),
       h('div', { class: 'row', style: { marginTop: '14px' } }, ask, skip),
     ),
+    learn.keyboard && !live ? h('p', { class: 'small muted prog-tip', html: rich('用键盘：按轨道键选中一条（最下一排 〔Z〕–〔/〕、〔\\〕），按 〔Q〕–〔I〕、〔A〕–〔K〕 填格子，〔空格〕 播放。合成器轨弹音是 〔P〕〔[〕〔]〕〔L〕〔;〕〔\'〕〔↵〕。按 〔?〕 看整张键位图。') }) : null,
     ),
   );
 }
@@ -1605,7 +1643,7 @@ export function lessonView(view, lessonId) {
     cleanup.splice(0).forEach((f) => f());
     hushNudge();
     clear(body);
-    const step = lesson.steps[index];
+    const step = withKbd(lesson.steps[index]); // step.kbd = 键盘学习方式下换用的说法、换用的机器（content 里写）
     ctx.set(`${chapter.title} · ${lesson.no}「${lesson.title}」· 第 ${index + 1}/${lesson.steps.length} 步「${step.title}」（${KIND_LABEL[step.type]}）`, plainText(step));
     ready = false;
     enteredAt = performance.now();

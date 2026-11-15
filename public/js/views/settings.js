@@ -11,6 +11,8 @@ import { theme } from '../theme.js';
 import { sfx } from '../sfx.js';
 import { playSplash } from '../splash.js';
 import { installed, canInstall, install, onInstallChange } from '../install.js';
+import { midi } from '../midi.js';
+import { showKeymap } from '../keyboard.js';
 
 const DEEP_REASON = {
   'not-found': '这台电脑上没有找到 codex 命令。',
@@ -168,9 +170,16 @@ export async function settingsView(view) {
     confirmReset = false;
     resetBtn.textContent = '清空学习进度';
   });
+  // 学习方式：手边有 SEQTRAK / 用电脑键盘和模拟机（第一次打开时啾啾问过一次，见 main.js）。连着 SEQTRAK 时一律按真机方式
+  const learnNote = midi.connected && store.settings.learnMode === 'keyboard'
+    ? '现在连着 SEQTRAK，所以先按真机方式；拔了线就回到键盘方式。'
+    : '有 SEQTRAK：接上机器，屏幕上的机器就是它的镜子；没接的时候用鼠标点模拟机。用键盘：电脑键盘照着机器排（字母上两排是步进键，最下一排是轨道，空格是 PLAY），按住电脑上的键就是按住机器上的键，课里每一项都写着按哪个键。随时按 ? 看键位图。';
   const prefs = h('div', { class: 'card' },
     h('h3', { style: { marginBottom: '14px' } }, '练习'),
     h('div', { class: 'form', style: { maxWidth: 'none' } },
+      h('div', { class: 'pref wide' },
+        segmented([{ value: 'device', label: '有 SEQTRAK（MIDI）' }, { value: 'keyboard', label: '用键盘和模拟机' }], store.settings.learnMode || 'device', (v) => store.update((d) => (d.settings.learnMode = v)), '学习方式'),
+        h('span', { class: 'small muted' }, learnNote, ' ', h('button', { class: 'btn sm', type: 'button', onclick: () => showKeymap() }, '看键位图'))),
       h('div', { class: 'pref wide' }, segmented([{ value: true, label: '开' }, { value: false, label: '关' }], !!store.settings.speak, (v) => store.update((d) => (d.settings.speak = v)), '把啾啾的回答读出来'), h('span', { class: 'small muted' }, '手在机器上、不方便看屏幕时有用（用浏览器自带的语音）。')),
       h('div', { class: 'pref wide' }, segmented([{ value: true, label: '开' }, { value: false, label: '关' }], !!store.settings.unlockAll, (v) => store.update((d) => (d.settings.unlockAll = v)), '全部课程解锁'), h('span', { class: 'small muted' }, '默认要按顺序上；想跳着看就打开。')),
     ),
@@ -259,7 +268,7 @@ export async function settingsView(view) {
         h('a', { href: 'https://creativecommons.org/licenses/by/4.0/deed.zh-hans', target: '_blank', rel: 'noopener' }, 'CC BY 4.0'),
         ' 使用；矢量画法和动作是这个应用自己画的，叫声是用 Web Audio 合成的。')));
   view.append(
-    h('div', { class: 'page-head' }, h('h1', {}, '设置'), h('p', {}, '上面两块是日常会动的：界面长什么样、动不动、响不响，和练习的两个开关。不常动的收在下面，点一下展开。')),
+    h('div', { class: 'page-head' }, h('h1', {}, '设置'), h('p', {}, '上面两块是日常会动的：界面长什么样、动不动、响不响，和练习的几个开关（学习方式也在那里）。不常动的收在下面，点一下展开。')),
     h('div', { class: 'settings' }, look, prefs, engineFold, aboutFold, resetFold),
   );
   return { destroy: () => { offTheme(); offInstall(); } };

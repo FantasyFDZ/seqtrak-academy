@@ -14,7 +14,8 @@ const blank = () => ({
   charts: {}, // 谱面 id → { plays, bestAccuracy, bestStars, lastAt }
   songs: { picked: [] },
   // skin：配色，'body' 机身（浅）/ 'neon' 霓虹（深）；motion：动效，'rich' 丰富 / 'calm' 克制；uiSound：界面音效
-  settings: { inputOffsetMs: 0, metronome: true, speak: false, unlockAll: false, engine: 'fast', skin: 'body', motion: 'rich', uiSound: true, intro: 'home' },
+  // learnMode：学习方式，'device' 有 SEQTRAK / 'keyboard' 用电脑键盘和模拟机 / null 还没问过（按 device 算，第一次打开时啾啾问一句，见 main.js）
+  settings: { inputOffsetMs: 0, metronome: true, speak: false, unlockAll: false, engine: 'fast', skin: 'body', motion: 'rich', uiSound: true, intro: 'home', learnMode: null },
   practiceDays: [], // 'YYYY-MM-DD'
   lastResult: null,
   drills: [], // AI 出过的定制练习
@@ -46,6 +47,7 @@ function merge(base, saved) {
   if (!['home', 'daily', 'off'].includes(out.settings.intro)) out.settings.intro = 'home';
   delete out.settings.splash;
   out.settings.uiSound = out.settings.uiSound !== false;
+  if (!['device', 'keyboard'].includes(out.settings.learnMode)) out.settings.learnMode = null;
   return out;
 }
 

@@ -657,6 +657,7 @@ export async function run(id, from = 0, to = Infinity, { force = false } = {}) {
     if (step.type === 'quiz') quiz(step);
     else if (step.type === 'free') [...document.querySelectorAll('.step-body .btn')].find((b) => b.textContent.trim() === '先跳过')?.click();
     else if (plan[i]) await (fake ? plan[i].fake(w, fake) : plan[i].sim(w));
+    await w.releaseHeld?.(); // 键盘走查：这一步里还按着的键松开
     await sleep(400);
     const now = w.step();
     // 卡住了：把模拟机当时的样子也带上（选中哪条、在不在步进输入、第几页、这条轨道每一步的音、八度），好查是哪一下没按对

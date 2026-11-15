@@ -97,13 +97,17 @@ export function fmtMs(ms) {
 
 export const pct = (x) => `${Math.round(x * 100)}%`;
 
-/** 把轻量标记转成 HTML：**加粗**、`代码`、[按键]、换行；先做转义。用于课程文案与 AI 回复。 */
+/**
+ * 把轻量标记转成 HTML：**加粗**、`代码`、[按键]（机器上的键）、〔Z〕（电脑键盘上的键，键盘学习方式用）、换行；先做转义。用于课程文案与 AI 回复。
+ * 〔〕里放的是键帽上的字（〔`〕〔⌫〕〔空格〕也行），先换掉，免得里面的 ` 被当成代码。
+ */
 export function rich(text) {
   const esc = String(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
   return esc
+    .replace(/〔([^〔〕\s]{1,6}|空格)〕/g, (_, k) => `<kbd class="pc">${k.replace(/`/g, '&#96;')}</kbd>`)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\[([A-Z][A-Z0-9 /+\-↑↓]{1,22})\]/g, '<kbd>$1</kbd>')

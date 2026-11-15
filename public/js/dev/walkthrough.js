@@ -12,6 +12,7 @@ import { chartById } from '../content/charts.js';
 import { normalizeChart } from '../chart.js';
 import { audio } from '../audio.js';
 import { midi } from '../midi.js';
+import { codeOf } from '../keymap.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const errors = [];
@@ -80,8 +81,8 @@ const control = (id) => {
 };
 const pointer = (type) => new PointerEvent(type, { bubbles: true, pointerId: 1, clientY: 100 });
 
-/** 短按一下 */
-async function tap(id, ms = 30) {
+/** 短按一下（鼠标） */
+async function mouseTap(id, ms = 30) {
   const node = control(id);
   node.dispatchEvent(pointer('pointerdown'));
   await sleep(ms);
@@ -89,15 +90,145 @@ async function tap(id, ms = 30) {
   await sleep(40);
 }
 
-/** 长按半秒：模拟机上的“按住”（出现黑圈），接着再 tap 第二个键就是组合键 */
-const hold = (id) => tap(id, 520);
-
-/** 转旋钮：dir = 1 往上（顺时针），-1 往下；n = 转几格 */
-async function turn(id, dir = 1, n = 1) {
+/** 转旋钮（鼠标滚轮）：dir = 1 往上（顺时针），-1 往下；n = 转几格 */
+async function mouseTurn(id, dir = 1, n = 1) {
   for (let i = 0; i < n; i++) {
     control(id).dispatchEvent(new WheelEvent('wheel', { deltaY: dir > 0 ? -100 : 100, bubbles: true, cancelable: true }));
     await sleep(30);
   }
+}
+
+// ───── 键盘走查：地址带 ?walkkeys（要先在设置里选“用键盘和模拟机”）——同一份走查计划，改用电脑键盘走 ─────
+// tap / hold / turn 都换成电脑键盘的事件（键位见 keymap.js）；没有专门电脑键的（[VOL+]、右边 4 个旋钮……）照样用鼠标点，和真人一样。
+// 走查计划是照鼠标的“长按出黑圈 = 按住、下一下用掉”写的，这里照着翻成键盘的样子：
+//   hold(a)      = 按下 a 不松（等过“打字连按”的那一小会儿，见 simulator.js 的 ROLL_MS）
+//   tap(b)       = 按着 a 的话，按一下 b 就是组合键，按完松开 a；tap(a) 本身 = 松开 a（鼠标上是“再点一下松开”）
+//                  按着轨道键再 tap(PAGE)：两个都按着（粘贴）；按着轨道键 tap 方键 1–6（换乐句）：a 先留着，紧接着同一个方键再 tap 一下就是双击
+//   turn(x)      = 按着的键正好管 x（按着那条轨道 / 按着 [OCTAVE]、[PAGE]、步进键转 ALL）：按 ↑ ↓；
+//                  否则轨道键、ALL：按着它按 ↑ ↓；别的旋钮：鼠标指着它按 ↑ ↓
+const KEYWALK = new URLSearchParams(location.search).has('walkkeys');
+let kHeld = null; // 正按着的：{ id, code, turned, keep, code2 }
+const keyEvent = (code, type) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true, cancelable: true }));
+const isTrack = (id) => /^(KICK|SNARE|CLAP|HAT1|HAT2|PERC1|PERC2|SYNTH1|SYNTH2|DX|SAMPLER)$/.test(id);
+
+/** 升级的全屏庆祝盖在上面时，键盘不归模拟机管（和真人一样）：先按 Esc 把它合上
+ *  （连着走好几节课，经验攒够了就会升级；鼠标走查是直接点在控件上的，碰不到这层） */
+async function uncover() {
+  if (!document.querySelector('.celebrate')) return;
+  keyEvent('Escape', 'keydown');
+  await sleep(150);
+}
+
+async function press(id, ms) {
+  await uncover();
+  const code = codeOf(id);
+  if (!code) return mouseTap(id, ms);
+  keyEvent(code, 'keydown');
+  await sleep(ms);
+  keyEvent(code, 'keyup');
+  await sleep(40);
+}
+
+async function releaseHeld() {
+  if (!kHeld) return;
+  if (kHeld.code2) keyEvent(kHeld.code2, 'keyup');
+  keyEvent(kHeld.code, 'keyup');
+  kHeld = null;
+  await sleep(60);
+}
+
+/** 短按一下 */
+async function tap(id, ms = 30) {
+  if (!KEYWALK) return mouseTap(id, ms);
+  const h = kHeld;
+  if (h && h.id === id && !h.keep) return releaseHeld(); // 再点一下按住的那个 = 松开
+  if (h && (h.turned || (h.keep && h.keep !== id))) await releaseHeld(); // 转完了 / 换乐句之后按的是别的：先松开
+  if (!kHeld) return press(id, ms);
+  // 按着 kHeld，这一下是组合键的第二个
+  const patMod = isTrack(kHeld.id) || kHeld.id === 'ALL';
+  if (id === 'PAGE' && patMod && !kHeld.code2) {
+    kHeld.code2 = codeOf('PAGE');
+    keyEvent(kHeld.code2, 'keydown');
+    await sleep(80);
+    return;
+  }
+  await press(id, ms);
+  if (patMod && /^DK[1-6]$/.test(id) && !kHeld.code2 && !kHeld.keep) {
+    kHeld.keep = id; // 留着，紧接着再点同一个方键就是双击
+    return;
+  }
+  await releaseHeld();
+}
+
+/** 长按：模拟机上的“按住”，接着再 tap 第二个键就是组合键 */
+async function hold(id) {
+  if (!KEYWALK) return mouseTap(id, 520);
+  await uncover();
+  await releaseHeld();
+  const code = codeOf(id);
+  if (!code) return mouseTap(id, 520); // 没有专门电脑键的（SD1……）：用鼠标长按，和真人一样
+  keyEvent(code, 'keydown');
+  kHeld = { id, code, turned: false };
+  await sleep(480);
+}
+
+/** 转旋钮：dir = 1 往上（顺时针），-1 往下；n = 转几格 */
+async function turn(id, dir = 1, n = 1) {
+  if (!KEYWALK) return mouseTurn(id, dir, n);
+  await uncover();
+  const arrow = dir > 0 ? 'ArrowUp' : 'ArrowDown';
+  const arrows = async () => {
+    for (let i = 0; i < n; i++) {
+      keyEvent(arrow, 'keydown');
+      await sleep(20);
+      keyEvent(arrow, 'keyup');
+      await sleep(90);
+    }
+  };
+  const h = kHeld;
+  if (h && (h.id === id || (id === 'ALL' && (h.id === 'OCTAVE' || h.id === 'PAGE' || /^DK/.test(h.id))))) {
+    h.turned = true;
+    return arrows();
+  }
+  if (h && !/^DK/.test(h.id)) await releaseHeld(); // 按着别的：先松开（按着步进键转旋钮 2 是参数锁，留着）
+  const code = codeOf(id);
+  if (code && (isTrack(id) || id === 'ALL') && !kHeld) {
+    keyEvent(code, 'keydown');
+    await sleep(60);
+    await arrows();
+    keyEvent(code, 'keyup');
+    await sleep(60);
+    return;
+  }
+  // 别的旋钮：鼠标指着它按 ↑ ↓
+  control(id).dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+  if (kHeld) kHeld.turned = true;
+  await arrows();
+  document.body.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+}
+
+/** 在触摸条上从下往上推到 frac（0–1）再松手；键盘走查：[HIGH PASS] / [REPEATER] 按着 ← / → 按 ↑，[FX LEVEL] 鼠标指着它按 ↑ ↓ */
+async function slideKeys(id, frac) {
+  const { simulator } = await import('../simulator.js');
+  if (id === 'FXLEVEL') {
+    const fx = simulator.fxSingle ? simulator.fxOf(simulator.sel) : null;
+    const now = simulator.fxSingle ? fx?.level || 0 : simulator.masterFx.level || 0;
+    const steps = Math.round(frac * 8) - Math.round(now * 8);
+    if (steps) await turn('FXLEVEL', Math.sign(steps), Math.abs(steps));
+    await sleep(200);
+    return;
+  }
+  const code = codeOf(id);
+  keyEvent(code, 'keydown');
+  await sleep(80);
+  for (let v = 0.2; v + 0.1 < frac; v += 0.2) {
+    keyEvent('ArrowUp', 'keydown');
+    await sleep(20);
+    keyEvent('ArrowUp', 'keyup');
+    await sleep(60);
+  }
+  keyEvent(code, 'keyup');
+  await sleep(200);
 }
 
 // ───────────── 音游 ─────────────
@@ -184,7 +315,7 @@ async function fakePlay(notes, bars = 2.1, { loopSteps = 16, start = true } = {}
   await sleep(200);
 }
 
-const api = { sleep, errors, step, next, go, manual, result, tap, hold, turn, playStage, cont, pill, check, fakePlay };
+const api = { sleep, errors, step, next, go, manual, result, tap, hold, turn, playStage, cont, pill, check, fakePlay, keys: KEYWALK, slideKeys, releaseHeld };
 
 /** 装上：顶替 rAF、开始收集报错，并把工具挂到 window.__walk。 */
 export function install({ raf = true } = {}) {

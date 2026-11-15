@@ -578,7 +578,22 @@ const PLANS = {
       async sim(w) {
         await w.tap('PLAY');
         await sleep(400);
-        await slide('HIGHPASS', 0.95);
+        if (w.keys) {
+          // 键盘方式下这一步多一项：按着 ←（HIGH PASS）推到头，再按住 →（REPEATER），两个一起松开（ch7.js 的 kbd）
+          const key = (code, type) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true, cancelable: true }));
+          key('ArrowLeft', 'keydown');
+          await sleep(200);
+          for (let i = 0; i < 4; i++) {
+            key('ArrowUp', 'keydown');
+            key('ArrowUp', 'keyup');
+            await sleep(200);
+          }
+          key('ArrowRight', 'keydown');
+          await sleep(600);
+          key('ArrowRight', 'keyup');
+          key('ArrowLeft', 'keyup');
+          await sleep(400);
+        } else await slide('HIGHPASS', 0.95);
         await sleep(300);
         await w.tap('PLAY');
         await sleep(300);

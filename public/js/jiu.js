@@ -361,7 +361,7 @@ function askForm({ placeholder = '想问什么，直接写', onSubmit }) {
       e.preventDefault();
       send(false);
     }
-    e.stopPropagation(); // 别让快捷键（模拟机的电脑键盘）收到
+    e.stopPropagation(); // 在这里打的字别让页面上别的按键（音游的键）收到；键盘学习方式（keyboard.js）自己会跳过输入框
   });
   return h('form', { class: 'jiu-ask', onsubmit: (e) => { e.preventDefault(); send(false); } },
     input,

@@ -135,6 +135,8 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
   const layer = h('g');
   const rings = h('g', { 'pointer-events': 'none' });
   const holds = h('g', { 'pointer-events': 'none' });
+  const keycaps = h('g', { class: 'pc-keys', 'pointer-events': 'none' }); // 键盘学习方式：每个控件旁边标着电脑上对应的键（setKeys）
+  const spots = new Map(); // id → 小键帽摆在哪：[x, y]（左上角）
 
   // 机身：左边和中间（鼓区、合成器区）是灰色，右边（音色与效果区）是桔红；下面一道投影
   layer.append(
@@ -168,6 +170,7 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
       g.append(led);
     });
     g.append(text(x, y < 100 ? y + 31 : y - 25, label, { size: 8.5 }));
+    spots.set(id, [x - 36, y - 6]);
     layer.append(reg(id, g, { type: 'circle', x, y, r: 23 }));
   }
 
@@ -184,6 +187,7 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
     leds.set(id, led);
     g.append(led);
     if (label) g.append(text(x, y + 16, label, { size: 7, fill: '#8a8f98', weight: 600 }));
+    spots.set(id, [x - 18, y - 18]);
     layer.append(reg(id, g, { type: 'rect', x: x - 23, y: y - 23, w: 46, h: 46, r: 8 }));
   };
   for (let r = 0; r < 2; r++) for (let c = 0; c < 8; c++) key(`DK${r * 8 + c + 1}`, DRUM_X[c], ROW_Y[r], 'drum', String(r * 8 + c + 1));
@@ -195,6 +199,7 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
   for (const [id, label, y] of LEFT) {
     const g = h('g');
     g.append(h('rect', { x: -16, y: y - 12, width: 18, height: 24, rx: 4, fill: C.grayDark, stroke: '#00000055' }), text(-22, y + 3, label, { size: 8.5, anchor: 'end', fill: C.out }));
+    spots.set(id, [5, y - 6]);
     layer.append(reg(id, g, { type: 'rect', x: -20, y: y - 16, w: 26, h: 32, r: 6 }));
   }
   // 右侧面：4 个接口 + 4 个按钮
@@ -203,6 +208,7 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
     if (kind === 'jack') g.append(h('rect', { x: W - 4, y: y - 7, width: 8, height: 14, rx: 2, fill: '#15161a', stroke: '#0008' }));
     else g.append(h('rect', { x: W - 2, y: y - 11, width: 18, height: 22, rx: 4, fill: C.bodyDark, stroke: '#00000055' }));
     g.append(text(W + 22, y + 3, label, { size: 8.5, anchor: 'start', fill: kind === 'jack' ? C.outDim : C.out }));
+    if (kind === 'btn') spots.set(id, [W - 26, y - 6]);
     layer.append(reg(id, g, { type: 'rect', x: W - 8, y: y - 15, w: 28, h: 30, r: 6 }));
   }
   // 上缘按钮
@@ -210,12 +216,14 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
     const g = h('g');
     g.append(h('rect', { x: x - 12, y: -12, width: 24, height: 14, rx: 4, fill: x > 596 ? C.bodyDark : C.grayDark, stroke: '#00000055' }), text(x, row ? -17 : -28, label, { size: 7.5, fill: C.out }));
     if (!row) g.append(h('line', { x1: x, y1: -25, x2: x, y2: -14, stroke: C.outDim, 'stroke-width': 0.8 }));
+    spots.set(id, [x - 7, 5]);
     layer.append(reg(id, g, { type: 'rect', x: x - 16, y: -16, w: 32, h: 22, r: 6 }));
   }
   // 下缘按钮
   for (const [id, label, x] of [['SDPAGE', 'SOUND DESIGN PAGE', 725], ['FXPAGE', 'FX PAGE', 796]]) {
     const g = h('g');
     g.append(h('rect', { x: x - 12, y: H - 2, width: 24, height: 14, rx: 4, fill: C.bodyDark, stroke: '#00000055' }), text(id === 'SDPAGE' ? x - 14 : x + 6, H + 23, label, { size: 7.5, fill: C.out }));
+    spots.set(id, [x - 7, H - 19]);
     layer.append(reg(id, g, { type: 'rect', x: x - 16, y: H - 6, w: 32, h: 22, r: 6 }));
   }
 
@@ -260,6 +268,7 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
     g.append(h('rect', { x: x - 14, y: 170, width: 28, height: 84, rx: 7, fill: C.bodyDark, stroke: '#b93a14' }));
     for (let i = 0; i < 7; i++) g.append(h('line', { x1: x - 8, y1: 180 + i * 10.6, x2: x + 8, y2: 180 + i * 10.6, stroke: C.orangeDeep, 'stroke-width': 1.4, 'stroke-linecap': 'round' }));
     g.append(text(x, 162, label, { size: 6.8, fill: C.inkGray }));
+    spots.set(id, [x - 7, 140]);
     layer.append(reg(id, g, { type: 'rect', x: x - 18, y: 152, w: 36, h: 106, r: 9 }));
   };
   slider('FXLEVEL', 796, 'FX LEVEL');
@@ -273,7 +282,7 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
   spk.append(text(956, 19, 'MIC', { size: 6, fill: C.inkGray }));
   layer.append(reg('SPEAKER', spk, { type: 'rect', x: 829, y: 4, w: 143, h: 136, r: 10 }));
 
-  svg.append(layer, holds, rings);
+  svg.append(layer, keycaps, holds, rings);
 
   const resolve = (ids) => (ids || []).flatMap((id) => GROUPS[id] || [id]);
 
@@ -408,10 +417,49 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
     svg.setAttribute('viewBox', `${Math.round(x)} ${Math.round(y)} ${Math.round(w)} ${Math.round(hh)}`);
   }
 
+  /**
+   * 键盘学习方式：每个控件旁边画一个小键帽，写着电脑上对应的键（{ DK1: 'Q', KICK: 'Z', PLAY: '空格', … }）；传 null 就都去掉。
+   * 摆在哪见上面各处的 spots：方键在键帽左上角、旋钮在左边、侧面的按钮在机身边上……
+   */
+  function setKeys(map) {
+    keycaps.replaceChildren();
+    for (const [id, label] of Object.entries(map || {})) {
+      const at = spots.get(id);
+      if (!at) continue;
+      const wide = /[^\x00-\x7f]/.test(label) && label.length > 1; // “空格”这种两个汉字的
+      const w = wide ? 26 : label.length > 1 ? 9 + label.length * 8 : 15;
+      keycaps.append(
+        h('rect', { x: at[0], y: at[1] - 1, width: w, height: 15, rx: 3, class: 'pc-cap' }),
+        h('text', { x: at[0] + w / 2, y: at[1] + 10, class: 'pc-cap-t', 'text-anchor': 'middle', 'font-size': wide ? 9.5 : 11, 'font-weight': 800, 'font-family': 'ui-monospace, "SF Mono", Menlo, Consolas, "PingFang SC", "Microsoft YaHei", monospace' }, label),
+      );
+    }
+  }
+
+  /**
+   * 键盘学习方式：这几个控件能用 Tab 选中（没有专门电脑键的那些：选中了按回车 = 按它，按 ↑ ↓ = 转它）。
+   * names = { 控件 id: 读屏念的名字 }；传 null 都取消。选中的那个画一圈（.ctl:focus-visible，app.css）。
+   */
+  function setFocusable(names) {
+    const on = new Map(Object.entries(names || {}));
+    for (const [id, { node }] of parts) {
+      if (!node || !interactive) continue;
+      if (on.has(id)) {
+        node.setAttribute('tabindex', '0');
+        node.setAttribute('role', 'button');
+        node.setAttribute('aria-label', on.get(id));
+      } else if (node.hasAttribute('tabindex')) {
+        node.removeAttribute('tabindex');
+        node.removeAttribute('role');
+        node.removeAttribute('aria-label');
+      }
+    }
+    svg.setAttribute('role', on.size ? 'group' : 'img');
+  }
+
   setHighlight(highlight);
   setLit(lit);
   const el = h('div', { class: 'panel-wrap' }, svg);
-  const panel = { el, svg, setHighlight, setHeld, setLit, setKnob, flash, focus, spot, has: (id) => parts.has(id) };
+  const panel = { el, svg, setHighlight, setHeld, setLit, setKnob, flash, focus, spot, setKeys, setFocusable, has: (id) => parts.has(id) };
   recent.push(panel);
   if (recent.length > 24) recent.shift();
   return panel;

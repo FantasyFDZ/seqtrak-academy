@@ -11,6 +11,7 @@ import { segmented } from './ui.js';
 import { sfx } from './sfx.js';
 import { confetti } from './fx.js';
 import { BENCH_VIEW, fitView, benchView, refitOnResize } from './bench-view.js';
+import { learn } from './learn-mode.js';
 
 // ───────────── 百科卡片 ─────────────
 
@@ -106,13 +107,15 @@ export function panelTour({ onDone, intro } = {}) {
   let shown = '';
   function renderText() {
     const stop = TOUR[index];
-    const live = isLive() ? (typeof stop.live === 'function' ? stop.live(mirror) : stop.live) || '' : '';
-    const text = stop.text + (!isLive() && stop.sim ? stop.sim : '');
+    // 键盘学习方式：“在真机上试试”换成“在键盘上试试”（stop.keys），用鼠标的那句补充（stop.sim）也不要了
+    const keys = !isLive() && learn.keyboard ? stop.keys || '' : '';
+    const live = isLive() ? (typeof stop.live === 'function' ? stop.live(mirror) : stop.live) || '' : keys;
+    const text = stop.text + (!isLive() && !keys && stop.sim ? stop.sim : '');
     if (`${text}|${live}` === shown) return;
     shown = `${text}|${live}`;
     body.innerHTML = rich(text);
     tryIt.style.display = live ? '' : 'none';
-    tryIt.replaceChildren(h('b', { class: 'label' }, '在真机上试试'), h('span', { html: rich(live) }));
+    tryIt.replaceChildren(h('b', { class: 'label' }, keys ? '在键盘上试试' : '在真机上试试'), h('span', { html: rich(live) }));
   }
 
   function mountBench() {
@@ -123,7 +126,8 @@ export function panelTour({ onDone, intro } = {}) {
     view.dock(machine);
     label.textContent = isLive()
       ? '面板导览 · 蓝圈圈出来的就是正在讲的部分。左边这台是真机的镜子：在真机上按一按，它会跟着亮'
-      : '面板导览 · 蓝圈圈出来的就是正在讲的部分，可以随手点一点';
+      : learn.keyboard ? '面板导览 · 蓝圈圈出来的就是正在讲的部分。每个键旁边的小方块是电脑上对应的键，随手按一按'
+        : '面板导览 · 蓝圈圈出来的就是正在讲的部分，可以随手点一点';
     model.highlight(TOUR[index].show);
     view.apply();
     renderText();

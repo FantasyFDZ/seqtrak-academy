@@ -11,6 +11,7 @@ import { install } from './walkthrough.js';
 import { findLesson } from '../content/curriculum.js';
 import { simulator } from '../simulator.js';
 import { midi } from '../midi.js';
+import { withKbd } from '../learn-mode.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const SYNTH1 = 7; // 假真机里的轨道号
@@ -52,6 +53,7 @@ async function longPage(w) {
 
 /** 模拟机：在触摸条上从下往上推到 frac（0–1） */
 async function slide(id, frac) {
+  if (window.__walk?.keys) return window.__walk.slideKeys(id, frac); // 键盘走查（?walkkeys）：用 ← → 和 ↑ ↓
   const node = document.querySelector(`.sim [data-id="${id}"]`);
   if (!node) throw new Error(`屏幕上没有控件 ${id}`);
   const r = (node.querySelector('rect') || node).getBoundingClientRect();
@@ -434,19 +436,27 @@ export async function runPlan(plans, id, from = 0, to = Infinity, { force = fals
   const says = [];
   const offSay = fake ? () => {} : simulator.on('say', (t) => says.push(String(t).slice(0, 80)));
   for (let i = from; i <= Math.min(to, lesson.steps.length - 1); i++) {
-    const step = lesson.steps[i];
+    const step = withKbd(lesson.steps[i]); // 键盘学习方式下有的步骤换了说法（content 里的 kbd）
     const title = w.step().title;
     if (title !== step.title) {
       steps.push({ i, title: step.title, ok: false, note: `页面现在停在「${title}」上` });
       break;
     }
+    let r = null;
     if (step.type === 'quiz') quiz(step);
     else if ((step.type === 'free' || step.type === 'reflect') && !plan[i]) [...document.querySelectorAll('.step-body .btn')].find((b) => b.textContent.trim() === '先跳过')?.click();
-    else if (plan[i]) await (fake ? plan[i].fake(w, fake) : plan[i].sim(w));
+    else if (plan[i]) r = await (fake ? plan[i].fake(w, fake) : plan[i].sim(w));
     else if (step.type === 'do') steps.push({ i, title: step.title, note: '这一步走查里没写怎么做' });
+    await w.releaseHeld?.(); // 键盘走查（?walkkeys）：这一步里还按着的键松开
+    // 计划里点了“跳过这一步”（音游、找按键这些和学习方式无关的；见 walk-ch0.js）：页面已经到了下一步
+    if (r === 'skipped') {
+      steps.push({ i, title: step.title, skipped: true });
+      await sleep(600);
+      continue;
+    }
     await sleep(500);
     const now = w.step();
-    const sim = !now.ready && !fake ? { sel: simulator.sel, page: simulator.sdPage, adv: simulator.sdAdvanced, held: simulator.held, says: says.slice(-12), audio: { state: window.__app.audio?.ctx?.state, now: window.__app.audio?.now?.(), playing: simulator.playing, player: simulator.player?.playing, step: simulator.step } } : null;
+    const sim = !now.ready && !fake ? { sel: simulator.sel, page: simulator.sdPage, adv: simulator.sdAdvanced, held: simulator.held, kbd: w.keys ? (await import('../keyboard.js')).kbdDebug() : undefined, says: says.slice(-12), audio: { state: window.__app.audio?.ctx?.state, now: window.__app.audio?.now?.(), playing: simulator.playing, player: simulator.player?.playing, step: simulator.step } } : null;
     steps.push({ i, title: step.title, ok: now.ready, ...(now.tasks ? { tasks: now.tasks } : {}), ...(now.ready ? {} : { note: now.status || w.result() }), ...(sim ? { sim } : {}) });
     if (!now.ready) break;
     await w.next();

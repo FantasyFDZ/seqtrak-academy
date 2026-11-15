@@ -16,7 +16,10 @@
 //     再按住 [PAGE] 按方键 = 粘贴；[ALL] + [PROJECT↑] 在 普通 → Song → Scene 之间换，方键是 scene（空位 = 新加一个，复制当前的），Song 模式按顺序放；
 //     Song 模式里按住 [PAGE] 转 [ALL] 改选中那个 scene 的长度（手册 3.14.8；模拟机上一格一小节，不到一小节时一格一拍，转到最左 = AUTO）；
 //   现场（第 7 章）：模拟机的声音先过一串整台的效果（[FX] 旋钮在 MASTER 上的 FILTER / REVERB / DELAY、[HIGH PASS]、[REPEATER] 触摸条，
-//     手一松就复原）；[ALL] + [MUTE] 静音模式；[PROJECT↑] + 当前工程的方键 = 临时保存，+ 它正下方的方键 = 恢复；[ALL] + [VOL+] 混音台模式（只做演示）。
+//     手一松就复原）；[ALL] + [MUTE] 静音模式；[PROJECT↑] + 当前工程的方键 = 临时保存，+ 它正下方的方键 = 恢复；
+//     [ALL] + [VOL+] 混音台模式（音量、混响 / 延迟送多少听得出来；声像和 [ALL] 只做演示）。
+// 键盘学习方式（keyboard.js 调下面的 kbd* 那几个）：电脑键盘上“按住”就是真的按住——按下去马上算按住，不用等黑圈；
+//   手不松，再按别的键每一下都是组合键。和鼠标的“长按锁定”并存：鼠标长按出来的黑圈照旧，也能和键盘上按着的键配。
 import { Emitter, h, clamp, rich } from './util.js';
 import { createPanel } from './device-panel.js';
 import { LoopPlayer } from './looper.js';
@@ -32,6 +35,18 @@ const SYNTHS = ['SYNTH1', 'SYNTH2', 'DX', 'SAMPLER'];
 const KEYED = ['SYNTH1', 'SYNTH2', 'DX']; // 有音高、有“单音 / 复音 / 和弦”的三条
 const ALL_TRACKS = [...DRUMS, ...SYNTHS];
 const HOLDABLE = new Set(['ALL', ...ALL_TRACKS, 'PROJECT', 'DELETE', 'MUTE', 'SOLO', 'PAGE', 'SD1', 'OCTAVE']);
+// 电脑键盘：单按没有用、只当组合键第一个键的几个。按下去就说一句“按着它再按什么”，不说它的百科
+const PURE_HOLD = new Set(['ALL', 'PROJECT', 'DELETE', 'MUTE', 'SOLO']);
+const KBD_HOLD_SAY = {
+  ALL: '按着 **ALL**：再按别的键是组合键（[VOL+] 进混音台、[MUTE] 进静音模式、[PROJECT↑] 换 Song / Scene 模式、方键 1–3 是 11 条轨道一起换乐句）；按 ↑ / ↓ 是 11 条轨道一起换乐句。',
+  PROJECT: '按着 **[PROJECT↑]**：再按上排第 1–8 个方键，换到那个工程（方键上黄色的是现在这个）。',
+  DELETE: '按着 **[DELETE]**：再按一个轨道键 = 清空它这段乐句；再按 [SWING] = 摇摆归零。',
+  MUTE: '按着 **[MUTE]**：再按轨道键，那条轨道静音 / 取消静音（可以接连按好几条）。',
+  SOLO: '按着 **[SOLO]**：再按轨道键，只听那一条；同样再做一次取消。',
+};
+// 电脑键盘打字快的时候，前一个键还没松，后一个已经按下去了（键盘的“连按”）。前一个键要是单按也有用（轨道键、方键、[PAGE]……），
+// 而且按下去还不到这么久，就当它是单按、后一个另算，免得“按 Z 选底鼓、紧接着按 Q”变成“按住 KICK 再按方键 1 = 换乐句”
+const ROLL_MS = 220;
 
 // ───────────── 第 4 章：模拟机的音色表 ─────────────
 // 机器上每一类有几十上百个音色；模拟机每一类只放一两个，名字都写着“模拟”，免得和真机的音色名混在一起。
@@ -90,6 +105,7 @@ const NATURALS = [0, 2, 4, 5, 7, 9, 11];
 const PAT_MAX = 6; // 每条轨道最多 6 段乐句（出厂 3 段）
 const LOOP_STEPS = 128; // 播放器按 8 小节转（乐句最长 8 小节）；短的乐句在里面自己走好几圈
 const HELLO = '这是一台**模拟机**，点它就会响。先短按左下角的 [PLAY] 听听看。';
+const HELLO_KBD = '这是一台**模拟机**，电脑键盘就是它的键（每个键旁边的小方块写着是哪个）。先按一下 〔空格〕（[PLAY]）听听看。';
 
 const isStepKey = (id) => /^DK\d+$/.test(id || '');
 const noteNames = (notes) => notes.map((n) => midiToName(n).replace(/-?\d+$/, '')).join(' ');
@@ -228,6 +244,10 @@ class Simulator extends Emitter {
   #srcPick = 0; // 长按 [REC SAMPLE] 2 秒之后，到什么时候还能选采样源
   #tempSave = null; // [PROJECT↑] + 当前工程方键的临时保存：{ project, data }
   #recNo = 0;
+  // 键盘学习方式：keyboard = 解说按键盘的说法讲（keyboard.js 跟着学习方式拨）；#kbd = 电脑键盘上正按着的（控件 id → { at 按下的时刻, used 当过组合键的第一个键 / 转过 }）
+  keyboard = false;
+  #kbd = new Map();
+  #kbdHint = 0;
 
   constructor() {
     super();
@@ -406,7 +426,8 @@ class Simulator extends Emitter {
 
   mount({ tips = true } = {}) {
     this.unmount();
-    this.panel = createPanel({ onDown: (id) => this.#down(id), onUp: (id, ms) => this.#up(id, ms), onTurn: (id, dir) => this.#turn(id, dir) });
+    // 鼠标的按下 / 松开（面板还会带上按了几毫秒，这里用不着：#up 的第二个参数是电脑键盘那一份记录，鼠标不给）
+    this.panel = createPanel({ onDown: (id) => this.#down(id), onUp: (id) => this.#up(id), onTurn: (id, dir) => this.#turn(id, dir) });
     // [FX LEVEL] 触摸条要跟着手指走：面板本身只报“按下 / 松开”，这里自己听移动（和小课堂的效果模拟机一样）
     const svg = this.panel.svg;
     svg.addEventListener('pointerdown', (e) => {
@@ -425,13 +446,38 @@ class Simulator extends Emitter {
     svg.addEventListener('pointerup', endSlide);
     svg.addEventListener('pointercancel', endSlide);
     this.sayText = h('span', { html: rich(this.lastSay) });
+    this.tipsEl = tips ? h('div', { class: 'sim-tips' }) : null;
     this.el = h('div', { class: 'sim' },
       this.panel.el,
       h('div', { class: 'sim-bar' }, h('div', { class: 'sim-say' }, h('span', { class: 'led' }), this.sayText)),
-      tips && h('div', { class: 'sim-tips', html: rich('**短按** = 按一下。**长按半秒** = “按住”：出现黑圈后再点第二个键，就是组合键。旋钮可以**上下拖**（或用滚轮）来转。模拟机的鼓轨只有一种音色，合成器轨每一类只有一两个“模拟”音色；白色的轨道灯表示当前选中的是哪一条（真机没有这个区分）。') }),
+      this.tipsEl,
     );
+    this.#renderTips();
     this.#render();
+    this.emit('mount', this.panel);
     return this.el;
+  }
+
+  /** 机器下面那行“怎么操作”：鼠标的说法 / 键盘的说法 */
+  #renderTips() {
+    if (!this.tipsEl) return;
+    this.tipsEl.innerHTML = rich(this.keyboard
+      ? '**键盘**：每个键上的小字就是电脑上对应的键——字母上两排是步进键和 Synth keys，最下一排是轨道，数字行是功能键，〔空格〕是 [PLAY]。**按住**电脑上的键就是按住机器上的键：按着一个再按另一个，就是组合键。按着轨道键再按 〔↑〕〔↓〕 是转它；别的旋钮用鼠标指着它按 〔↑〕〔↓〕。按 〔?〕 看整张键位图。模拟机的鼓轨只有一种音色；白色的轨道灯表示选中的是哪一条（真机没有这个区分）。'
+      : '**短按** = 按一下。**长按半秒** = “按住”：出现黑圈后再点第二个键，就是组合键。旋钮可以**上下拖**（或用滚轮）来转。模拟机的鼓轨只有一种音色，合成器轨每一类只有一两个“模拟”音色；白色的轨道灯表示当前选中的是哪一条（真机没有这个区分）。');
+  }
+
+  /** 键盘学习方式开 / 关：解说和下面那行换说法（键帽上的小字由 keyboard.js 画） */
+  setKeyboard(on) {
+    if (this.keyboard === !!on) return;
+    this.keyboard = !!on;
+    if (!on) this.kbdReleaseAll();
+    if (this.lastSay === HELLO || this.lastSay === HELLO_KBD) this.#say(on ? HELLO_KBD : HELLO);
+    this.#renderTips();
+  }
+
+  /** 解说的两种说法：鼠标的 / 键盘的 */
+  #k(mouse, keys) {
+    return this.keyboard ? keys : mouse;
   }
 
   unmount() {
@@ -443,7 +489,12 @@ class Simulator extends Emitter {
     }
     Object.values(this.#timers).forEach((t) => { clearTimeout(t); clearInterval(t); });
     this.#timers = {};
+    this.#kbd.clear();
+    clearTimeout(this.#kbdHint);
+    this.#endLive('HIGHPASS');
+    this.#endLive('REPEATER');
     this.held = null;
+    this.held2 = null;
     this.#pendingStep = null;
     this.#tapOnUp = null;
     this.#lenShow = null;
@@ -499,7 +550,7 @@ class Simulator extends Emitter {
     this.#redo = null;
     this.#lenShow = null;
     this.panel?.setHeld([]);
-    this.#say(HELLO);
+    this.#say(this.keyboard ? HELLO_KBD : HELLO);
     if (mounted) this.#render();
   }
 
@@ -553,7 +604,7 @@ class Simulator extends Emitter {
     this.#playSample((e.notes[0] ?? 0) + 1, 0, 0.5, e.lock);
     this.#index = 'PITCH';
     this.#meterLater();
-    this.#say(`第 ${step + 1} 步锁了一个音高：**${e.lock > 0 ? '+' : ''}${e.lock} 个半音**（这一步亮紫色，别的步不变）。这叫**参数锁**：一步一个音高，一声关门也能弹出一段旋律。调好了，再点一下被按住的那个键松开。`);
+    this.#say(`第 ${step + 1} 步锁了一个音高：**${e.lock > 0 ? '+' : ''}${e.lock} 个半音**（这一步亮紫色，别的步不变）。这叫**参数锁**：一步一个音高，一声关门也能弹出一段旋律。${this.#k('调好了，再点一下被按住的那个键松开。', '调好了，松开步进键。')}`);
     this.#event('plock', { track: 'SAMPLER', step, value: e.lock });
     this.#render();
   }
@@ -797,30 +848,30 @@ class Simulator extends Emitter {
     return this.proj.synth[tr][this.proj.pat[tr]].has(this.page * 16 + Number(id.slice(2)) - 1);
   }
 
-  #down(id) {
+  #down(id, kbd = false) {
     audio.init();
     this.#ensureFx();
     this.emit('info', id);
     this.#consumed = null;
     if (!this.power) {
       if (id === 'PLAY') this.#armPower();
-      else this.#say('机器关着。**按住 [PLAY] 2 秒**开机。');
+      else this.#say(this.#k('机器关着。**按住 [PLAY] 2 秒**开机。', '机器关着。**按住 〔空格〕 2 秒**开机（[PLAY]）。'));
       return;
     }
     // 正按住一个步进键（步进输入里的某一步）时去碰 ALL 旋钮：那是要转它来改音长，步进键继续按着
     if (isStepKey(this.held) && id === 'ALL') {
       this.#consumed = id;
-      this.#say('现在**上下拖**这个 ALL 旋钮（或者用滚轮）：往上是把这个音拉长，往下是缩短。');
+      this.#say(this.#k('现在**上下拖**这个 ALL 旋钮（或者用滚轮）：往上是把这个音拉长，往下是缩短。', '步进键按着别松，按 〔↑〕 / 〔↓〕 转 ALL：往上是把这个音拉长，往下是缩短。'));
       return;
     }
     if (this.held === 'PAGE' && id === 'ALL' && this.songMode) {
       this.#consumed = id;
-      this.#say('现在**上下拖**这个 ALL 旋钮（或者用滚轮）：改选中的这个 scene 有多长。模拟机上一格一小节（不到一小节时一格一拍），转到最左是 AUTO。');
+      this.#say(this.#k('现在**上下拖**这个 ALL 旋钮（或者用滚轮）：改选中的这个 scene 有多长。模拟机上一格一小节（不到一小节时一格一拍），转到最左是 AUTO。', '[PAGE] 按着别松，按 〔↑〕 / 〔↓〕 转 ALL：改选中的这个 scene 有多长。模拟机上一格一小节（不到一小节时一格一拍），转到最左是 AUTO。'));
       return;
     }
     if (this.held === 'OCTAVE' && id === 'ALL') {
       this.#consumed = id;
-      this.#say('现在**上下拖**这个 ALL 旋钮（或者用滚轮）：往上升八度，往下降八度。');
+      this.#say(this.#k('现在**上下拖**这个 ALL 旋钮（或者用滚轮）：往上升八度，往下降八度。', '[OCTAVE] 按着别松，按 〔↑〕 / 〔↓〕 转 ALL：往上升八度，往下降八度。'));
       return;
     }
     // 真机上转完松手就行；模拟机上“按住”是锁着的：调完八度直接去按别的键，就当已经松开了 [OCTAVE]，那个键照常起作用
@@ -841,8 +892,17 @@ class Simulator extends Emitter {
       this.#consumed = id;
       clearTimeout(this.#timers.patRelease);
       if (this.held2 === 'PAGE') {
+        const page2 = this.#kbd.has('PAGE');
         this.#release();
         this.#pastePattern(mod, n);
+        // 键盘上两个都还按着：接着贴到别的段也行
+        if (this.#kbd.has(mod)) {
+          this.#relatch(mod);
+          if (page2) {
+            this.held2 = 'PAGE';
+            this.panel?.setHeld([mod, 'PAGE']);
+          }
+        }
         return this.#render();
       }
       this.#dkHold = { mod, n, id, copied: false };
@@ -851,6 +911,7 @@ class Simulator extends Emitter {
         this.#dkHold.copied = true;
         this.#release();
         this.#copyPattern(mod, n);
+        if (this.#kbd.has(mod)) this.#relatch(mod);
         this.#render();
       }, 2000);
       this.#say(`（按着第 ${n} 个方键……松手 = 换到第 ${n} 段；按满 2 秒 = 复制这一段。）`);
@@ -861,6 +922,7 @@ class Simulator extends Emitter {
       this.#release();
       this.#consumed = id;
       this.#combo(mod, id);
+      if (this.#kbd.has(mod) && !this.held) this.#relatch(mod); // 电脑键盘上第一个键还按着：它还是按住的，接着按第二个、第三个都是组合键
       this.#render();
       return;
     }
@@ -871,14 +933,31 @@ class Simulator extends Emitter {
       this.#render();
       return;
     }
-    // 步进输入里一个已经有音的步：和真机一样，按下去先不动，松手才把它关掉；长按半秒 = “按住它”
+    // 步进输入里一个已经有音的步：和真机一样，按下去先不动，松手才把它关掉；长按半秒 = “按住它”（电脑键盘上按下去就算按住）
     if (this.#stepHas(id)) {
       this.#pendingStep = id;
-      this.#timers.hold = setTimeout(() => this.#latch(id), 450);
+      if (kbd) this.#kbdLatch(id);
+      else this.#timers.hold = setTimeout(() => this.#latch(id), 450);
       this.#render();
       return;
     }
-    if (HOLDABLE.has(id)) this.#timers.hold = setTimeout(() => this.#latch(id), 450);
+    if (HOLDABLE.has(id)) {
+      if (kbd) this.#kbdLatch(id);
+      else this.#timers.hold = setTimeout(() => this.#latch(id), 450);
+    }
+    // 电脑键盘上按下只当组合键用的键（[MUTE] [PROJECT↑] 这些）：说一句“按着它再按什么”。静音模式里的 [MUTE] / [ALL] 单按有用，照常
+    if (kbd && PURE_HOLD.has(id) && !(this.muteMode && (id === 'MUTE' || id === 'ALL'))) {
+      this.#say(KBD_HOLD_SAY[id]);
+      this.#render();
+      return;
+    }
+    // 电脑键盘上的轨道键：松手时才算“按一下”（选中 / 试听 / 静音模式里静音）。按着它按 ↑ ↓ 是转这个旋钮，按着它按别的键是组合键——
+    // 这两样都不该顺带选中它（真机上转旋钮不会选中那条轨道）
+    if (kbd && TRACK[id]) {
+      this.#tapOnUp = id;
+      this.#render();
+      return;
+    }
     if (id === 'PLAY') {
       this.#armPower();
       return;
@@ -914,7 +993,25 @@ class Simulator extends Emitter {
     this.#render();
   }
 
-  #up(id) {
+  #up(id, kbd = null) {
+    // 电脑键盘松开一个按着的键：没当过组合键的第一个键、按得又不久，才算“单按一下”（[PAGE] 翻页、按灭步进键……）；否则松开就是松开
+    if (kbd) {
+      if (this.held2 === id) {
+        this.held2 = null;
+        this.panel?.setHeld(this.held ? [this.held] : []);
+      }
+      if (this.held === id) {
+        // 轨道键按多久都算单按（按得慢也是“点名”）；[PAGE]、[OCTAVE]、步进键按久了就只是按住过
+        const tap = !kbd.used && (!!TRACK[id] || performance.now() - kbd.at < 450);
+        this.#release();
+        if (!tap) this.#consumed = id;
+        else if (this.#tapOnUp !== id && this.#pendingStep !== id && !this.#dkHold) this.#consumed = id; // 轨道键这些：按下去时已经做过了
+        // 还有别的键按着（比如按着 KICK、又按住 [PAGE] 再松开它）：它还算按住的
+        const still = [...this.#kbd.keys()].reverse().find((x) => HOLDABLE.has(x));
+        if (still) this.#relatch(still);
+      }
+      if (kbd.resolved) this.#consumed = id; // 打字连按时已经当单按处理过了
+    }
     clearTimeout(this.#timers.hold);
     clearTimeout(this.#timers.repeatDelay);
     clearInterval(this.#timers.repeat);
@@ -929,7 +1026,7 @@ class Simulator extends Emitter {
         this.#tapPattern(mod, n);
         clearTimeout(this.#timers.patRelease);
         this.#timers.patRelease = setTimeout(() => {
-          if (this.held === mod && !this.#dkHold) {
+          if (this.held === mod && !this.#dkHold && !this.#kbd.has(mod)) {
             this.#release();
             this.#render();
           }
@@ -985,6 +1082,7 @@ class Simulator extends Emitter {
   #armLatchTimeout() {
     clearTimeout(this.#timers.latch);
     this.#timers.latch = setTimeout(() => {
+      if (this.#kbd.has(this.held)) return; // 电脑键盘上手还按着：不替它松开
       this.#release();
       this.#say('按住太久没有下一步，已经松开。');
       this.#render();
@@ -1001,6 +1099,128 @@ class Simulator extends Emitter {
     // 接着转 ALL 就成了“11 条轨道一起换乐句”（2026-11-11 走查 One Kiss 等四首时踩到的）
     clearTimeout(this.#timers.octave);
     this.panel?.setHeld([]);
+  }
+
+  // ───────────── 电脑键盘（键盘学习方式；keyboard.js 调） ─────────────
+
+  /** 电脑键盘上现在按着的（控件 id，先按的在前） */
+  get kbdHeld() {
+    return [...this.#kbd.keys()];
+  }
+
+  /** 悄悄地把一个键算成按住的（黑圈），不说话：电脑键盘上按下去、或者组合键做完它还按着 */
+  #relatch(id) {
+    this.held = id;
+    this.panel?.setHeld(this.held2 ? [id, this.held2] : [id]);
+  }
+
+  /** 电脑键盘按下就算按住：画上黑圈。按了一会儿还没按第二个键，提醒一句接下来能做什么 */
+  #kbdLatch(id) {
+    clearTimeout(this.#timers.hold);
+    clearTimeout(this.#timers.octave);
+    this.#relatch(id);
+    clearTimeout(this.#kbdHint);
+    if (!isStepKey(id) && id !== 'OCTAVE' && id !== 'PAGE' && !TRACK[id]) return;
+    this.#kbdHint = setTimeout(() => {
+      const k = this.#kbd.get(id);
+      if (!k || k.used || this.held !== id) return;
+      if (TRACK[id]) return this.#say(`按着 **${TRACK[id].label} 旋钮**：按 〔↑〕 / 〔↓〕 是转它（${this.mixer ? `调它的${MIX_PARAMS[this.mixParam][2]}` : '换一段乐句'}）；按着它再按别的键是组合键；什么都不按就松手 = 按一下（选中它）。`);
+      this.#say(isStepKey(id)
+        ? `按着第 ${this.page * 16 + Number(id.slice(2))} 步：按 〔↑〕 / 〔↓〕 改这个音有多长；再按一个 Synth key，把这一步换成那个音${this.stepMode === 'SAMPLER' ? '；鼠标指着旋钮 2 按 〔↑〕 / 〔↓〕，只给这一步锁一个音高' : ''}。松手就放开。`
+        : id === 'OCTAVE' ? '按着 [OCTAVE]：按 〔↑〕 / 〔↓〕 一格一格升降八度。（单按一下 [OCTAVE] 是升一格，到 +2 绕回 −3。）'
+          : '按着 [PAGE]：再按合成器轨的轨道键（〔,〕〔.〕〔/〕〔\\〕），进 / 出它的步进输入。（单按一下 [PAGE] 是翻页。）');
+    }, 600);
+  }
+
+  /** 电脑键盘：按下一个键（id = 面板上的控件） */
+  kbdDown(id) {
+    if (!this.panel || this.#kbd.has(id)) return;
+    const now = performance.now();
+    const mod = this.held;
+    const mk = this.#kbd.get(mod);
+    if (mk) {
+      // 打字连按：前一个键按下去还不久、它单按也有用——先把它当单按做完，这一下另算
+      // （轨道键按着再按方键是“换乐句”，一不小心还会换成 6 段：轨道键给得宽一点）
+      if (!mk.used && !PURE_HOLD.has(mod) && now - mk.at < (TRACK[mod] ? 2 * ROLL_MS : ROLL_MS)) this.#kbdResolve(mod, mk);
+      // 按着轨道键、步进键这些时按 [PLAY]：就是播放（按着 ALL 按 PLAY 才是看电量）
+      else if (id === 'PLAY' && mod !== 'ALL') {
+        this.held = null;
+        this.panel?.setHeld([]);
+      } else mk.used = true;
+    }
+    this.#kbd.set(id, { at: now, used: false });
+    this.#down(id, true);
+    // 按 [PLAY] 时让开的那个键还按着：再算回按住的
+    if (id === 'PLAY' && mk && !mk.resolved && !this.held && this.#kbd.has(mod)) this.#relatch(mod);
+  }
+
+  /** 打字连按里被后一个键“截断”的前一个键：马上当单按做完（[PAGE] 翻页、按灭步进键……），之后它松手时什么都不做 */
+  #kbdResolve(id, rec) {
+    rec.resolved = true;
+    this.#release();
+    if (this.#tapOnUp === id) {
+      this.#tapOnUp = null;
+      if (id === 'PAGE') this.#pageTap();
+      else if (id === 'SDPAGE') this.#sdPageTap();
+      else if (id === 'RECSAMPLE') this.#recSample();
+      else this.#single(id);
+    }
+    if (this.#pendingStep === id) {
+      this.#pendingStep = null;
+      this.#drumKey(Number(id.slice(2)) - 1);
+    }
+    clearTimeout(this.#timers.sdlong);
+    clearTimeout(this.#timers.reclong);
+    this.#render();
+  }
+
+  /** 电脑键盘：松开一个键 */
+  kbdUp(id) {
+    const rec = this.#kbd.get(id);
+    if (!rec) return;
+    this.#kbd.delete(id);
+    this.#up(id, rec);
+  }
+
+  /** 电脑键盘：转一个旋钮一格（↑ = +1）。按着的键算“用过了”，松手不当单按 */
+  kbdTurn(id, dir) {
+    if (!this.panel) return;
+    for (const rec of this.#kbd.values()) rec.used = true;
+    audio.init();
+    this.#ensureFx();
+    if (id === 'FXLEVEL') return this.#fxLevelBy(dir);
+    this.#turn(id, dir);
+  }
+
+  /** 电脑键盘：手指按到触摸条 [HIGH PASS] / [REPEATER] 上（v = 按在多高，0–1）、往上推 / 往下拉、离开 */
+  kbdTouch(id, v) {
+    if (!this.panel || !this.power) return;
+    audio.init();
+    this.#ensureFx();
+    this.#slideLive(id, clamp(v, 0.05, 1));
+    this.#render();
+  }
+
+  kbdUntouch(id) {
+    this.#endLive(id);
+    this.#render();
+  }
+
+  /** 电脑键盘：[FX LEVEL] 往上推 / 往下拉一格（八分之一） */
+  #fxLevelBy(dir) {
+    const target = this.fxSingle ? this.proj.snd[this.sel]?.fx : this.masterFx;
+    this.#fxLevelTo(clamp((target?.level || 0) + dir / 8, 0, 1));
+  }
+
+  /** 窗口失去焦点（切到别的程序）时：电脑键盘上按着的都当已经松开，免得一直按着 */
+  kbdReleaseAll() {
+    for (const id of [...this.#kbd.keys()]) {
+      this.#kbd.get(id).used = true;
+      this.kbdUp(id);
+    }
+    this.#endLive('HIGHPASS');
+    this.#endLive('REPEATER');
+    this.#render();
   }
 
   #repeat(fn) {
@@ -1330,7 +1550,7 @@ class Simulator extends Emitter {
       this.#showDots([8 - mode]); // 最上面三个灯：MONO、POLY、CHORD
       this.#index = mode === 2 ? 'CHORD' : 'MONO/POLY';
       const m = POLY_MODES[mode];
-      this.#say(`${TRACK[this.sel].label} 的弹法：**${m.name}（${m.zh}）**——${m.what}。${mode === 2 ? '按一个 Synth key 试试。' : '继续往上拖，可以转到 CHORD。'}（右边那列文字里亮的是 “${mode === 2 ? 'CHORD' : 'MONO/POLY'}”，小灯最上面三个从上到下是 MONO、POLY、CHORD。）`);
+      this.#say(`${TRACK[this.sel].label} 的弹法：**${m.name}（${m.zh}）**——${m.what}。${mode === 2 ? '按一个 Synth key 试试。' : this.#k('继续往上拖，可以转到 CHORD。', '继续按 〔↑〕，可以转到 CHORD。')}（右边那列文字里亮的是 “${mode === 2 ? 'CHORD' : 'MONO/POLY'}”，小灯最上面三个从上到下是 MONO、POLY、CHORD。）`);
       this.#event('polymode', { track: this.sel, mode });
     } else if (id === 'SD2' && this.sel === 'SAMPLER') {
       this.#turnSamplePitch(dir);
@@ -1415,8 +1635,8 @@ class Simulator extends Emitter {
     this.#remember(tr, param, before, v);
     this.#meter = Object.fromEntries(Array.from({ length: clamp(Math.round(((v - min) / (max - min)) * 8), 1, 8) }, (_, i) => [`METER.${i + 1}`, 'white']));
     this.#meterLater();
-    const demo = ['rev', 'dly', 'eqHi', 'eqLo', 'porta', 'arp', 'arpGate', 'arpSpeed', 'fmAlg'].includes(param) ? '模拟机里这一样只做演示，声音不变。' : '';
-    const way = param === 'cutoff' && !this.#toldFilter ? '（模拟机上往下拖是闷、往上拖是薄；真机上那个旋钮往哪边是哪边，手册没写，转着听。）' : '';
+    const demo = ['eqHi', 'eqLo', 'porta', 'arp', 'arpGate', 'arpSpeed', 'fmAlg'].includes(param) ? '模拟机里这一样只做演示，声音不变。' : '';
+    const way = param === 'cutoff' && !this.#toldFilter ? this.#k('（模拟机上往下拖是闷、往上拖是薄；真机上那个旋钮往哪边是哪边，手册没写，转着听。）', '（模拟机上按 〔↓〕 是闷、按 〔↑〕 是薄；真机上那个旋钮往哪边是哪边，手册没写，转着听。）') : '';
     if (param === 'cutoff') this.#toldFilter = true;
     this.#say(`${TRACK[tr].label} · **${index}**：${what}。现在 **${paramWords(param, v)}**${v === 0 ? '' : `（${v > 0 ? '+' : ''}${v}）`}。${way}${demo}${this.playing ? '' : '按 Synth keys 或 [PLAY] 听。'}`);
     this.#event('param', { track: tr, param, value: v });
@@ -1515,6 +1735,11 @@ class Simulator extends Emitter {
     const { rect, id } = this.#slide;
     const v = clamp(1 - (e.clientY - rect.top) / rect.height, 0, 1);
     if (id === 'HIGHPASS' || id === 'REPEATER') return this.#slideLive(id, v);
+    this.#fxLevelTo(v);
+  }
+
+  /** [FX LEVEL] 推到 v（0–1）：鼠标滑、键盘按 ↑ ↓ 都走这里 */
+  #fxLevelTo(v) {
     const target = this.fxSingle ? this.proj.snd[this.sel]?.fx : this.masterFx;
     if (!target) return this.#say('模拟机里只有三条合成器轨有单轨效果。先选一条合成器轨，或者把 [MASTER/SINGLE] 拨回 MASTER。');
     target.level = v;
@@ -1562,11 +1787,11 @@ class Simulator extends Emitter {
     // 反而是把它松开，接着转 ALL 就成了“11 条轨道一起换乐句”（2026-11-11 走查时踩到的）
     clearTimeout(this.#timers.octave);
     this.#timers.octave = setTimeout(() => {
-      if (this.held !== 'OCTAVE') return;
+      if (this.held !== 'OCTAVE' || this.#kbd.has('OCTAVE')) return;
       this.#release();
       this.#render();
     }, 1200);
-    this.#say(`${TRACK[this.sel].label} 的八度：**${o > 0 ? `+${o}` : o}**（右边那列小灯，自下而上是 −3 到 +2）。停一下就当松开了；接着按别的键也行。`);
+    this.#say(`${TRACK[this.sel].label} 的八度：**${o > 0 ? `+${o}` : o}**（右边那列小灯，自下而上是 −3 到 +2）。${this.#k('停一下就当松开了；接着按别的键也行。', '调好了松开 [OCTAVE]。')}`);
     this.#event('octave', { track: this.sel, value: o });
     this.#render();
   }
@@ -1581,7 +1806,7 @@ class Simulator extends Emitter {
     this.#lenShow = { step, len: e.len };
     this.#meter = Object.fromEntries(Array.from({ length: clamp(Math.ceil(e.len / 2), 1, 8) }, (_, i) => [`METER.${i + 1}`, 'cyan']));
     this.#armLatchTimeout();
-    this.#say(`第 ${step + 1} 步的音现在长 **${e.len} 步**${e.len % 4 === 0 ? `（${e.len / 4} 拍）` : ''}：亮着的那一串步进键就是它占的地方。调好了，再点一下被按住的那个键松开。`);
+    this.#say(`第 ${step + 1} 步的音现在长 **${e.len} 步**${e.len % 4 === 0 ? `（${e.len / 4} 拍）` : ''}：亮着的那一串步进键就是它占的地方。${this.#k('调好了，再点一下被按住的那个键松开。', '调好了，松开步进键。')}`);
     this.#event('notelen', { track: tr, step, len: e.len });
     this.#render();
   }
@@ -1682,7 +1907,7 @@ class Simulator extends Emitter {
     if (mod === 'ALL' && id === 'VOL+') {
       this.mixer = !this.mixer;
       this.#say(this.mixer
-        ? '进了**混音台模式**（Index 上 MIXER 亮）：按右边 4 个旋钮里的一个选要调的（自上而下 声像 / 音量 / 混响送多少 / 延迟送多少），再转各条轨道的旋钮调它。模拟机里这个模式只做演示，声音不变。同样的组合键退出。'
+        ? '进了**混音台模式**（Index 上 MIXER 亮）：按右边 4 个旋钮里的一个选要调的（自上而下 声像 / 音量 / 混响送多少 / 延迟送多少），再转各条轨道的旋钮调它。模拟机里音量、混响和延迟送多少听得出来（声像只做演示）。同样的组合键退出。'
         : '退出了混音台模式：轨道旋钮又是换乐句了。');
       return this.#event('mixer', { on: this.mixer });
     }

@@ -4,6 +4,8 @@ import { seqtrak } from './seqtrak.js';
 import { mirror } from './mirror.js';
 import { store } from './store.js';
 import { resultToText } from './feedback.js';
+import { learn } from './learn-mode.js';
+import { KEYMAP_LINES } from './keymap.js';
 
 export const ctx = {
   where: '路线图首页',
@@ -25,8 +27,11 @@ export const ctx = {
       if (mirror.panel && mirror.v.size) lines.push(`真机镜像读到的状态：${mirror.status().map(([k, v]) => `${k} ${v}`).join('；')}。`);
       const acts = mirror.recentActions();
       if (acts.length) lines.push(`学生最近两分钟在真机上做的事（按先后）：\n${acts.map((a) => `- ${a}`).join('\n')}`);
+    } else if (learn.keyboard) {
+      // 键盘学习方式：手边没有 SEQTRAK，用电脑键盘按屏幕上的模拟机。回答里说到机器上的键，顺带说电脑上按哪个（写成〔Z〕这样，界面上会画成键帽）
+      lines.push(`设备：学生选的是“键盘学习方式”——手边没有 SEQTRAK，用电脑键盘按屏幕上的模拟机（声音是应用自己合成的）。回答里说到机器上的某个键时，顺带说电脑键盘上按哪个，电脑上的键写成〔Z〕〔空格〕〔↑〕这样（不要用方括号，方括号是机器上的键）。键位：\n${KEYMAP_LINES.map((l) => `- ${l}`).join('\n')}`);
     } else {
-      lines.push('设备：没有连接 SEQTRAK，学生在用电脑键盘模拟按键，声音由应用自己发出。');
+      lines.push('设备：没有连接 SEQTRAK，学生在用屏幕上的模拟机（用鼠标点：长按半秒 = 按住，上下拖旋钮 = 转），声音由应用自己发出。');
     }
     // 课号写成“章.节”（1.2），和课程里、AI 回答里的写法一样（小纸条上的课号能点，见 coach.js 的 linkify）
     const done = Object.entries(store.data.lessons).filter(([, v]) => v.done).map(([k]) => k.replace(/^(\d+)-(\d+)$/, '$1.$2'));
