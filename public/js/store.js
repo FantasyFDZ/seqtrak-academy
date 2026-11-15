@@ -20,7 +20,7 @@ const blank = () => ({
   drills: [], // AI 出过的定制练习
   notes: [], // 啾啾的纸条本：收下的小纸条 { id, at, title, body, q }（coach.js）
   game: blankGame(), // 音游攒的经验、徽章、和徽章有关的累计数（见 levels.js）
-  // 另有两个用到才出现的字段：panelQuiz（“找按键”的成绩）、classroom（小课堂学过的关：{ T1: { done, stars, at, times } }，算经验和徽章）
+  // 另有几个用到才出现的字段：panelQuiz（“找按键”的成绩）、classroom（小课堂学过的关：{ T1: { done, stars, at, times, box, due } }，算经验和徽章）、classroomDaily（小课堂每日五分钟做过的日子）
 });
 
 function merge(base, saved) {
@@ -274,6 +274,7 @@ class Store extends Emitter {
       d.songs = { picked: [] };
       delete d.panelQuiz;
       delete d.classroom; // 小课堂学过的关（views/classroom.js 写的）
+      delete d.classroomDaily; // 小课堂的每日五分钟（做过哪几天）
       d.game = blankGame();
       d.game.seen.intro = true;
     });

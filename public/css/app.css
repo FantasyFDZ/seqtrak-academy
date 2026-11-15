@@ -553,6 +553,8 @@ body { overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color:
 .badges-head b { display: block; font: 800 20px/1.2 var(--mono); color: var(--text); }
 .badges-head b small { font-size: 13px; color: var(--muted); }
 .badge-row { display: flex; gap: 12px; flex-wrap: wrap; flex: 1; }
+/* 2026-11-15 小课堂加了两个徽章（一共 15 个）：1024 宽时一行放不下，窄一点的屏幕上把徽章和间距收一点，还是一行 */
+@media (max-width: 1100px) { .badges-main .badge-row { gap: 8px; } .badges-main .badge { width: 42px; height: 42px; } }
 .badge { --b: var(--panel-3); position: relative; flex: none; width: 46px; height: 46px; border-radius: 50%; border: 0; padding: 0; display: grid; place-items: center; background: var(--b); color: var(--line-3); box-shadow: 0 1px 2px var(--shade-2) inset; cursor: pointer; touch-action: manipulation; transition: transform var(--t-move) var(--pop); }
 .badge.picked { outline: 2px solid var(--text-2); outline-offset: 4px; }
 .badge svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

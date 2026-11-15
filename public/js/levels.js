@@ -12,7 +12,9 @@ import { LINES as CLASS_LINES, levelById as classLevel } from './content/classro
 export const XP = {
   step: 10, // 课程里每走完一步
   lesson: [0, 60, 80, 100], // 完成一节课，按星数给（下标 = 几颗星）
-  classroom: [0, 20, 25, 30], // 学完小课堂的一关，按星数给。一关三五分钟，大约是主线课程两三步的量
+  classroom: [0, 20, 25, 30], // 学完小课堂的一关，按牌给（铜 1 星、银 2 星、金 3 星；跳过了挑战也按 1 星算）。一关三五分钟，大约是主线课程两三步的量
+  classroomBoss: [0, 40, 50, 60], // 小课堂每条线的关底大关：几段接力，一关顶两关
+  daily: 15, // 小课堂“每日五分钟”每做完一天（同一天做几次只算一次；当天第一次练习的那 20 另算）
   playBase: 2, // 打完一局音游（看示范不算）
   playAccuracy: 10, // 再加 准确率 × 10，所以一局是 2–12（一局只有十几秒，给多了就成了刷分）
   day: 20, // 每天第一次练习
@@ -71,24 +73,28 @@ function lessonsXp(lessons) {
   return sum;
 }
 
-/** 小课堂的一关值多少经验：state 是进度里 classroom[id] 那一项，没学完是 0。重学拿到更多星，多出来的差额自然就补上了。 */
-export const classroomLevelXp = (state) => (state?.done ? XP.classroom[Math.max(1, Math.min(3, state.stars || 1))] : 0);
+/** 小课堂的一关值多少经验：state 是进度里 classroom[id] 那一项，没学完是 0。重学拿到更多星，多出来的差额自然就补上了。boss = 关底大关 */
+export const classroomLevelXp = (state, boss = false) => (state?.done ? (boss ? XP.classroomBoss : XP.classroom)[Math.max(1, Math.min(3, state.stars || 1))] : 0);
 
 function classroomXp(classroom) {
   let sum = 0;
   for (const [id, state] of Object.entries(classroom || {})) {
-    if (!classLevel(id)) continue; // 清单里已经没有的关不算
-    sum += classroomLevelXp(state);
+    const level = classLevel(id);
+    if (!level || level.id !== id) continue; // 清单里已经没有的关不算（合并掉的旧 id 也不算）
+    sum += classroomLevelXp(state, level.kind === 'boss');
   }
   return sum;
 }
+
+/** 每日五分钟做过几天（progress.json 的 classroomDaily.days） */
+const dailyDays = (data) => Object.keys(data.classroomDaily?.days || {}).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).length;
 
 /** 总经验值，以及它是怎么凑出来的。 */
 export function xpBreakdown(data) {
   const lessons = lessonsXp(data.lessons);
   const days = daysXp(data.practiceDays);
   const plays = Math.max(0, Math.round(data.game?.playXp || 0));
-  const classroom = classroomXp(data.classroom); // 小课堂：和课程一样是从进度算出来的，所以学过的关不用补记、也不会重复给
+  const classroom = classroomXp(data.classroom) + dailyDays(data) * XP.daily; // 小课堂（各关 + 每日五分钟）：和课程一样是从进度算出来的，所以学过的关不用补记、也不会重复给
   const extra = Math.max(0, Math.round(data.game?.extraXp || 0)); // 以上都不是的（store.addXp() 记的账；眼下没有人用）
   return { lessons, days, plays, classroom, extra, total: lessons + days + plays + classroom + extra };
 }
@@ -231,15 +237,33 @@ export const BADGES = [
   },
   {
     id: 'three-lines', name: '三线齐亮', tone: 'violet',
-    how: '小课堂的乐理、节奏、效果三条线，各学完一关',
+    how: '小课堂的乐理、节奏、效果三条线，各学完一关（DJ 线不算在里面）',
     icon: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2.3" fill="currentColor"/><circle cx="15.5" cy="12" r="2.3" fill="currentColor"/><circle cx="10.5" cy="18" r="2.3" fill="currentColor"/>',
     test: (d) => {
       // 每条线最早学完的那一关是什么时候学完的；三条线都有了，徽章的时刻就是最后凑齐的那一下
-      const firsts = CLASS_LINES.map((line) => Object.entries(d.classroom || {})
+      const firsts = CLASS_LINES.filter((line) => line.id !== 'dj').map((line) => Object.entries(d.classroom || {})
         .filter(([id, state]) => state?.done && classLevel(id)?.line === line.id)
         .map(([, state]) => state.at || '')
         .sort()[0]);
       return firsts.every((at) => at !== undefined) && (firsts.sort().pop() || true);
+    },
+  },
+  {
+    id: 'boss', name: '大关', tone: 'yellow',
+    how: '打赢小课堂的任意一个关底大关（乐理、节奏、效果、DJ 每条线最后一关）',
+    icon: '<path d="M4 18h16l-1.5-9-4 3.5L12 6l-2.5 6.5-4-3.5L4 18z"/><path d="M4 21h16"/>',
+    test: (d) => {
+      const at = Object.entries(d.classroom || {}).filter(([id, s]) => s?.done && classLevel(id)?.kind === 'boss' && classLevel(id).id === id).map(([, s]) => s.at || '').sort()[0];
+      return at === undefined ? false : at || true;
+    },
+  },
+  {
+    id: 'daily-7', name: '五分钟 × 7', tone: 'cyan', mark: '7',
+    how: '小课堂的“每日五分钟”做满 7 天（不用连着）',
+    icon: '<circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2"/><path d="M9.5 2.5h5"/>',
+    test: (d) => {
+      const days = Object.keys(d.classroomDaily?.days || {}).sort();
+      return days.length >= 7 ? d.classroomDaily.days[days[6]]?.at || true : false;
     },
   },
 ];

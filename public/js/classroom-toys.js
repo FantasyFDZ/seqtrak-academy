@@ -1,8 +1,7 @@
-// 小课堂里能玩的东西：每关的“玩一玩”和“试一试”。内容（每关用哪个、参数是什么）在 content/classroom.js。
-// 约定：createToy(spec, env, level) → { el, destroy() }
-//   env.touched()      学生动过一下了（玩一玩用：动过几下之后，页面才把这个东西的名字说出来）
-//   env.done(stars)    小挑战过关了，给几颗星（1–3）。可以再玩，取最好的一次
-//   env.live           是不是接着真机
+// 小课堂里能玩的东西：每关的“玩一玩”和“挑战”。内容（每关用哪个、参数是什么）在 content/classroom.js。
+// 约定：createToy(spec, env, level) → { el, destroy() }，env 的几样见 classroom-kit.js 开头（env.tier 是铜 1 / 银 2 / 金 3）。
+// 这个文件是乐理、节奏、效果三条线的玩具和入口（createToy、tierSpec）；几种听辨题的骨架在 classroom-ear.js，
+// 节奏挑战（音游引擎）在 classroom-rhythm.js，DJ 线在 classroom-dj.js。
 // 都按手指的大小做：能点的东西至少 44 像素，不靠悬停，不靠键盘。声音全是应用自己合成的。
 import { h, rich, clamp, mean, stddev } from './util.js';
 import { audio } from './audio.js';
@@ -11,197 +10,16 @@ import { midi } from './midi.js';
 import { store } from './store.js';
 import { sfx } from './sfx.js';
 import { confetti, pop } from './fx.js';
-import { SCALES, chordNotes, chordMood, synthKeyNotes } from './scales.js';
-import { createFxLab, ROOMS, ECHOES, EFFECTS } from './fxlab.js';
+import { SCALES, chordNotes, chordMood, synthKeyNotes, synthKeyNote, chordName, KEY_NAMES } from './scales.js';
+import { createFxLab, FxEngine, ROOMS, ECHOES, EFFECTS } from './fxlab.js';
+import {
+  NAMES, pick, shuffle, tapTime, ms, byTier, playButton, tapPad, pad16, keys16, playNotes, playChord, playChords, listenQuiz, playLoopOnce, starsByWrong, passLine, synthKeyRow,
+} from './classroom-kit.js';
+import { orderQuiz, oddQuiz, memoryQuiz, dictateQuiz, echoQuiz, askQuiz, randomPhrase } from './classroom-ear.js';
+import { RHYTHM_TOYS } from './classroom-rhythm.js';
+import { DJ_TOYS } from './classroom-dj.js';
 
-// ───────────── 公用的小零件 ─────────────
-
-const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const shuffle = (arr) => arr.map((v) => [Math.random(), v]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
-/** 一次敲击落在音频时钟的哪一刻（算上「设备」页校准出来的输入延迟） */
-const tapTime = (perfMs) => audio.perfToCtx(perfMs - (store.settings.inputOffsetMs || 0));
-const ms = (sec) => Math.round(sec * 1000);
-
-function playButton(player, { onToggle } = {}) {
-  const btn = h('button', { class: 'btn primary lg cl-play', type: 'button' }, '▶ 播放');
-  const paint = () => (btn.textContent = player.playing ? '■ 停' : '▶ 播放');
-  btn.addEventListener('click', () => {
-    player.toggle();
-    paint();
-    onToggle?.(player.playing);
-  });
-  return Object.assign(btn, { paint });
-}
-
-/** 一块大垫子：拍它。手指、鼠标、空格键、真机上的任何一个音都算一下 */
-function tapPad(label, onHit, sub = '') {
-  const el = h('button', { class: 'cl-pad', type: 'button', 'data-sfx': 'none' }, h('b', {}, label), sub && h('span', {}, sub));
-  const hit = (perfMs) => {
-    el.classList.add('hit');
-    setTimeout(() => el.classList.remove('hit'), 90);
-    onHit(perfMs);
-  };
-  el.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    hit(e.timeStamp);
-  });
-  el.addEventListener('keydown', (e) => {
-    if ((e.key !== ' ' && e.key !== 'Enter') || e.repeat) return;
-    e.preventDefault();
-    hit(e.timeStamp);
-  });
-  const off = midi.on('noteon', (m) => hit(m.time ?? performance.now()));
-  return { el, destroy: off };
-}
-
-const pad16 = (p) => String(p || '').replace(/[^xX-]/g, '').toLowerCase().padEnd(16, '-').slice(0, 16);
-
-/** 16 个格子，摆成机器上那两排方键的样子（上排 1–8，下排 9–16）。editable = 可以点 */
-function keys16({ pattern = '', editable = false, onChange, small = false } = {}) {
-  let p = pad16(pattern);
-  const cells = Array.from({ length: 16 }, (_, i) => h(editable ? 'button' : 'i', { class: 'cl-key', type: editable ? 'button' : null, 'data-sfx': 'none', 'aria-label': `第 ${i + 1} 格` }, small ? null : h('span', {}, String(i + 1))));
-  const el = h('div', { class: ['cl-keys', small && 'small'] }, cells);
-  const paint = () => cells.forEach((c, i) => c.classList.toggle('on', p[i] === 'x'));
-  if (editable) {
-    cells.forEach((c, i) => c.addEventListener('click', () => {
-      p = p.slice(0, i) + (p[i] === 'x' ? '-' : 'x') + p.slice(i + 1);
-      paint();
-      onChange?.(p, i);
-    }));
-  }
-  paint();
-  return {
-    el,
-    get: () => p,
-    set(v) {
-      p = pad16(v);
-      paint();
-    },
-    setHead(s) {
-      cells.forEach((c, i) => c.classList.toggle('head', i === s));
-    },
-  };
-}
-
-/** 一串音，隔 gap 秒一个地放出来 */
-function playNotes(notes, { gap = 0.3, len = 0.42, voice = 'keys', vel = 0.85 } = {}) {
-  audio.init().then((ok) => {
-    if (!ok) return;
-    const t0 = audio.now() + 0.04;
-    notes.forEach((n, i) => n !== null && audio.note(n, t0 + i * gap, len, { voice, vel }));
-  });
-}
-
-/** 几个音一起响；spread = 先一个一个，再一起 */
-function playChord(notes, { spread = false, voice = 'keys' } = {}) {
-  audio.init().then((ok) => {
-    if (!ok) return;
-    const t0 = audio.now() + 0.03;
-    if (spread) notes.forEach((n, i) => audio.note(n, t0 + i * 0.32, 0.4, { voice, vel: 0.8 }));
-    const at = spread ? t0 + notes.length * 0.32 + 0.1 : t0;
-    notes.forEach((n, i) => audio.note(n, at + i * 0.012, 1.1, { voice, vel: notes.length > 1 ? 0.55 : 0.85 }));
-  });
-}
-
-/**
- * “听一听，选一个”的公用骨架。答对 need 题过关；答错不扣分，马上换下一题。星星看错了几次。
- * make() → { play() → 停止函数, options: [{ label 或 node, right }], say: { right, wrong }, reveal?() }
- * stage：摆在题目上面的东西（比如一台实验台）。
- */
-function listenQuiz({ need = 3, env, make, stage = null, listenLabel = '▶ 听' }) {
-  let right = 0;
-  let wrong = 0;
-  let round = null;
-  let locked = false;
-  let stopPlay = () => {};
-  let timer = 0;
-  let fresh = true;
-  const lamps = h('div', { class: 'cl-lamps', 'aria-label': '答对了几题' });
-  const listen = h('button', { class: 'btn primary lg cl-listen', type: 'button' }, listenLabel);
-  const opts = h('div', { class: 'cl-opts' });
-  const note = h('div', { class: 'cl-note' });
-  const el = h('div', { class: ['cl-quiz', stage && 'has-stage'] }, stage, h('div', { class: 'cl-quiz-top' }, listen, lamps), opts, note);
-
-  const paintLamps = () => lamps.replaceChildren(...Array.from({ length: need }, (_, i) => h('i', { class: i < right ? 'on' : '' })));
-  // auto = 换题之后自己接着放的那一次（不是学生点的）
-  const play = (auto) => {
-    stopPlay();
-    stopPlay = round.play(auto) || (() => {});
-  };
-  listen.addEventListener('click', () => play(false));
-
-  function next(auto) {
-    clearTimeout(timer);
-    locked = false;
-    round = make();
-    opts.replaceChildren(...round.options.map((o) => {
-      const btn = h('button', { class: ['cl-opt', o.node && 'card'], type: 'button' }, o.node || o.label);
-      btn.addEventListener('click', () => choose(o, btn));
-      btn.__right = !!o.right; // 给走查脚本用（dev/walk-classroom.js）
-      o.btn = btn;
-      return btn;
-    }));
-    note.textContent = fresh ? '先点「听」。可以反复听。' : '下一题。';
-    if (auto) play();
-  }
-
-  function choose(o, btn) {
-    if (locked) return;
-    locked = true;
-    fresh = false;
-    round.reveal?.();
-    btn.classList.add(o.right ? 'right' : 'wrong');
-    round.options.forEach((x) => x.right && x.btn.classList.add('right'));
-    if (o.right) {
-      right++;
-      sfx.play('ok');
-      pop(lamps.children[right - 1]);
-    } else {
-      wrong++;
-      sfx.play('nope');
-    }
-    paintLamps();
-    note.innerHTML = rich(o.right ? `✓ ${round.say?.right || '对了。'}` : round.say?.wrong || '不是这个。');
-    if (right >= need) return finish();
-    timer = setTimeout(() => next(true), o.right ? 1500 : 2800);
-  }
-
-  function finish() {
-    const stars = wrong === 0 ? 3 : wrong === 1 ? 2 : 1;
-    env.done(stars);
-    confetti(lamps, 18);
-    const again = h('button', { class: 'btn sm', type: 'button' }, '再玩一轮');
-    again.addEventListener('click', () => {
-      right = 0;
-      wrong = 0;
-      paintLamps();
-      next(true);
-    });
-    note.append(h('div', { class: 'cl-pass' }, `过关。${wrong ? `中间错了 ${wrong} 次，不要紧。` : '一次都没错。'}`, again));
-  }
-
-  paintLamps();
-  next(false);
-  return {
-    el,
-    destroy() {
-      clearTimeout(timer);
-      stopPlay();
-    },
-  };
-}
-
-/** 放一小段循环，放满 bars 小节自己停。返回停止函数 */
-function playLoopOnce(player, bars = 2) {
-  player.stop();
-  player.start();
-  const id = setTimeout(() => player.stop(), (60 / player.bpm) * 4 * bars * 1000 + 60);
-  return () => {
-    clearTimeout(id);
-    player.stop();
-  };
-}
+// 公用的小零件（按钮、垫子、16 个格子、放音、“听一听选一个”的骨架）在 classroom-kit.js
 
 // ───────────── T1 四个一组 ─────────────
 
@@ -732,7 +550,7 @@ function swingtap(spec, env) {
     { id: 'swung', name: '晃的', swing: 0.3, lo: 0.585, hi: 0.82, how: '第二下晚一点：嗒——嗒、嗒——嗒。' },
   ];
   let phase = 0;
-  let guide = true;
+  let guide = spec.guide !== false;
   let retries = 0;
   let beats = [];
   let lastDown = null;
@@ -937,7 +755,7 @@ function drywet(spec, env) {
     const on = Math.random() < 0.55;
     const effect = pick(['delay', 'reverb', 'lowpass']);
     return {
-      patch: { effect, on, amount: effect === 'lowpass' ? 0.72 : 0.8, room: 1, echo: 0 },
+      patch: { effect, on, amount: (effect === 'lowpass' ? 0.72 : 0.8) * (spec.subtle || 1), room: 1, echo: 0 },
       options: [{ label: '原声', right: !on }, { label: '加了效果', right: on }],
       say: on
         ? { right: `加了“${EFFECTS[effect].name}”。看画面：彩色比灰色多出来的那部分就是它。`, wrong: `其实加了“${EFFECTS[effect].name}”。看画面：彩色和灰色不一样的地方就是它。` }
@@ -971,7 +789,10 @@ function whichecho(spec, env) {
 
 /** 先听目标，再把竖条推到一样闷的地方。三次 */
 function matchcut(spec, env) {
-  const lab = createFxLab({ effect: 'lowpass', amount: 0, on: true });
+  const fxName = spec.effect || 'lowpass';
+  const word = spec.word || '闷';
+  const tol = spec.tol || 0.13;
+  const lab = createFxLab({ effect: fxName, amount: 0, on: true });
   const TARGETS = [[0.3, 0.45], [0.52, 0.68], [0.76, 0.92]];
   let order = shuffle(TARGETS);
   let round = 0;
@@ -994,7 +815,7 @@ function matchcut(spec, env) {
   };
   function start() {
     target = order[round][0] + Math.random() * (order[round][1] - order[round][0]);
-    note.textContent = `第 ${round + 1} 次：点「听目标」，记住它有多闷。`;
+    note.textContent = `第 ${round + 1} 次：点「听目标」，记住它有多${word}。`;
     here.disabled = true;
     lab.set({ amount: 0 });
   }
@@ -1012,14 +833,14 @@ function matchcut(spec, env) {
       lab.scope.setHidden(false);
       lab.engine.set({ amount: mine, on: true });
       here.disabled = false;
-      note.textContent = '现在是你的。推竖条，推到和刚才一样闷，再点「就是这儿」。目标可以反复听。';
+      note.textContent = `现在是你的。推竖条，推到和刚才一样${word}，再点「就是这儿」。目标可以反复听。`;
     }, 3200);
   });
   here.addEventListener('click', () => {
     if (previewing) endPreview();
     const mine = lab.strip.value;
     const diff = Math.abs(mine - target);
-    const ok = diff <= 0.13;
+    const ok = diff <= tol;
     marks.push(ok);
     if (ok) hits++;
     sfx.play(ok ? 'ok' : 'nope');
@@ -1036,7 +857,7 @@ function matchcut(spec, env) {
       note.append(' ', again);
       return;
     }
-    const lead = ok ? `✓ 很近：${where}。` : `${where}：${mine < target ? '还不够闷' : '捂过头了'}。`;
+    const lead = ok ? `✓ 很近：${where}。` : `${where}：${mine < target ? `还不够${word}` : `${word}过头了`}。`;
     start();
     note.textContent = `${lead} 下一次：点「听目标」。`;
   });
@@ -1046,13 +867,680 @@ function matchcut(spec, env) {
   return { el, destroy: () => { clearTimeout(previewing); lab.destroy(); } };
 }
 
+// ───────────── 2026-11-15 新开的关用的玩具 ─────────────
+
+/** 一个只出声、不带界面的效果引擎：做题时每张牌放两小节就停 */
+function fxClip(loop) {
+  const engine = new FxEngine({ loop });
+  let timer = 0;
+  const stop = () => {
+    clearTimeout(timer);
+    engine.stop();
+  };
+  return {
+    engine,
+    play(patch, bars = 2) {
+      stop();
+      engine.set(patch);
+      engine.start();
+      timer = setTimeout(stop, (60 / engine.bpm) * 4 * bars * 1000 + 80);
+      return stop;
+    },
+    stop,
+    destroy() {
+      stop();
+      engine.destroy();
+    },
+  };
+}
+
+// ── T2 把一拍切开：格子听写 ──
+
+const SUB = { 1: 'x---', 2: 'x-x-', 4: 'xxxx', and: '--x-', ea: 'x-xx', rest: '----' };
+function subdict(spec, env) {
+  return dictateQuiz(spec, env, () => {
+    let beats;
+    if ((env.tier || 1) <= 1) {
+      const [a, b] = pick([[1, 2], [2, 1], [2, 4], [4, 2], [1, 4]]);
+      beats = [a, a, b, b];
+    } else if (env.tier === 2) {
+      do beats = [0, 0, 0, 0].map(() => pick([1, 2, 4])); while (new Set(beats).size < 2);
+    } else {
+      do beats = [0, 0, 0, 0].map(() => pick([1, 2, 4, 'and', 'ea'])); while (new Set(beats).size < 3);
+    }
+    return {
+      target: beats.map((b) => SUB[b]).join(''),
+      track: 'HAT1', label: '闭镲', bpm: 84, bars: 2,
+      backing: { KICK: 'x---x---x---x---' },
+      say: '底鼓每拍一下，帮你数拍子。听镲在每一拍里响了几下，在格子上点出来（每 4 格是一拍）。',
+    };
+  });
+}
+
+// ── T6 一格和两格 ──
+
+const BLACK = new Set([1, 3, 6, 8, 10]);
+/** 13 个键排成一排（C 到高一层的 C），黑键白键都在：一格就是挨着的下一个键，不管黑白 */
+function chromatic(spec, env) {
+  let at = 0;
+  const keys = Array.from({ length: 13 }, (_, i) => {
+    const k = h('button', { class: ['cl-chrom', BLACK.has(i % 12) && 'black'], type: 'button', 'data-sfx': 'none' }, h('b', {}, NAMES[i % 12]), h('span', {}, String(i)));
+    k.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      go(i, true);
+    });
+    return k;
+  });
+  const say = h('div', { class: 'cl-note' }, '点一个键当起点，再点“走一格”“走两格”。');
+  function go(i, tap) {
+    const from = at;
+    at = clamp(i, 0, 12);
+    playNotes(tap ? [60 + at] : [60 + from, 60 + at], { gap: 0.42, len: 0.5 });
+    keys.forEach((k, j) => {
+      k.classList.toggle('here', j === at);
+      k.classList.toggle('from', !tap && j === from);
+    });
+    const d = Math.abs(at - from);
+    if (!tap && d === 0) return (say.textContent = '到头了：换个方向走。');
+    say.innerHTML = rich(tap ? `起点：**${NAMES[at % 12]}**。` : `从 ${NAMES[from % 12]} 到 ${NAMES[at % 12]}：**${d === 1 ? '一格，叫半音' : d === 2 ? '两格，叫全音' : `${d} 格`}**。${d === 1 && !BLACK.has(from % 12) && !BLACK.has(at % 12) ? '两个白键挨着，中间没有黑键：它们也只差一格。' : ''}`);
+    env.touched();
+  }
+  keys[0].classList.add('here');
+  const el = h('div', { class: 'cl-toy cl-chromatic' },
+    h('div', { class: 'cl-row' },
+      h('button', { class: 'btn', type: 'button', onclick: () => go(at - 2) }, '← 退两格'),
+      h('button', { class: 'btn', type: 'button', onclick: () => go(at - 1) }, '← 退一格'),
+      h('button', { class: 'btn primary', type: 'button', onclick: () => go(at + 1) }, '走一格 →'),
+      h('button', { class: 'btn primary', type: 'button', onclick: () => go(at + 2) }, '走两格 →')),
+    h('div', { class: 'cl-cap' }, '一个八度里一共 12 格：C 到高一层的 C 正好走 12 格'),
+    h('div', { class: 'cl-chroms' }, keys), say);
+  return { el, destroy() {} };
+}
+
+function steps12(spec, env) {
+  const gold = (env.tier || 1) >= 3;
+  return listenQuiz({
+    need: spec.need, env,
+    make() {
+      const d = pick(gold ? [1, 2, 3] : [1, 2]);
+      const base = 60 + Math.floor(Math.random() * 9);
+      const up = Math.random() < 0.6;
+      const notes = up ? [base, base + d] : [base + d, base];
+      const words = { 1: '一格（半音）', 2: '两格（全音）', 3: '三格' };
+      return {
+        play: () => playNotes(notes, { gap: 0.6, len: 0.55 }),
+        options: (gold ? [1, 2, 3] : [1, 2]).map((n) => ({ label: words[n], right: n === d })),
+        say: { right: `${NAMES[notes[0] % 12]} → ${NAMES[notes[1] % 12]}：${words[d]}。`, wrong: `是**${words[d]}**：${NAMES[notes[0] % 12]} → ${NAMES[notes[1] % 12]}。半音听着“挤”，全音宽一点。` },
+      };
+    },
+  });
+}
+
+// ── T8 怎么按都不难听：五声 ──
+
+const PENTA = SCALES[2].offsets; // MINOR PENTATONIC：0 3 5 7 10 12 15
+function pentajam(spec, env) {
+  let mode = 'penta';
+  const player = new LoopPlayer({ bpm: 92 }).set({ KICK: 'x-------x-x-----', SNARE: '----x-------x---', HAT1: 'x-x-x-x-x-x-x-x-' }, [[0, 36, 6], [8, 36, 3], [11, 43, 2], [14, 34, 2]]);
+  const box = h('div', { class: 'cl-penta-keys' });
+  const say = h('div', { class: 'cl-note' });
+  const keysFor = () => (mode === 'penta' ? [0, 1, 2, 3, 4, 5].map((i) => 60 + PENTA[i]) : Array.from({ length: 13 }, (_, i) => 60 + i));
+  const paint = () => {
+    box.replaceChildren(...keysFor().map((m) => {
+      const b = h('button', { class: ['cl-wkey', BLACK.has(m % 12) && 'black'], type: 'button', 'data-sfx': 'none' }, h('b', {}, NAMES[m % 12]));
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        audio.init().then((ok) => ok && audio.note(m + 12, audio.now() + 0.01, 0.45, { voice: 'pluck', vel: 0.85 }));
+        b.classList.add('down');
+        setTimeout(() => b.classList.remove('down'), 150);
+        env.touched();
+      });
+      return b;
+    }));
+    box.style.gridTemplateColumns = `repeat(${keysFor().length}, minmax(0, 1fr))`;
+    say.innerHTML = rich(mode === 'penta' ? '这几个键是 **C 小调五声**：C、D#、F、G、A#，再加一个高一层的 C。点「播放」，跟着鼓**乱按**：怎么按都不难听。' : '现在是 **12 个键全上**。再乱按试试：有的音会“酸”，跟伴奏打架。');
+  };
+  const seg = h('div', { class: 'seg cl-seg' });
+  const paintSeg = () => seg.replaceChildren(
+    h('button', { type: 'button', class: mode === 'penta' ? 'on' : '', onclick: () => { mode = 'penta'; paintSeg(); paint(); env.touched(); } }, '五声：5 个音'),
+    h('button', { type: 'button', class: mode === 'all' ? 'on' : '', onclick: () => { mode = 'all'; paintSeg(); paint(); env.touched(); } }, '12 个全上'));
+  paintSeg();
+  paint();
+  const el = h('div', { class: 'cl-toy cl-penta' }, h('div', { class: 'cl-row' }, playButton(player), seg), box, say);
+  return { el, destroy: () => player.stop() };
+}
+
+function pentaecho(spec, env) {
+  return echoQuiz(spec, env, (len) => ({
+    degrees: randomPhrase([1, 2, 3, 4, 5], len, 2),
+    keys: [1, 2, 3, 4, 5, 6],
+    scale: 2, key: 0, octave: 0,
+    names: Object.fromEntries([1, 2, 3, 4, 5, 6].map((d) => [d, NAMES[(60 + PENTA[d - 1]) % 12]])),
+  }));
+}
+
+// ── T9 两个音的距离 ──
+
+const INTERVALS = [
+  { n: 2, name: '二度', mood: '挤', semis: 2, say: '挨着的两个音：挤、有点紧张。' },
+  { n: 3, name: '三度', mood: '甜', semis: 4, say: '隔一个：甜，最常见的“和声”。' },
+  { n: 5, name: '五度', mood: '稳', semis: 7, say: '隔三个：稳、空旷，力量感。' },
+  { n: 8, name: '八度', mood: '空', semis: 12, say: '同一个名字，高一层：几乎合成一个音。' },
+  { n: 6, name: '六度', mood: '宽', semis: 9, say: '比三度再宽一点：也甜，更开阔。' },
+];
+function intervals(spec, env) {
+  const MINOR = SCALES[0].offsets;
+  const note = (d) => 60 + MINOR[(d - 1) % 7] + (d > 7 ? 12 : 0);
+  const say = h('div', { class: 'cl-note' }, '地基是键 1。点上面任何一个键：它和地基一起响。');
+  const badge = h('div', { class: 'cl-badge' });
+  let last = 0;
+  const row = synthKeyRow({
+    keys: [2, 3, 4, 5, 6, 7, 8],
+    label: (d) => `${d === 8 ? '高 1' : `键 ${d}`}`,
+    sub: (d) => NAMES[note(d) % 12],
+    onPress: (d, b) => {
+      last = d;
+      const ns = [note(1), note(d)];
+      playChord(ns, { spread: true });
+      const iv = INTERVALS.find((x) => x.n === d);
+      badge.textContent = iv ? `${iv.name} · ${iv.mood}` : `${d} 度`;
+      badge.dataset.mood = iv?.mood === '甜' ? 'major' : iv?.mood === '稳' ? 'minor' : '';
+      say.innerHTML = rich(iv ? `键 1 和键 ${d === 8 ? '高 1' : d}：**${iv.name}**，${iv.say}` : `键 1 和键 ${d}：${d} 度。`);
+      row.btns.forEach((x) => x.classList.toggle('on', x === b));
+      env.touched();
+    },
+  });
+  const base = h('div', { class: 'cl-ground' }, h('b', {}, '地基 · 键 1'), h('span', {}, NAMES[note(1) % 12]));
+  const el = h('div', { class: 'cl-toy cl-iv' },
+    h('div', { class: 'cl-row' }, h('button', { class: 'btn', type: 'button', onclick: () => last && (playChord([note(1), note(last)]), env.touched()) }, '▶ 再一起响一下'), h('span', { class: 'spacer' }), badge),
+    row.el, base, say);
+  return { el, destroy() {} };
+}
+
+function intervalmem(spec, env) {
+  const tier = env.tier || 1;
+  return memoryQuiz(spec, env, (pairs) => ({
+    groups: INTERVALS.slice(0, pairs).map((iv) => {
+      const same = 60 + pick([0, 2, 5, 7]);
+      return {
+        id: iv.name, name: `${iv.name} · ${iv.mood}`, say: iv.say,
+        play: () => {
+          const r = tier <= 1 ? same : 57 + Math.floor(Math.random() * 8);
+          playChord([r, r + iv.semis], { spread: true });
+        },
+      };
+    }),
+  }));
+}
+
+// ── T11 四个和弦走天下 ──
+
+const PROGS = [
+  { keys: [1, 6, 3, 7], songs: ['wake-me-up', 'faded'], name: 'Wake Me Up、Faded' },
+  { keys: [6, 4, 5, 1], songs: ['gangstas-paradise'], name: "Gangsta's Paradise" },
+  { keys: [6, 7, 1, 7], songs: ['something-just-like-this'], name: 'Something Just Like This' },
+  { keys: [1, 7, 6, 7], songs: ['starboy'], name: 'Starboy' },
+];
+const chordOf = (k) => chordNotes(k, { scale: 0, size: 4 });
+
+function progression(spec, env) {
+  let prog = [...PROGS[0].keys];
+  const player = new LoopPlayer({ bpm: 100, steps: 64 });
+  let head = -1;
+  player.onSchedule = (step, t) => {
+    if (step % 4 === 0) audio.drum('KICK', t, 0.8);
+    if (step % 8 === 4) audio.drum('SNARE', t, 0.6);
+    if (step % 16 === 0) {
+      const k = prog[step / 16];
+      chordOf(k).forEach((n, i) => audio.note(n, t + i * 0.008, (60 / 100) * 4 * 0.95, { voice: 'keys', vel: 0.42 }));
+      audio.note(chordOf(k)[0] - 24, t, (60 / 100) * 3.6, { voice: 'bass', vel: 0.8 });
+    }
+  };
+  const tiles = h('div', { class: 'cl-prog' });
+  const say = h('div', { class: 'cl-note' });
+  player.onStep((s) => {
+    head = s < 0 ? -1 : Math.floor(s / 16);
+    [...tiles.children].forEach((t, i) => t.classList.toggle('now', i === head));
+  });
+  function paint() {
+    tiles.replaceChildren(...prog.map((k, i) => {
+      const t = h('button', { class: 'cl-ptile', type: 'button', 'data-sfx': 'none' }, h('b', {}, `键 ${k}`), h('span', {}, chordName(chordOf(k))), h('em', {}, '点一下换'));
+      t.addEventListener('click', () => {
+        prog[i] = (prog[i] % 7) + 1;
+        paint();
+        playChord(chordOf(prog[i]));
+        env.touched();
+      });
+      return t;
+    }));
+    const hit = PROGS.find((p) => p.keys.join() === prog.join());
+    say.innerHTML = rich(hit ? `这一套是 **${prog.join(' → ')}**：${hit.name} 用的就是它。` : `现在是 ${prog.join(' → ')}。点上面的预设听听熟悉的那几套。`);
+  }
+  const presets = h('div', { class: 'seg cl-seg' }, PROGS.map((p) => h('button', { type: 'button', onclick: () => { prog = [...p.keys]; paint(); env.touched(); } }, p.keys.join('-'))));
+  paint();
+  const el = h('div', { class: 'cl-toy cl-progtoy' },
+    h('div', { class: 'cl-row' }, playButton(player), presets),
+    h('div', { class: 'cl-cap' }, '一个和弦一小节，四个转一圈。机器上就是 CHORD 弹法下按这几个 Synth key'),
+    tiles, say);
+  return { el, destroy: () => player.stop() };
+}
+
+function progorder(spec, env) {
+  const tier = env.tier || 1;
+  // 和弦进行就 4 个和弦：金那一档也是 4 张牌（换成随便拼的 4 个）
+  return orderQuiz({ cards: byTier(tier, [3, 4, 4]), ...spec, each: 1.1 }, env, (n) => {
+    let keys;
+    if (tier >= 3) {
+      keys = shuffle([1, 2, 3, 4, 5, 6, 7]).slice(0, 4);
+    } else {
+      keys = [...pick(PROGS.filter((p) => new Set(p.keys).size === 4)).keys].slice(0, n);
+    }
+    keys = keys.slice(0, n);
+    const order = shuffle(keys.map((k, i) => [k, i]));
+    return {
+      items: order.map(([k]) => ({ tag: '点我听', play: () => playChord(chordOf(k)) })),
+      rank: order.map(([, i]) => i),
+      ends: ['第一个', '最后一个'],
+      target: () => playChords(keys.map(chordOf), { beat: 1 }),
+      say: { right: `这一串是键 ${keys.join(' → ')}。` },
+    };
+  });
+}
+
+// ── T12 整首歌搬个家 ──
+
+function transpose(spec, env) {
+  let key = 0;
+  const riff = [1, 3, 5, 3, 6, 5, 3, 1];
+  const player = new LoopPlayer({ bpm: 104, steps: 16 });
+  player.onSchedule = (step, t) => {
+    if (step % 4 === 0) audio.drum('KICK', t, 0.7);
+    if (step % 2 === 0) audio.note(synthKeyNote(riff[step / 2], { scale: 0, key }), t, 0.26, { voice: 'pluck', vel: 0.85 });
+    if (step === 0) audio.note(synthKeyNote(1, { scale: 0, key, octave: -2 }), t, 1.6, { voice: 'bass', vel: 0.8 });
+  };
+  const row = synthKeyRow({ keys: [1, 2, 3, 4, 5, 6, 7], label: (d) => `键 ${d}`, onPress: (d) => { playNotes([synthKeyNote(d, { scale: 0, key })]); env.touched(); } });
+  const name = h('b', {});
+  const say = h('div', { class: 'cl-note' });
+  const paint = () => {
+    name.textContent = `${KEY_NAMES[(key + 12) % 12]} 小调`;
+    row.btns.forEach((b, i) => (b.querySelector('span').textContent = NAMES[synthKeyNote(i + 1, { scale: 0, key }) % 12]));
+    say.innerHTML = rich(key === 0 ? '现在在 **C**。点「播放」，再按 KEY −/+：旋律还是那一串键，整首一起搬家。' : `往${key > 0 ? '上' : '下'}搬了 **${Math.abs(key)} 格**（${Math.abs(key)} 个半音）：每个键下面的音名都跟着变了，弹的还是同一串键。`);
+  };
+  const move = (d) => {
+    key = clamp(key + d, -6, 6);
+    paint();
+    env.touched();
+  };
+  paint();
+  const el = h('div', { class: 'cl-toy cl-trans' },
+    h('div', { class: 'cl-row' }, playButton(player), h('button', { class: 'btn', type: 'button', onclick: () => move(-1) }, 'KEY − 低一格'), h('div', { class: 'cl-big' }, name), h('button', { class: 'btn', type: 'button', onclick: () => move(1) }, 'KEY + 高一格')),
+    h('div', { class: 'cl-cap' }, '7 个 Synth keys：下面的字是它现在弹出来的音名'),
+    row.el, say);
+  return { el, destroy: () => player.stop() };
+}
+
+// ── F4 那一声“喵”：按共鸣排顺序 ──
+
+function resoorder(spec, env) {
+  const clip = fxClip('acid');
+  const quiz = orderQuiz({ ...spec, each: 4.2 }, env, (n) => {
+    const all = [0, 0.3, 0.55, 0.8, 1];
+    const amounts = n >= 5 ? all : shuffle(all).slice(0, n).sort((a, b) => a - b);
+    const order = shuffle(amounts.map((a, i) => [a, i]));
+    return {
+      items: order.map(([a]) => ({ tag: '点我听', play: () => clip.play({ effect: 'reso', amount: a, on: true }) })),
+      rank: order.map(([, i]) => i),
+      ends: ['不喵', '最喵'],
+      say: { right: '越往后，滤波器扫过去时那一声“喵——”越尖。' },
+    };
+  });
+  return { el: quiz.el, destroy: () => { quiz.destroy(); clip.destroy(); } };
+}
+
+// ── F8 让底鼓先走：哪张在“吸” ──
+
+function duckodd(spec, env) {
+  const clip = fxClip('pump');
+  const amount = byTier(env.tier, [0.9, 0.75, 0.55]);
+  const quiz = oddQuiz({ ...spec, hint: '每张都点一下：哪一张的和弦跟着底鼓一吸一吸？（也可能反过来：只有一张不吸）' }, env, (n) => {
+    const odd = Math.floor(Math.random() * n);
+    const oddDucks = Math.random() < 0.6;
+    return {
+      cards: Array.from({ length: n }, (_, i) => ({ play: () => clip.play({ effect: 'duck', amount, on: i === odd ? oddDucks : !oddDucks }) })),
+      odd,
+      say: oddDucks
+        ? { right: '只有它在吸：底鼓一响，和弦就被压下去。', wrong: `是 ${'ABCD'[odd]}：只有它跟着底鼓一吸一吸。` }
+        : { right: '别的都在吸，只有它是平的。', wrong: `是 ${'ABCD'[odd]}：别的都在跟着底鼓吸，只有它是平的。` },
+    };
+  });
+  return { el: quiz.el, destroy: () => { quiz.destroy(); clip.destroy(); } };
+}
+
+// ── F10 晃动的声音：配对 ──
+
+const MODS = [
+  { id: 'tremolo', name: '颤音', say: '音量一抖一抖。' },
+  { id: 'flanger', name: '镶边', say: '像飞机从头顶飞过的“嗖——”。' },
+  { id: 'chorus', name: '合唱', say: '一个声音变成好几个，宽了、软了。' },
+  { id: 'none', name: '原声', say: '什么都没加。' },
+  { id: 'drive', name: '失真', say: '毛了、脏了。' },
+];
+function modmem(spec, env) {
+  const clip = fxClip('shimmer');
+  const quiz = memoryQuiz(spec, env, (pairs) => ({
+    groups: MODS.slice(0, pairs).map((m) => ({ id: m.id, name: m.name, say: m.say, play: () => clip.play({ effect: m.id === 'none' ? 'none' : m.id, amount: 0.8, on: m.id !== 'none' }) })),
+  }));
+  return { el: quiz.el, destroy: () => { quiz.destroy(); clip.destroy(); } };
+}
+
+/** 关底：一段循环放出来，它加的是哪种效果 */
+function whichfx(spec, env) {
+  const tier = env.tier || 1;
+  const pool = byTier(tier, [['lowpass', 'reverb', 'delay'], ['lowpass', 'reverb', 'delay', 'drive'], ['lowpass', 'reverb', 'delay', 'drive', 'tremolo', 'chorus']]);
+  return fxQuiz(spec, env, { choices: ['lowpass', 'reverb', 'delay'], loop: 'room' }, () => {
+    const effect = pick(pool);
+    return {
+      patch: { effect, on: true, amount: effect === 'lowpass' ? 0.75 : 0.8, room: 1, echo: 0 },
+      options: pool.map((x) => ({ label: EFFECTS[x].name, right: x === effect })),
+      say: { right: `是“${EFFECTS[effect].name}”。`, wrong: `是**${EFFECTS[effect].name}**。看画面上彩色和灰色哪里不一样。` },
+    };
+  });
+}
+
+// ── F11 做一次铺垫：演一遍 ──
+
+/** 竖着的“按住才有”的触摸条（HIGH PASS、REPEATER 那种）：手指在上面，值跟着走；一松开就回 0 */
+function holdStrip(label, onChange) {
+  let v = 0;
+  const fill = h('i', { class: 'fx-strip-fill' });
+  const thumb = h('i', { class: 'fx-strip-thumb' });
+  const read = h('div', { class: 'fx-strip-read' }, '没按');
+  const track = h('div', { class: 'fx-strip-track', role: 'slider', tabindex: '0', 'aria-label': label }, fill, Array.from({ length: 7 }, () => h('b')), thumb);
+  const paint = () => {
+    fill.style.height = `${v * 100}%`;
+    thumb.style.bottom = `${v * 100}%`;
+    read.textContent = v > 0 ? `${Math.round(v * 100)}%` : '没按';
+  };
+  const at = (e) => {
+    const r = track.getBoundingClientRect();
+    v = clamp(1 - (e.clientY - r.top - 14) / (r.height - 28), 0.04, 1);
+    paint();
+    onChange(v, e.timeStamp);
+  };
+  let down = false;
+  track.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    down = true;
+    try {
+      track.setPointerCapture(e.pointerId);
+    } catch {
+      /* 有的输入方式不支持捕获 */
+    }
+    track.classList.add('touch');
+    at(e);
+  });
+  track.addEventListener('pointermove', (e) => down && at(e));
+  const up = (e) => {
+    if (!down) return;
+    down = false;
+    track.classList.remove('touch');
+    v = 0;
+    paint();
+    onChange(0, e.timeStamp);
+  };
+  track.addEventListener('pointerup', up);
+  track.addEventListener('pointercancel', up);
+  paint();
+  return { el: h('div', { class: 'fx-strip' }, h('div', { class: 'fx-strip-label' }, label), track, read), get value() { return v; } };
+}
+
+/**
+ * 10 小节：1–4 平常放，5–8 是铺垫（军鼓越来越密），第 9 小节 Drop。
+ * 要做的：第 5 小节起按住 [HIGH PASS] 慢慢往上推；第 8 小节按住 [REPEATER]；第 9 小节第 1 拍两只手一起松开。
+ * 铜：松手差 1 拍以内就行，重复器可以不用；银：半拍以内，第 8 小节要用重复器；金：1/3 拍以内，还不给看时间线。
+ */
+function buildup(spec, env) {
+  const free = !env.tier;
+  const tier = env.tier || 1;
+  const tol = free ? 1 : byTier(tier, [1, 0.5, 0.34]);
+  const needRep = !free && tier >= 2;
+  const showTl = free || tier <= 2;
+  const engine = new FxEngine({ loop: 'full' });
+  engine.set({ effect: 'none', on: false });
+  const TOTAL = 10 * 16;
+  let g = -1;
+  let log = [];
+  let seen = null;
+  let release = null;
+  let running = false;
+  const base = engine.player.onSchedule;
+  engine.player.onSchedule = (st, t) => {
+    g++;
+    if (g >= TOTAL) {
+      if (g === TOTAL) setTimeout(finish, 0);
+      return;
+    }
+    base(st, t);
+    const bar = Math.floor(g / 16);
+    const bus = `${engine.id}:SNARE`;
+    // 铺垫：第 7 小节军鼓八分、第 8 小节十六分，越来越响
+    if (bar === 6 && g % 2 === 0) audio.drum('SNARE', t, 0.4 + (g % 16) / 40, bus);
+    if (bar === 7) audio.drum('SNARE', t, 0.5 + (g % 16) / 30, bus);
+    if (g === 8 * 16) {
+      audio.drum('CRASH', t, 1, 'drums');
+      audio.drum('KICK', t, 1.2, 'drums');
+    }
+    log[g] = { hp: engine.live.hp, rep: engine.live.rep };
+  };
+  engine.player.onStep((s) => {
+    if (s < 0 || g < 0) return;
+    // 听到的是一小节里的第 s 步；排程比听到的早一两步，所以从排到的那一步往回找最近的第 s 步
+    const heard = Math.max(0, g - ((((g % 16) - s) % 16) + 16) % 16);
+    seen = { step: heard, perf: performance.now() };
+    cnt.set(heard);
+    tl?.set(heard);
+  });
+  const at = (step) => (seen ? seen.perf + (step - seen.step) * (60000 / engine.bpm / 4) : null);
+  const hp = holdStrip('HIGH PASS', (v, ts) => {
+    engine.setLive({ hp: v });
+    if (v === 0) release = ts;
+    env.touched();
+  });
+  const rep = holdStrip('REPEATER', (v, ts) => {
+    engine.setLive({ rep: v });
+    if (v === 0) release = ts;
+    env.touched();
+  });
+  const cnt = (() => {
+    const lamps = [1, 2, 3, 4].map((n) => h('i', { class: n === 1 ? 'one' : '' }, String(n)));
+    const bar = h('b', {}, '–');
+    const el = h('div', { class: 'cl-dj-count' }, h('div', { class: 'cl-beats sm' }, lamps), h('div', { class: 'cl-dj-bar' }, bar, h('small', {}, '/ 10 小节')));
+    return { el, set: (step) => { lamps.forEach((l, i) => l.classList.toggle('on', Math.floor(step / 4) % 4 === i)); bar.textContent = String(Math.floor(step / 16) + 1); } };
+  })();
+  const scenes = [{ name: '平常', kind: 'verse', bars: 4 }, { name: '铺垫：按住 HIGH PASS', kind: 'build', bars: 3 }, { name: 'REPEATER', kind: 'pre', bars: 1 }, { name: 'Drop：松手！', kind: 'drop', bars: 2 }];
+  let tl = null;
+  const tlBox = h('div', { class: 'cl-tl-box' });
+  if (showTl) {
+    const total = 10;
+    const blocks = scenes.map((sc) => h('div', { class: 'cl-tl-block', style: { flexGrow: String(sc.bars), '--k': ({ verse: '#3fbfa8', build: '#f0b03a', pre: '#4a9fe0', drop: '#ff6b3d' })[sc.kind] } }, h('span', {}, sc.name)));
+    const head = h('div', { class: 'cl-tl-head' });
+    tlBox.append(h('div', { class: 'cl-tl' }, h('div', { class: 'cl-tl-row' }, blocks), head));
+    tl = {
+      set(step) {
+        head.style.display = step < 0 ? 'none' : 'block';
+        head.style.left = `${clamp(step / 16 / total, 0, 1) * 100}%`;
+      },
+    };
+  }
+  const play = h('button', { class: 'btn primary lg', type: 'button' }, '▶ 开始（10 小节）');
+  const note = h('div', { class: 'cl-note' }, free ? '点「开始」，照着上面的时间线试一遍。' : '点「开始」。第 5 小节起按住 HIGH PASS 往上推，第 8 小节按住 REPEATER，第 9 小节第 1 拍一起松手。');
+  const stop = () => {
+    running = false;
+    engine.stop();
+    engine.setLive({ hp: 0, rep: 0 });
+    play.textContent = '▶ 开始（10 小节）';
+  };
+  play.addEventListener('click', async () => {
+    if (running) return stop();
+    g = -1;
+    log = [];
+    release = null;
+    seen = null;
+    running = true;
+    await engine.start();
+    play.textContent = '■ 停';
+    env.touched();
+  });
+  function finish() {
+    if (!running) return;
+    const dropPerf = at(8 * 16);
+    stop();
+    const frac = (from, to, key) => {
+      const xs = log.slice(from, to).filter(Boolean);
+      return xs.length ? xs.filter((x) => x[key] > 0.03).length / xs.length : 0;
+    };
+    const avg = (from, to, key) => mean(log.slice(from, to).filter(Boolean).map((x) => x[key]));
+    const probs = [];
+    if (frac(0, 64, 'hp') > 0.2) probs.push('前 4 小节就按了 HIGH PASS：平常的时候让它原样放');
+    // 第 8 小节可以换一只手（鼠标只有一个指针）去按 REPEATER，所以 HIGH PASS 看第 5–7 小节
+    if (frac(64, 112, 'hp') < 0.6) probs.push('第 5–7 小节要一直按着 HIGH PASS');
+    else if (avg(96, 112, 'hp') < avg(64, 80, 'hp') + 0.08) probs.push('HIGH PASS 要越推越高（第 7 小节比第 5 小节高）');
+    if (needRep && frac(112, 128, 'rep') < 0.4) probs.push('第 8 小节要按住 REPEATER');
+    // 排程比听到的早一两步：正点松手时，Drop 头一两步排进去的时候手还在上面。所以看 Drop 之后半拍以后还按没按着
+    const stillOn = log.slice(131, 136).filter(Boolean).some((x) => x.hp > 0.03 || x.rep > 0.03);
+    let beats = null;
+    if (release !== null && dropPerf !== null) beats = (release - (store.settings.inputOffsetMs || 0) - dropPerf) / (60000 / engine.bpm);
+    if (stillOn || beats === null) probs.push('Drop 来的时候要松手');
+    else if (Math.abs(beats) > tol) probs.push(`松手${beats < 0 ? '早' : '晚'}了 ${Math.round(Math.abs(beats) * 10) / 10} 拍（这一档要 ${tol >= 1 ? '1 拍' : tol >= 0.5 ? '半拍' : '1/3 拍'}以内）`);
+    if (free) {
+      note.innerHTML = rich(probs.length ? `${probs.join('；')}。再来一遍？` : '漂亮：憋住，再一把放开。');
+      return;
+    }
+    if (probs.length) {
+      sfx.play('nope');
+      note.innerHTML = rich(`${probs.join('；')}。再来一遍。`);
+      return;
+    }
+    sfx.play('star');
+    confetti(play, 24);
+    const stars = Math.abs(beats) <= 0.25 ? 3 : Math.abs(beats) <= 0.5 ? 2 : 1;
+    env.done(stars);
+    note.innerHTML = rich(`✓ 铺垫推上去了，松手${Math.abs(beats) < 0.12 ? '正好踩在 Drop 上' : `差 ${Math.round(Math.abs(beats) * 10) / 10} 拍`}。`);
+  }
+  const el = h('div', { class: 'cl-toy cl-build' },
+    h('div', { class: 'cl-row' }, play, h('span', { class: 'spacer' }), cnt.el),
+    tlBox,
+    h('div', { class: 'cl-build-strips' }, hp.el, rep.el, h('div', { class: 'cl-build-how', html: rich(spec.how || '**HIGH PASS**：按住往上推，低音被抽走，越推越“薄”。\n**REPEATER**：按住，最后那一下被切碎了反复（用鼠标的话，第 8 小节从 HIGH PASS 换过去就行）。\n**松手**：两条都回原样，Drop 一下砸下来。') })),
+    note);
+  return {
+    el,
+    // 给走查脚本用：排到第几步了、某一步什么时候被听到
+    get __g() {
+      return g;
+    },
+    __at: at,
+    destroy() {
+      stop();
+      engine.destroy();
+    },
+  };
+}
+
+// ── 关底大关：几段接力 ──
+
+/** spec.stages = [{ toy, title, ... }, …]：一段过了才能进下一段；全过了，星星按最差的那一段给 */
+function relay(spec, env, level) {
+  const stages = spec.stages || [];
+  let i = 0;
+  let got = [];
+  let cur = null;
+  const chips = h('ol', { class: 'cl-relay-chips' });
+  const host = h('div', { class: 'cl-relay-host' });
+  const bar = h('div', { class: 'cl-relay-bar' });
+  const paint = () => chips.replaceChildren(...stages.map((st, j) => h('li', { class: j === i ? 'now' : got[j] ? 'done' : '' }, h('i', {}, got[j] ? '✓' : String(j + 1)), st.title || `第 ${j + 1} 段`)));
+  function mount() {
+    cur?.destroy();
+    const st = stages[i];
+    bar.replaceChildren(h('span', { html: rich(st.ask || '') }));
+    const sp = tierSpec(st, env.tier);
+    if (st.needs) sp.need = byTier(env.tier, st.needs);
+    cur = createToy(sp, {
+      ...env,
+      touched: env.touched,
+      done(stars) {
+        got[i] = Math.max(got[i] || 0, stars);
+        paint();
+        if (i < stages.length - 1) {
+          const go = h('button', { class: 'btn primary', type: 'button' }, `下一段：${stages[i + 1].title || ''} →`);
+          go.addEventListener('click', () => {
+            i++;
+            mount();
+          });
+          bar.replaceChildren(h('span', { class: 'cl-pass' }, `第 ${i + 1} 段过了。`), go);
+        } else {
+          env.done(Math.min(...got));
+          bar.replaceChildren(h('span', { class: 'cl-pass' }, '全部过关！'));
+        }
+      },
+    }, level);
+    host.replaceChildren(cur.el);
+    paint();
+  }
+  mount();
+  return {
+    el: h('div', { class: 'cl-toy cl-relay' }, chips, bar, host),
+    get __stage() {
+      return cur;
+    },
+    destroy: () => cur?.destroy(),
+  };
+}
+
 // ───────────── 入口 ─────────────
 
 const TOYS = {
   beatwalk, findone: (s, e, l) => beatwalk(s, e, l, true), octaves, samename, brightdark, majorminor, stack, oddchord,
   steady, gridplay, pickpattern, swingfeel, swingtap, grooves, guessgroove,
   fxlab, drywet, matchcut, whichroom, whichecho,
+  // 2026-11-15
+  subdict, chromatic, steps12, pentajam, pentaecho, intervals, intervalmem, progression, progorder, transpose,
+  resoorder, duckodd, modmem, whichfx, buildup, relay,
+  // 听写节奏图案（R3 的金、节奏大关）
+  griddict: (s, e) => dictateQuiz(s, e, () => {
+    const pool = s.patterns || ['x---x---x-x-----', 'x-----x---x-----', 'x--x--x---x-----', 'x-------x-x-----', 'x---x---x---x---', 'x-x---x---x---x-'];
+    return { target: pick(pool), track: s.track || 'KICK', label: s.label || '底鼓', bpm: s.bpm || 100, bars: 2, backing: s.backing || { HAT1: '--x---x---x---x-' } };
+  }),
+  ask: (s, e) => askQuiz(s, e),
+  ...RHYTHM_TOYS,
+  ...DJ_TOYS,
 };
+
+// 三档的默认规矩：铜 / 银 / 金。新的几种题自己会看 env.tier；老的几种在这里换参数。关里写了 quiz.tiers 的以它为准
+const TIER_DEFAULTS = {
+  findone: (t) => ({ need: byTier(t, [3, 4, 6]) }),
+  samename: (t) => ({ need: byTier(t, [3, 4, 5]) }),
+  majorminor: (t) => ({ need: byTier(t, [3, 4, 5]) }),
+  pickpattern: (t) => ({ need: byTier(t, [3, 4, 5]) }),
+  guessgroove: (t) => ({ need: byTier(t, [3, 4, 5]) }),
+  whichroom: (t) => ({ need: byTier(t, [3, 4, 5]) }),
+  whichecho: (t) => ({ need: byTier(t, [3, 4, 5]) }),
+  whichfx: (t) => ({ need: byTier(t, [3, 4, 5]) }),
+  steps12: (t) => ({ need: byTier(t, [3, 4, 5]) }),
+  drywet: (t) => ({ need: byTier(t, [3, 4, 5]), subtle: byTier(t, [1, 0.75, 0.5]) }),
+  oddchord: (t) => ({ need: byTier(t, [2, 3, 4]) }),
+  steady: (t) => ({ challenge: byTier(t, [6, 8, 12]) }),
+  swingtap: (t) => ({ guide: t < 3 }),
+  matchcut: (t) => ({ tol: byTier(t, [0.17, 0.13, 0.09]) }),
+};
+
+/** 这一档实际用的参数 */
+export function tierSpec(spec, tier) {
+  const d = TIER_DEFAULTS[spec.toy]?.(tier || 1) || {};
+  const own = spec.tiers ? byTier(tier, spec.tiers) : {};
+  return { ...spec, ...d, ...own };
+}
+
+export const hasToy = (name) => !!TOYS[name];
 
 export function createToy(spec, env, level) {
   const make = TOYS[spec.toy];

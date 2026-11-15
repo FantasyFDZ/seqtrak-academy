@@ -4,6 +4,8 @@
 //   没接真机的效果关 → 这里的“效果模拟机”（FxSim）：模拟机不会做效果，所以另做了一台只懂效果的，
 //                     [FX] 旋钮、[FX LEVEL]、[CLEAR FX]、右边 4 个旋钮的翻页和滤波器都是真的会响的
 // 认不认得出“这一步做到了”，各种条件见 watch()。认不出的（以及怕认错的）每一项都留着“我做了”的按钮。
+// 2026-11-15：效果模拟机的 [HIGH PASS]、[REPEATER] 两条触摸条会响了（按着才有，松手复原），[FX] 旋钮的失真、调制、躲闪、压缩几类也会响；
+// 右边第 2 页第 4 个旋钮（共鸣）也会响。createBench 多了 tier（动手关的铜银金：银、金不给蓝圈，金只给一句目标）和“是不是全靠自动认出来的”。
 import { h, rich, clamp, Emitter } from './util.js';
 import { midi } from './midi.js';
 import { seqtrak } from './seqtrak.js';
@@ -25,9 +27,15 @@ const FX_CATS = [
   ['DELAY', '延迟', ['TEMPO DELAY 4TH', 'PING PONG DELAY 4TH', 'TEMPO DELAY 8TH DOT', 'TEMPO DELAY 8TH', 'PING PONG DELAY 8TH', 'TEMPO DELAY 16TH', 'ANALOG DELAY - MODERN', 'ANALOG DELAY RETRO']],
   ['COMP', '压缩', null], ['DISTORTION', '失真', null], ['MODULATION', '调制', null], ['DUCKER', '躲闪', null], ['OTHER', '其它', null],
 ];
-// 模拟机里每个预设大致听起来像什么（只做了小课堂讲到的三类）
+// 模拟机里每个预设大致听起来像什么（滤波器、混响、延迟三类按预设分；后来几类只做个大概）
 const ROOM_OF = [0, 0, 1, 1, 1, 1, 2, 2];
 const ECHO_OF = [0, 0, 2, 1, 1, 1, 1, 0];
+// MODULATION 那 8 个：SPX CHORUS / TEMPO FLANGER / TEMPO PHASER / ENSEMBLE DETUNE / AUTO PAN / TREMOLO / VCM AUTO WAH / RING MODULATOR
+const MOD_OF = ['chorus', 'flanger', 'flanger', 'chorus', 'tremolo', 'tremolo', 'reso', 'drive'];
+FX_CATS[3][2] = ['COMP - SETTING 1', 'COMP - SETTING 2', 'COMP - SETTING 3', 'COMP - SETTING 4', 'COMP - SETTING 5', 'COMP - SETTING 6', 'COMP - SETTING 7', 'COMP - SETTING 8'];
+FX_CATS[4][2] = ['WAVE FOLDER - SATURATION', 'COMP DISTORTION', 'WAVE FOLDER', 'AMP SIMULATOR 2 - SETTING 1', 'AMP SIMULATOR 1', 'AMP SIMULATOR 2 - SETTING 2', 'BIT CRUSHER', 'DIGITAL TURNTABLE'];
+FX_CATS[5][2] = ['SPX CHORUS', 'TEMPO FLANGER', 'TEMPO PHASER', 'ENSEMBLE DETUNE', 'AUTO PAN', 'TREMOLO', 'VCM AUTO WAH', 'RING MODULATOR'];
+FX_CATS[6][2] = ['DUCKER - SETTING 1', 'DUCKER - SETTING 2', 'DUCKER - SETTING 3', 'DUCKER - SETTING 4', 'DUCKER - SETTING 5', 'DUCKER - SETTING 6', 'DUCKER - SETTING 7', 'DUCKER - SETTING 8'];
 const SLIDERS = ['FXLEVEL', 'HIGHPASS', 'REPEATER'];
 const SIM_HELLO = '这是一台**只懂效果的模拟机**。先短按左下角的 [PLAY] 让它出声，再动右边桔红色那块。';
 
@@ -46,7 +54,7 @@ class FxSim extends Emitter {
   }
 
   #reset() {
-    Object.assign(this, { playing: false, sel: 'KICK', master: true, fx: 0, level: 0, sdPage: 0, filter: {} });
+    Object.assign(this, { playing: false, sel: 'KICK', master: true, fx: 0, level: 0, sdPage: 0, filter: {}, reso: {}, hp: 0, rep: 0 });
   }
 
   get cat() {
@@ -75,7 +83,19 @@ class FxSim extends Emitter {
     }, true);
     svg.addEventListener('pointermove', (e) => this.#drag && this.#slide(e));
     const end = () => {
+      const id = this.#drag?.id;
       this.#drag = null;
+      // [HIGH PASS]、[REPEATER] 是现场用的：手一离开就复原
+      if (id === 'HIGHPASS' || id === 'REPEATER') {
+        const key = id === 'HIGHPASS' ? 'hp' : 'rep';
+        if (this[key] > 0) {
+          this[key] = 0;
+          this.engine?.setLive({ [key]: 0 });
+          this.#say(id === 'HIGHPASS' ? '松手了：[HIGH PASS] 复原，低音回来了。' : '松手了：[REPEATER] 复原，接着往下放。');
+          this.#event(id === 'HIGHPASS' ? 'highpass' : 'repeater', { value: 0 });
+          this.#render();
+        }
+      }
     };
     svg.addEventListener('pointerup', end);
     svg.addEventListener('pointercancel', end);
@@ -119,6 +139,10 @@ class FxSim extends Emitter {
     if (name === 'FILTER') this.engine.set({ effect: preset < 4 ? 'lowpass' : 'highpass', amount: this.level, on });
     else if (name === 'REVERB') this.engine.set({ effect: 'reverb', room: ROOM_OF[preset], amount: this.level, on });
     else if (name === 'DELAY') this.engine.set({ effect: 'delay', echo: ECHO_OF[preset], amount: this.level, on });
+    else if (name === 'DISTORTION') this.engine.set({ effect: 'drive', amount: this.level, on });
+    else if (name === 'MODULATION') this.engine.set({ effect: MOD_OF[preset], amount: this.level, on });
+    else if (name === 'DUCKER') this.engine.set({ effect: 'duck', amount: this.level, on });
+    else if (name === 'COMP') this.engine.set({ effect: 'duck', amount: this.level * 0.35, on });
     else this.engine.set({ effect: 'none', on: false });
   }
 
@@ -142,9 +166,18 @@ class FxSim extends Emitter {
     const { id, rect } = this.#drag;
     const v = clamp(1 - (e.clientY - rect.top) / rect.height, 0, 1);
     if (id !== 'FXLEVEL') {
-      this.#say(id === 'HIGHPASS'
-        ? '这条是 [HIGH PASS]：手指按上去，低音就被抽走；一松手马上复原。小课堂里以后有一关专门玩它，模拟机里先不出声。'
-        : '这条是 [REPEATER]：手指按上去，声音被切碎了重复；一松手马上复原。小课堂里以后有一关专门玩它，模拟机里先不出声。');
+      const key = id === 'HIGHPASS' ? 'hp' : 'rep';
+      const was = this[key];
+      this[key] = Math.max(0.05, v);
+      this.engine.setLive({ [key]: this[key] });
+      this.#meter(this.#bar(Math.round(this[key] * 8)), 900);
+      if (Math.abs(this[key] - was) > 0.04 || !was) {
+        this.#say(id === 'HIGHPASS'
+          ? `[HIGH PASS] 按在 **${Math.round(this[key] * 100)}%**：低音被抽走了，越往上越“薄”。${this.playing ? '' : '还没出声：先短按左下角的 [PLAY]。'}一松手就复原。`
+          : `[REPEATER] 按着：最后那一小段被切碎了反复（${this[key] < 0.34 ? '一拍一段' : this[key] < 0.67 ? '半拍一段' : '碎碎碎'}）。${this.playing ? '' : '还没出声：先短按左下角的 [PLAY]。'}一松手就接着放。`);
+        this.#event(id === 'HIGHPASS' ? 'highpass' : 'repeater', { value: this[key] });
+      }
+      this.#render();
       return;
     }
     this.level = v;
@@ -234,6 +267,15 @@ class FxSim extends Emitter {
             : `**${TRACK[this.sel].label}** 的低音被抽走了 ${Math.round(v * 100)}%（高通）。`}${heard ? '' : '不过这段循环里没有它的声音：按一下 KICK、SNARE、HAT 1 或 SYNTH 1 的旋钮再试。'}`);
         this.#event('filter', { track: this.sel, value: v });
       }
+    } else if (id === 'SD4' && this.sdPage) {
+      const v = clamp((this.reso[this.sel] || 0) + dir * 0.125, 0, 1);
+      this.reso[this.sel] = v;
+      this.engine.setTrackReso(this.sel, v);
+      this.#index = 'RESONANCE';
+      this.#meter(this.#bar(Math.round(v * 8)));
+      const cut = this.filter[this.sel] || 0;
+      this.#say(`**${TRACK[this.sel].label}** 的共鸣：${Math.round(v * 100)}%。${Math.abs(cut) < 0.05 ? '滤波器在中间（没捂）时共鸣听不太出来：先把第 3 个旋钮往下拖一点，再来拖它。' : v > 0.5 ? '听到滤波器那儿“喵”的一声了吗？' : ''}`);
+      this.#event('reso', { track: this.sel, value: v });
     } else if (id === 'SD1' || id === 'SD2' || id === 'SD4') {
       const names = this.sdPage ? { SD1: ['ATTACK', '声音起来得快还是慢'], SD2: ['DECAY', '声音消失得快还是慢'], SD4: ['RESONANCE', '滤波器的共鸣'] }
         : { SD1: ['SOUND', '换音色'], SD2: ['PITCH', '音高（合成器轨上是单音 / 复音 / 和弦）'], SD4: ['VOLUME', '这条轨道的音量'] };
@@ -269,6 +311,7 @@ const tempoOf = (model) => (model === mirror ? mirror.v.get('tempo') : model ===
 function stateOf(model, d) {
   switch (d.kind) {
     case 'scale': return model.proj?.scale === d.scale;
+    case 'key': return d.key === undefined ? null : model.proj?.key === d.key;
     case 'steps': {
       const cur = model.stepsOf?.(d.track);
       if (!cur) return false;
@@ -301,6 +344,11 @@ function matches(d, e) {
     case 'filter': return e.type === 'filter' || (e.type === 'cc' && e.cc === 74);
     case 'clearfx': return e.type === 'clearfx';
     case 'fxtype': return e.type === 'fxtype' && e.cat === d.cat;
+    case 'key': return e.type === 'scalekey' && e.key !== (d.from ?? 0);
+    case 'highpass': return e.type === 'highpass' && (d.release ? e.value === 0 : e.value >= (d.min ?? 0.3));
+    case 'repeater': return e.type === 'repeater' && (d.release ? e.value === 0 : e.value > 0.02);
+    case 'reso': return e.type === 'reso' && e.value >= (d.min ?? 0.5);
+    case 'mute': return e.type === 'mute' && (!d.track || e.track === d.track) && (d.on === undefined || e.on === d.on);
     default: return false;
   }
 }
@@ -308,8 +356,10 @@ function matches(d, e) {
 /** 真机上这一类条件有没有办法认。认不了的只显示“我做了” */
 function canWatch(model, d) {
   if (!d) return false;
-  if (model !== mirror) return !(model === simulator && ['master', 'sdpage', 'filter', 'fxlevel', 'clearfx', 'fxtype'].includes(d.kind));
-  if (['scale', 'tempo', 'sdpage', 'fxlevel', 'filter', 'clearfx'].includes(d.kind)) return true;
+  if (model === fxsim) return !['key', 'mute', 'steps', 'note', 'chord', 'polymode', 'scale', 'tempo', 'swing', 'octave', 'metronome'].includes(d.kind);
+  if (model !== mirror) return !(model === simulator && ['master', 'sdpage', 'filter', 'fxlevel', 'clearfx', 'fxtype', 'highpass', 'repeater', 'reso'].includes(d.kind));
+  if (['scale', 'key', 'tempo', 'sdpage', 'fxlevel', 'filter', 'clearfx'].includes(d.kind)) return true;
+  if (['highpass', 'repeater', 'reso', 'mute'].includes(d.kind)) return false;
   if (d.kind === 'track' && !d.track) return true;
   return ['start', 'stop', 'track', 'note', 'octave', 'swing', 'chord', 'polymode', 'steps'].includes(d.kind) && mirror.can(d);
 }
@@ -385,9 +435,10 @@ function hintFor(model, d, e) {
  * actions：页面自己的按钮（上一步、完成这一关），摆在这一屏的右下角，省得另占一行。
  * 返回 { el, destroy }。
  */
-export function createBench(level, { onDone, onStep, actions = null } = {}) {
-  const spec = level.machine;
+export function createBench(level, { onDone, onStep, actions = null, tier = 0, machine = null } = {}) {
+  const spec = machine || level.machine;
   const tasks = spec.tasks;
+  let manualUsed = 0; // 有几项是点“我做了”过的（动手关：全靠自动认出来才给牌）
   let model = null;
   let current = 0;
   let unwatch = [];
@@ -459,7 +510,7 @@ export function createBench(level, { onDone, onStep, actions = null } = {}) {
       buttons.replaceChildren();
       if (!finished) {
         finished = true;
-        onDone?.();
+        onDone?.({ manual: manualUsed, tasks: tasks.length, tier });
       }
       return;
     }
@@ -470,12 +521,14 @@ export function createBench(level, { onDone, onStep, actions = null } = {}) {
       confetti(dots.children[i], 10, { spread: 70 });
       activate(i + 1);
     };
-    text.innerHTML = rich(wording(t));
-    model.highlight(t.panel || []);
-    focus(t.panel);
+    // 动手关：银、金不给蓝圈；金只说要做成什么样（t.goal），不说怎么按
+    text.innerHTML = rich(tier >= 3 && t.goal ? t.goal : wording(t));
+    model.highlight(tier >= 2 ? [] : t.panel || []);
+    if (tier < 2) focus(t.panel);
     const watching = canWatch(model, t.detect);
     const say = h('span', {});
-    const idle = !watching ? '照着做，做完点右上角的按钮。' : live() ? `${t.wait || '等你操作…'}（在真机上做）` : t.wait || '在上面这台机器上做…';
+    const waitText = tier >= 3 ? '做到了会自动打勾…' : t.wait; // 金那一档：等待的那行也不说按哪个键
+    const idle = !watching ? '照着做，做完点右上角的按钮。' : live() ? `${waitText || '等你操作…'}（在真机上做）` : waitText || '在上面这台机器上做…';
     say.textContent = idle;
     status.replaceChildren(h('span', { class: 'pulse' }), say);
     const setHint = (html) => {
@@ -483,7 +536,7 @@ export function createBench(level, { onDone, onStep, actions = null } = {}) {
     };
     if (watching) {
       unwatch.push(watch(model, t.detect, done, (n, need) => {
-        if (need > 1 && n < need) say.textContent = `${t.wait || '继续'}（${n}/${need}）`;
+        if (need > 1 && n < need) say.textContent = `${waitText || '继续'}（${n}/${need}）`;
       }));
       unwatch.push(model.on('event', (e) => {
         setHint(hintFor(model, t.detect, e));
@@ -493,7 +546,7 @@ export function createBench(level, { onDone, onStep, actions = null } = {}) {
       const timer = setTimeout(() => setHint(hintFor(model, t.detect, null)), 900);
       unwatch.push(() => clearTimeout(timer));
     }
-    const manual = h('button', { class: 'btn sm', type: 'button', onclick: done }, t.manual || '我做了');
+    const manual = h('button', { class: 'btn sm', type: 'button', onclick: () => { manualUsed++; done(); } }, t.manual || '我做了');
     const assist = t.assist && live() ? h('button', {
       class: 'btn sm ghost', type: 'button',
       onclick: () => {

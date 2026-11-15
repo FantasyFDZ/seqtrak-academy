@@ -1,6 +1,7 @@
 // 效果实验台：一段一直循环的鼓和贝斯，经过一个效果再出来。全部用浏览器自带的 Web Audio 现做，不带任何音频文件。
 // 三样东西，可以分开用：
-//   FxEngine      声音：循环 + 效果链（低通 / 高通 / 混响 / 延迟）+ “原声 / 加效果”对比 + 每条轨道自己的滤波器
+//   FxEngine      声音：循环 + 效果链（低通 / 高通 / 混响 / 延迟；2026-11-15 加了共鸣、失真、躲闪、重复器、颤音、镶边、合唱）
+//                 + “原声 / 加效果”对比 + 每条轨道自己的滤波器 + 现场用的两条触摸条（HIGH PASS、REPEATER：setLive）
 //   createScope   画面：让人看见声音变了（灰色 = 原声，彩色 = 现在听到的）
 //   createFxLab   一整台实验台：画面 + 播放 + 对比开关 + 一条竖着的触摸条（样子照着机器上的 [FX LEVEL]）
 // 小课堂的效果线在用；以后讲音色（第 4 章）、讲效果（第 7 章）的课也可以直接嵌。
@@ -50,6 +51,35 @@ const LOOPS = {
       { track: 'SYNTH1', notes: [[0, 36, 3], [10, 39, 2]], send: false },
     ],
   },
+  // 底鼓四踩、上面一片长长的和弦：躲闪（一吸一吸）最听得出来。底鼓不进效果，被压的是和弦和镲
+  pump: {
+    bpm: 122,
+    parts: [
+      { track: 'KICK', pattern: 'x---x---x---x---', send: false },
+      { track: 'HAT2', pattern: '--x---x---x---x-', vel: 0.6 },
+      { track: 'SYNTH2', voice: 'pad', vel: 0.55, notes: [[0, 60, 16], [0, 63, 16], [0, 67, 16], [0, 70, 16]] },
+      { track: 'SYNTH1', notes: [[0, 36, 3], [8, 36, 3]], send: false },
+    ],
+  },
+  // 一条十六分的锯齿贝斯：共鸣、失真最听得出来（“喵”“脏”都在它身上）
+  acid: {
+    bpm: 120,
+    parts: [
+      { track: 'KICK', pattern: 'x---x---x---x---', send: false },
+      { track: 'HAT1', pattern: '--x---x---x---x-', vel: 0.55, send: false },
+      { track: 'SYNTH1', voice: 'saw', vel: 0.6, notes: [[0, 36, 1], [2, 48, 1], [3, 36, 1], [4, 39, 1], [6, 36, 1], [7, 46, 1], [8, 36, 1], [10, 43, 1], [11, 36, 1], [12, 39, 1], [14, 48, 1], [15, 36, 1]] },
+    ],
+  },
+  // 一段亮一点的和弦琶音：合唱、镶边、颤音这些“晃”的效果放在它上面
+  shimmer: {
+    bpm: 100,
+    parts: [
+      { track: 'KICK', pattern: 'x-------x-------', vel: 0.7, send: false },
+      { track: 'SNARE', pattern: '----x-------x---', vel: 0.6, send: false },
+      { track: 'SYNTH2', voice: 'polysynth', vel: 0.55, notes: [[0, 60, 2], [2, 67, 2], [4, 72, 2], [6, 67, 2], [8, 63, 2], [10, 70, 2], [12, 75, 2], [14, 70, 2]] },
+      { track: 'SYNTH1', notes: [[0, 36, 6], [8, 39, 6]], send: false },
+    ],
+  },
   // 每小节只“嗒”一下，后面空着：回声回来几次、踩在哪儿，数得出来
   echo: {
     bpm: 100,
@@ -69,6 +99,9 @@ export class FxEngine extends Emitter {
     super();
     this.id = `fxlab${++engines}`;
     this.state = { effect: 'none', amount: 0.6, on: true, room: 1, echo: 0, loop, playing: false };
+    this.live = { hp: 0, rep: 0 }; // 现场那两条触摸条：按着才有，0 = 手不在上面
+    this.counter = 0; // 一共排过几步（重复器用）
+    this.repeat = null; // 重复器正在重复哪一段：{ start, from, len }
     this.loop = LOOPS[loop] || LOOPS.full;
     this.trackFilter = {}; // 轨道 → −1…1：负 = 低通（越小越闷），正 = 高通（越大越薄），0 = 不动
     this.player = new LoopPlayer({ bpm: this.loop.bpm, steps: 16 });
@@ -107,7 +140,21 @@ export class FxEngine extends Emitter {
       insert: ctx.createBiquadFilter(), before: an(), after: an(), mute: g(0),
       conv: ctx.createConvolver(), delay: ctx.createDelay(2.5), fb: g(0.4), fbTone: ctx.createBiquadFilter(),
       tracks: {}, filters: {},
+      // 2026-11-15 加的：躲闪（被底鼓压下去的音量）、失真（前级 → 波形整形 → 补回音量）、颤音（音量一晃一晃）、
+      // 镶边 / 合唱（一条很短、长度在晃的延迟）、一个公用的慢速振荡器（拿来晃滤波器、音量、延迟），以及现场的高通
+      duck: g(1), driveIn: g(1), shaper: ctx.createWaveShaper(), driveOut: g(1), trem: g(1),
+      lfo: ctx.createOscillator(), toDetune: g(0), toTrem: g(0), toMod: g(0),
+      mod: ctx.createDelay(0.1), modFb: g(0), liveHP: ctx.createBiquadFilter(),
     };
+    n.liveHP.type = 'highpass';
+    n.liveHP.frequency.value = 10;
+    n.liveHP.Q.value = 0.9;
+    n.mod.delayTime.value = 0.004;
+    n.lfo.frequency.value = 0.5;
+    n.lfo.connect(n.toDetune).connect(n.insert.detune);
+    n.lfo.connect(n.toTrem).connect(n.trem.gain);
+    n.lfo.connect(n.toMod).connect(n.mod.delayTime);
+    n.lfo.start();
     n.insert.type = 'lowpass';
     n.insert.frequency.value = 20000;
     n.insert.Q.value = 0.8;
@@ -132,13 +179,15 @@ export class FxEngine extends Emitter {
     n.dryIn.connect(n.before);
     n.before.connect(n.mute).connect(n.mix);
     n.dryIn.connect(n.mix);
-    n.fxIn.connect(n.insert).connect(n.mix);
-    n.insert.connect(n.send);
+    n.fxIn.connect(n.insert).connect(n.duck).connect(n.driveIn).connect(n.shaper).connect(n.driveOut).connect(n.trem).connect(n.mix);
+    n.trem.connect(n.send);
     n.conv.connect(n.wet);
     n.delay.connect(n.wet);
     n.delay.connect(n.fbTone).connect(n.fb).connect(n.delay);
+    n.mod.connect(n.wet);
+    n.mod.connect(n.modFb).connect(n.mod);
     n.wet.connect(n.mix);
-    n.mix.connect(n.after).connect(n.out).connect(audio.master);
+    n.mix.connect(n.liveHP).connect(n.after).connect(n.out).connect(audio.master);
     this.nodes = n;
     this.#route();
     this.#apply(true);
@@ -169,7 +218,21 @@ export class FxEngine extends Emitter {
       n.send.connect(n.conv);
     } else if (effect === 'delay') {
       n.send.connect(n.delay);
+    } else if (effect === 'flanger' || effect === 'chorus') {
+      n.send.connect(n.mod);
     }
+  }
+
+  /** 失真的形状：amount 越大，波形顶上被压得越平（越“脏”） */
+  #curve(amount) {
+    const k = 2 + amount * 70;
+    const len = 1024;
+    const c = new Float32Array(len);
+    for (let i = 0; i < len; i++) {
+      const x = (i / (len - 1)) * 2 - 1;
+      c[i] = ((1 + k) * x) / (1 + k * Math.abs(x));
+    }
+    return c;
   }
 
   #apply(now = false) {
@@ -179,10 +242,32 @@ export class FxEngine extends Emitter {
     const tc = now ? 0.001 : 0.03;
     const { effect, amount, on, echo } = this.state;
     const filt = effect === 'lowpass' || effect === 'highpass';
+    const reso = effect === 'reso' && on;
     if (n.insert.type !== (effect === 'highpass' ? 'highpass' : 'lowpass')) n.insert.type = effect === 'highpass' ? 'highpass' : 'lowpass';
-    n.insert.frequency.setTargetAtTime(filt && on ? this.cutoff : effect === 'highpass' ? 20 : 20000, t, tc);
+    n.insert.frequency.setTargetAtTime(filt && on ? this.cutoff : reso ? 700 : effect === 'highpass' ? 20 : 20000, t, tc);
+    // 共鸣：滤波器自己在一小节里来回扫一趟，amount 管共鸣有多重（越重越“喵”）
+    n.insert.Q.setTargetAtTime(reso ? 0.7 + amount * 24 : 0.8, t, tc);
+    n.toDetune.gain.setTargetAtTime(reso ? 2400 : 0, t, tc);
+    // 失真：推得越多越脏，后面补一点音量，免得只是“变响了”
+    const drive = effect === 'drive' && on;
+    n.shaper.curve = drive ? this.#curve(amount) : null;
+    n.driveIn.gain.setTargetAtTime(drive ? 1 + amount * 3 : 1, t, tc);
+    n.driveOut.gain.setTargetAtTime(drive ? 1 / (1 + amount * 1.6) : 1, t, tc);
+    // 颤音：音量按八分音符一晃一晃
+    const trem = effect === 'tremolo' && on;
+    n.trem.gain.setTargetAtTime(trem ? 1 - amount * 0.48 : 1, t, tc);
+    n.toTrem.gain.setTargetAtTime(trem ? amount * 0.48 : 0, t, tc);
+    // 镶边 / 合唱：很短的延迟，长度跟着振荡器慢慢晃
+    const flg = effect === 'flanger' && on;
+    const cho = effect === 'chorus' && on;
+    n.mod.delayTime.setTargetAtTime(flg ? 0.0035 : cho ? 0.02 : 0.004, t, tc);
+    n.toMod.gain.setTargetAtTime(flg ? 0.0028 : cho ? 0.006 : 0, t, tc);
+    n.modFb.gain.setTargetAtTime(flg ? 0.35 + amount * 0.45 : 0, t, tc);
+    const beatHz = this.bpm / 60;
+    n.lfo.frequency.setTargetAtTime(reso ? beatHz / 4 : trem ? beatHz * 2 : flg ? 0.22 : cho ? 0.9 : 0.5, t, 0.01);
+    if (!(effect === 'duck' && on)) n.duck.gain.setTargetAtTime(1, t, tc);
     // 混响那一路要补很多：卷积出来的尾巴是摊在几秒里的，量到的峰值只有进去时的 8% 左右，补到 5 倍才到三四成
-    const wet = !on ? 0 : effect === 'reverb' ? amount * 5 : effect === 'delay' ? amount * 0.9 : 0;
+    const wet = !on ? 0 : effect === 'reverb' ? amount * 5 : effect === 'delay' ? amount * 0.9 : flg ? 0.4 + amount * 0.6 : cho ? amount * 0.95 : 0;
     n.wet.gain.setTargetAtTime(wet, t, tc);
     if (effect === 'delay') {
       n.delay.delayTime.setTargetAtTime((60 / this.bpm) * (ECHOES[echo] || ECHOES[0]).beats, t, 0.01);
@@ -190,16 +275,55 @@ export class FxEngine extends Emitter {
     }
   }
 
+  /** 重复器开着时，这一步其实放哪一步：把刚才那一小段（1 拍、半拍或 1/4 拍）一遍遍重来 */
+  #source(step) {
+    const n = this.counter++;
+    const { effect, amount, on } = this.state;
+    const v = this.live.rep || (effect === 'repeat' && on ? amount : 0);
+    if (v <= 0.02) {
+      this.repeat = null;
+      return step;
+    }
+    const len = v < 0.34 ? 4 : v < 0.67 ? 2 : 1;
+    if (!this.repeat || this.repeat.len !== len) this.repeat = { start: n, from: step - (step % len), len };
+    return (this.repeat.from + ((n - this.repeat.start) % len)) % 16;
+  }
+
   #schedule(step, t) {
     const stepSec = 60 / this.bpm / 4;
+    const src = this.#source(step);
+    let kick = false;
     for (const p of this.loop.parts) {
       const bus = `${this.id}:${p.send === false ? 'dry' : p.track}`;
-      const c = p.pattern?.[step];
-      if (c === 'x' || c === 'X') audio.drum(p.track, t, (c === 'X' ? 1 : 0.85) * (p.vel ?? 1), bus);
+      const c = p.pattern?.[src];
+      if (c === 'x' || c === 'X') {
+        audio.drum(p.track, t, (c === 'X' ? 1 : 0.85) * (p.vel ?? 1), bus);
+        if (p.track === 'KICK') kick = true;
+      }
       for (const [s, note, len] of p.notes || []) {
-        if (s === step) audio.note(note, t, len * stepSec * 0.92, { voice: p.voice || 'bass', vel: p.vel ?? 0.85, bus });
+        if (s === src) audio.note(note, t, len * stepSec * 0.92, { voice: p.voice || 'bass', vel: p.vel ?? 0.85, bus });
       }
     }
+    // 躲闪：底鼓一响，别的声音马上被压下去，再慢慢回来（“一吸一吸”）
+    const { effect, amount, on } = this.state;
+    if (kick && effect === 'duck' && on && this.nodes) {
+      const gn = this.nodes.duck.gain;
+      gn.cancelScheduledValues(t);
+      gn.setTargetAtTime(1 - amount * 0.94, t, 0.004);
+      gn.setTargetAtTime(1, t + 0.03, 0.05 + amount * 0.16);
+    }
+  }
+
+  /** 现场的两条触摸条：{ hp: 0–1（HIGH PASS 按多深）, rep: 0–1（REPEATER 切多碎） }。0 = 手离开了，马上复原 */
+  setLive(patch) {
+    this.live = { ...this.live, ...patch };
+    const n = this.nodes;
+    if (n) {
+      const v = this.live.hp;
+      n.liveHP.frequency.setTargetAtTime(v > 0.02 ? 40 * (3500 / 40) ** v : 10, audio.ctx.currentTime, 0.02);
+    }
+    this.emit('live', this.live);
+    return this;
   }
 
   /** 改设置：{ effect, amount, on, room, echo } 里给哪样改哪样 */
@@ -222,6 +346,14 @@ export class FxEngine extends Emitter {
     if (f.type !== type) f.type = type;
     const freq = Math.abs(value) <= 0.04 ? (type === 'highpass' ? 20 : 20000) : value < 0 ? 18000 * (160 / 18000) ** -value : 30 * (5000 / 30) ** value;
     f.frequency.setTargetAtTime(freq, audio.ctx.currentTime, 0.03);
+  }
+
+  /** 某条轨道滤波器的共鸣（机器上 Sound Design 第 2 页的第 4 个旋钮）：0 不喵，1 最喵 */
+  setTrackReso(track, v) {
+    this.trackReso ||= {};
+    this.trackReso[track] = clamp(v, 0, 1);
+    const f = this.nodes?.filters[track];
+    if (f) f.Q.setTargetAtTime(0.8 + this.trackReso[track] * 18, audio.ctx.currentTime, 0.03);
   }
 
   async start() {
@@ -529,6 +661,13 @@ export function touchStrip({ label = 'FX LEVEL', value = 0.5, onInput, readout =
 export const EFFECTS = {
   lowpass: { name: '捂住', loop: 'full', scope: 'spectrum', strip: 'FILTER', read: (v) => (v < 0.08 ? '全开' : v < 0.4 ? '捂了一点' : v < 0.75 ? '闷' : '只剩咚咚') },
   highpass: { name: '抽走低音', loop: 'full', scope: 'spectrum', strip: 'HIGH PASS', read: (v) => (v < 0.08 ? '全在' : v < 0.5 ? '低音少了' : '只剩沙沙') },
+  reso: { name: '共鸣', loop: 'acid', scope: 'spectrum', strip: 'RESONANCE', read: (v) => (v < 0.1 ? '不喵' : v < 0.45 ? '有点喵' : v < 0.8 ? '喵' : '喵——') },
+  drive: { name: '失真', loop: 'acid', scope: 'spectrum', strip: 'FX LEVEL', read: (v) => (v < 0.05 ? '干净' : v < 0.4 ? '毛了一点' : v < 0.75 ? '脏' : '炸了') },
+  duck: { name: '躲闪', loop: 'pump', scope: 'trail', strip: 'FX LEVEL', read: (v) => (v < 0.05 ? '不躲' : v < 0.45 ? '轻轻吸' : v < 0.8 ? '一吸一吸' : '大口喘气') },
+  repeat: { name: '重复器', loop: 'full', scope: 'trail', strip: 'REPEATER', read: (v) => (v < 0.03 ? '不切' : v < 0.34 ? '一拍一段' : v < 0.67 ? '半拍一段' : '碎碎碎') },
+  tremolo: { name: '颤音', loop: 'shimmer', scope: 'trail', strip: 'FX LEVEL', read: (v) => (v < 0.05 ? '不晃' : v < 0.5 ? '轻轻晃' : '一抖一抖') },
+  flanger: { name: '镶边', loop: 'shimmer', scope: 'spectrum', strip: 'FX LEVEL', read: (v) => (v < 0.05 ? '没加' : v < 0.5 ? '有点飞' : '像飞机过') },
+  chorus: { name: '合唱', loop: 'shimmer', scope: 'spectrum', strip: 'FX LEVEL', read: (v) => (v < 0.05 ? '一个人' : v < 0.5 ? '两三个人' : '一大群') },
   reverb: { name: '房间', loop: 'room', scope: 'trail', strip: 'FX LEVEL', read: (v) => (v < 0.05 ? '没加' : v < 0.4 ? '一点点' : v < 0.75 ? '明显' : '泡在里面') },
   delay: { name: '回声', loop: 'echo', scope: 'trail', strip: 'FX LEVEL', read: (v) => (v < 0.05 ? '没加' : v < 0.4 ? '轻轻的' : v < 0.75 ? '明显' : '回个不停') },
 };
