@@ -16,6 +16,13 @@
       if (fx === 'calm') document.documentElement.dataset.fx = 'calm';
       // 开发用：?still = 入场动画和过渡直接到位。无界面的浏览器截图时等不到动画播完，tools/shots.sh 会带上它
       if (q.has('still')) document.documentElement.dataset.still = '';
+      // 要放开屏（splash.js）：脚本还没跑起来之前先用底色盖住，免得先闪一下应用的样子。设置里关了开屏、或者地址带着开发用的参数（截图、走查）就不盖；
+      // 万一脚本出了错没撤，8 秒后自己撤掉
+      var devRun = /[?&](still|walk|fake|raf|nudge|talk|celebrate|finish|freeze|result|clstep|unfold|tab)\b/.test(location.search);
+      if (q.has('splash') || (ui.splash !== 'off' && !devRun)) {
+        document.documentElement.classList.add('splashing');
+        setTimeout(function () { document.documentElement.classList.remove('splashing'); }, 8000);
+      }
       // 开发用：?raf=timer = 用定时器代替逐帧回调。无界面的浏览器、藏起来的窗口不画画面，逐帧回调不走，啾啾飞到一半就停住了（测试用）
       if (q.get('raf') === 'timer') window.requestAnimationFrame = function (f) { return setTimeout(function () { f(performance.now()); }, 16); };
     } catch (e) { /* 读不到就按默认的机身配色 */ }

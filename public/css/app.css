@@ -685,6 +685,55 @@ body { overflow: hidden; overscroll-behavior: none; -webkit-tap-highlight-color:
 .jiu-layer .bird.jiu-groove:not([data-air]):is([data-mood="idle"], [data-mood="listen"]) .b-headpose { animation: jiu-groove var(--beat) ease-in-out infinite; }
 @keyframes jiu-groove { 0%, 100% { transform: rotate(0); } 22% { transform: translate(1px, 2.5px) rotate(9deg); } }
 [data-fx="calm"] .jiu-layer .bird.jiu-groove .b-headpose { animation: none; }
+/* ───────── 开屏（splash.js）：“按 PLAY 开机” ─────────
+   一排 16 个步进键扫一遍、四踩亮成桔红 → 四个灯升上去变成标志 → 啾啾落在最高那根条上 → 按 PLAY：一小节开场、它唱声音标志 → 标志缩回导航栏、淡出。 */
+html.splashing body::after { content: ""; position: fixed; inset: 0; z-index: 74; background: var(--bg); }
+.splash { position: fixed; inset: 0; z-index: 74; display: grid; place-items: center; padding: 24px; cursor: pointer; overflow: hidden; opacity: 0; transition: opacity .3s;
+  background: radial-gradient(ellipse 60% 50% at 50% 42%, var(--accent-soft), transparent 70%), var(--bg); user-select: none; -webkit-user-select: none; }
+.splash.on { opacity: 1; }
+.splash.out { opacity: 0; transition: opacity .5s ease .12s; pointer-events: none; }
+.spl-center { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.spl-logo { position: relative; display: flex; align-items: flex-end; gap: 10px; height: 104px; transform-origin: 0 0; }
+.spl-bar { display: block; width: 16px; border-radius: 8px; background: var(--accent); transform-origin: 50% 100%; opacity: 0; }
+.spl-bar1 { height: 47px; } .spl-bar2 { height: 104px; } .spl-bar3 { height: 66px; background: var(--text); } .spl-bar4 { height: 85px; }
+[data-skin="neon"] .spl-bar:not(.spl-bar3) { box-shadow: 0 0 18px var(--accent-glow); }
+.splash.formed .spl-bar { opacity: 1; }
+.spl-perch { position: absolute; left: 2px; bottom: 99px; width: 64px; height: 64px; } /* 最高那根条的顶上：啾啾落在这儿（jiu.perch） */
+.spl-steps { display: flex; gap: 6px; padding: 10px 12px 14px; border-radius: 14px; background: var(--panel); box-shadow: 0 3px 0 var(--key-edge), 0 0 0 1px var(--line) inset; transition: opacity .5s; }
+.spl-key { position: relative; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; background: var(--bg); box-shadow: 0 2px 0 var(--key-edge), 0 0 0 1px var(--line-2) inset; opacity: 0; transform: translateY(8px); animation: spl-key-in .4s var(--out) forwards; animation-delay: calc(var(--i) * 18ms); }
+.spl-key i { width: 14px; height: 4px; border-radius: 2px; background: var(--line-2); transition: background .06s, box-shadow .06s; }
+.spl-key.beat::after { content: ""; position: absolute; bottom: -8px; left: 50%; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: var(--muted); } /* 每拍第一格下面一个小点，像机器上的丝印 */
+.spl-key.now { box-shadow: 0 2px 0 var(--key-edge), 0 0 0 2px var(--text) inset; }
+.spl-key.lit i { background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+@keyframes spl-key-in { to { opacity: 1; transform: none; } }
+.splash.formed .spl-steps { opacity: .35; }
+.spl-title { margin: 4px 0 0; font-size: 44px; font-weight: 800; letter-spacing: .02em; line-height: 1.1; color: var(--text); }
+.spl-title b { color: var(--accent); }
+.spl-sub { margin: -6px 0 0; font-size: 17px; color: var(--text-2); }
+.spl-title, .spl-sub { opacity: 0; transform: translateY(10px); transition: opacity .45s var(--out), transform .45s var(--out); }
+.splash.titled .spl-title, .splash.titled .spl-sub { opacity: 1; transform: none; }
+.splash.titled .spl-sub { transition-delay: .12s; }
+.spl-go { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 6px; opacity: 0; transition: opacity .4s; }
+.splash.ready .spl-go { opacity: 1; }
+.spl-play { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; }
+.spl-play small { font: 700 12px var(--mono); letter-spacing: .08em; color: var(--muted); }
+.spl-cap { position: relative; width: 76px; height: 46px; border-radius: 10px; background: var(--panel-3); box-shadow: 0 5px 0 var(--key-edge), 0 0 0 1px var(--line-2) inset; transition: transform .08s, box-shadow .08s; }
+.spl-cap i { position: absolute; left: 50%; top: 9px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+[data-fx="rich"] .splash.ready:not(.playing) .spl-cap i { animation: spl-blink var(--beat) steps(1) infinite; }
+@keyframes spl-blink { 50% { opacity: .25; } }
+.splash.playing .spl-cap { transform: translateY(4px); box-shadow: 0 1px 0 var(--key-edge), 0 0 0 1px var(--line-2) inset; }
+.splash.playing .spl-cap i { background: #3ccf6e; box-shadow: 0 0 12px #3ccf6eaa; animation: none; }
+.spl-hint { display: flex; flex-direction: column; gap: 2px; margin: 0; transition: opacity .2s; }
+.spl-hint b { font-size: 16px; color: var(--text); }
+.spl-hint span { font-size: 13px; color: var(--muted); }
+.splash.playing .spl-hint, .splash.playing .spl-skip { opacity: 0; }
+.spl-skip { position: absolute; right: 22px; top: 18px; padding: 8px 12px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; transition: opacity .2s; }
+.spl-skip:hover { color: var(--text); background: var(--panel-3); }
+.splash.out .spl-center > :not(.spl-logo) { opacity: 0; transform: translateY(12px); transition: opacity .3s, transform .3s; }
+.splash.calm, .splash.calm * { animation: none !important; }
+.splash.calm .spl-steps, .splash.short .spl-steps, .splash.short .spl-go, .splash.short .spl-skip { display: none; }
+.splash.short { cursor: default; }
+
 /* 彩蛋：机器放了半分钟以上，蹲着的啾啾跟着拍子蹦（jiu.js 的 applyGroove） */
 .jiu-layer .bird.jiu-dance:not([data-air]):is([data-mood="idle"], [data-mood="listen"]) .b-pose { animation: jiu-dance var(--beat) cubic-bezier(.3, .7, .4, 1) infinite; }
 .jiu-layer .bird.jiu-dance:not([data-air]):is([data-mood="idle"], [data-mood="listen"]) .b-wingact { animation: jiu-dance-wing var(--beat) ease-in-out infinite; }

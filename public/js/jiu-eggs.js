@@ -32,7 +32,8 @@ const saveJiu = (patch) => store.update((d) => {
 
 // ───── 1 每天第一次打开 ─────
 let greetedThisVisit = false;
-function timeLine() {
+/** 按时间打招呼的一句（“早，啾！”……）；开屏也用 */
+export function timeLine() {
   const hr = new Date().getHours();
   if (hr >= 5 && hr < 11) return '早，啾！';
   if (hr < 13 && hr >= 11) return '中午好，啾！';
@@ -41,9 +42,20 @@ function timeLine() {
   return '这么晚还来练，啾？我陪你，别太累。';
 }
 /** 首页问候：今天第一次打开就返回一句按时间的开头，它唱一段、翻个跟头；不是第一次就只在这次打开时叫一声 */
+let introSang = false;
+/** 开屏已经唱过声音标志了：首页这次就不再叫 / 唱（splash.js 调） */
+export function markIntro() {
+  introSang = true;
+}
+
 export function homeHello() {
   if (greetedThisVisit) return '';
   greetedThisVisit = true;
+  if (introSang) {
+    if (store.data.jiu?.day === today()) return '';
+    saveJiu(() => ({ day: today() }));
+    return timeLine();
+  }
   if (store.data.jiu?.day === today()) {
     setTimeout(() => jiu.chirp('greet'), 700);
     return '';

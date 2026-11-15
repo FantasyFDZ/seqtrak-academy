@@ -9,6 +9,7 @@ import { chirp } from '../jiu.js';
 import { toast, segmented } from '../ui.js';
 import { theme } from '../theme.js';
 import { sfx } from '../sfx.js';
+import { playSplash } from '../splash.js';
 
 const DEEP_REASON = {
   'not-found': '这台电脑上没有找到 codex 命令。',
@@ -203,6 +204,9 @@ export async function settingsView(view) {
           setTimeout(() => chirp('greet'), 250);
         }
       }, '界面音效'), h('span', { class: 'small muted' }, '按键的轻响、啾啾的叫声，拿到徽章、升级时的提示音。比机器和音游的声音小得多；音游打着的时候不响。')),
+      h('div', { class: 'pref' }, segmented([{ value: 'daily', label: '每天第一次' }, { value: 'always', label: '每次' }, { value: 'off', label: '不放' }], store.settings.splash || 'daily', (v) => store.update((d) => (d.settings.splash = v)), '开屏'),
+        h('span', { class: 'small muted' }, '打开应用时的开场：一排步进键亮起来拼成标志，按 PLAY 开机，啾啾唱它的“声音标志”。“每天第一次”是当天第一次打开放完整的，再打开只闪一下标志。 ',
+          h('button', { class: 'btn sm', type: 'button', onclick: () => playSplash({ mode: 'full' }) }, '现在看一遍'))),
     ),
   );
 

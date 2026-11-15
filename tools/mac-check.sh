@@ -125,7 +125,7 @@ echo "chords check: $(sed -n 's/.*<ul class="mirror-try">\(.*\)/\1/p' $D/dom.htm
 echo "chords say: $(sed -n 's/.*<div class="sim-say">\(.*\)/\1/p' $D/dom.html | sed 's/<\/div>.*//; s/<[^>]*>//g' | head -1)"
 "$CHROME" --headless=new --disable-gpu --no-first-run --hide-scrollbars --user-data-dir=$D/profile --window-size=1440,1700 --virtual-time-budget=14000 --screenshot=tools/out/chords.png "$BASE/?fake=chords#/arcade/chord-two" > /dev/null 2>&1
 ls -l tools/out/chords.png | awk '{print "screenshot -> " $NF " " $5 " bytes"}'
-"$CHROME" --headless=new --disable-gpu --no-first-run --hide-scrollbars --user-data-dir=$D/profile --window-size=1440,2300 --virtual-time-budget=6000 --screenshot=tools/out/lesson-3-2.png "$BASE/#/lesson/3-2" > /dev/null 2>&1
+"$CHROME" --headless=new --disable-gpu --no-first-run --hide-scrollbars --user-data-dir=$D/profile --window-size=1440,2300 --virtual-time-budget=6000 --screenshot=tools/out/lesson-3-2.png "$BASE/?still#/lesson/3-2" > /dev/null 2>&1
 ls -l tools/out/lesson-3-2.png | awk '{print "screenshot -> " $NF " " $5 " bytes"}'
 
 # 第 3 章里没有音游的两节课（3.1、3.3）：先在模拟机上、再在假真机上，自动把每一步走一遍（?walk=…，脚本是 public/js/dev/walk-ch3.js）。

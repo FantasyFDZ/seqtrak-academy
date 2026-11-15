@@ -50,18 +50,21 @@ const visible = (r) => !!r && r.width > 0 && r.height > 0 && r.bottom > 4 && r.t
 /** 现在该去哪儿：后留的、还在屏幕上的那个位置；都不在就回窝 */
 function pick() {
   const now = performance.now();
+  // 留位置的那块已经从页面上拿掉了（页面换走时没来得及 release）：清掉；一直没挂上页面的，过一阵也清掉
   for (let i = spots.length - 1; i >= 0; i--) {
     const s = spots[i];
-    // 留位置的那块已经从页面上拿掉了（页面换走时没来得及 release）：清掉；一直没挂上页面的，过一阵也清掉
-    if (s.el) {
-      if (s.el.isConnected) s.seen = true;
-      else if (s.seen || now - s.born > 10000) {
-        spots.splice(i, 1);
-        continue;
-      }
+    if (!s.el) continue;
+    if (s.el.isConnected) s.seen = true;
+    else if (s.seen || now - s.born > 10000) spots.splice(i, 1);
+  }
+  // 标着 top 的（开屏）先算，别的按后留的优先
+  for (const top of [true, false]) {
+    for (let i = spots.length - 1; i >= 0; i--) {
+      const s = spots[i];
+      if (!!s.top !== top) continue;
+      const r = s.rect();
+      if (visible(r)) return [s, r];
     }
-    const r = s.rect();
-    if (visible(r)) return [s, r];
   }
   return [nest, nest.rect()];
 }
@@ -544,6 +547,21 @@ export function callBack() {
   bird.act('hop');
   say({ kind: 'nudge', html: '在呢，啾！', mood: 'happy', call: 'greet', ms: 1400 });
 }
+/** 直接放到 (x, y)（爪子的位置），不飞（开屏时先把它藏到屏幕外面，再让它飞进来） */
+export function teleport(x, y) {
+  if (!bird) return;
+  moves++;
+  flying = false;
+  current = null;
+  bird.placeAt(x, y);
+}
+
+/** 先在 (x, y) 待着别动（哪怕在屏幕外面），直到调返回的函数（开屏用：飞进来之前藏在右边） */
+export function hold(x, y) {
+  // rect 是一小块在屏幕里的“假位置”，让这个位置算作看得见（爪子真正落在 feet，可以在屏幕外）
+  return addSpot({ mode: 'free', top: true, feet: [x, y], size: bird?.el.offsetWidth || NEST, rect: () => ({ left: innerWidth - 12, top: 10, right: innerWidth - 10, bottom: 12, width: 2, height: 2 }) });
+}
+
 /** 被你挪到别处了吗 */
 export const isFree = () => !!freeSpot;
 /** 回窝（或者回页面给它留的位置） */
@@ -744,8 +762,8 @@ function installPlay(passingNow) {
 // ───────────── 位置 ─────────────
 
 /** 在 el 那一块蹲着（coachFace 用）。返回 { set(mood), release() } */
-export function perch(el, { size, mood: m = null, act: a = null } = {}) {
-  const spot = { mode: 'perch', el, size, mood: m, act: a, rect: () => (el.isConnected ? el.getBoundingClientRect() : null) };
+export function perch(el, { size, mood: m = null, act: a = null, top = false } = {}) {
+  const spot = { mode: 'perch', el, size, mood: m, act: a, top, rect: () => (el.isConnected ? el.getBoundingClientRect() : null) };
   const release = addSpot(spot);
   return {
     set(next) {

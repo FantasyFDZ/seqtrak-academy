@@ -14,7 +14,7 @@ const blank = () => ({
   charts: {}, // 谱面 id → { plays, bestAccuracy, bestStars, lastAt }
   songs: { picked: [] },
   // skin：配色，'body' 机身（浅）/ 'neon' 霓虹（深）；motion：动效，'rich' 丰富 / 'calm' 克制；uiSound：界面音效
-  settings: { inputOffsetMs: 0, metronome: true, speak: false, unlockAll: false, engine: 'fast', skin: 'body', motion: 'rich', uiSound: true },
+  settings: { inputOffsetMs: 0, metronome: true, speak: false, unlockAll: false, engine: 'fast', skin: 'body', motion: 'rich', uiSound: true, splash: 'daily' },
   practiceDays: [], // 'YYYY-MM-DD'
   lastResult: null,
   drills: [], // AI 出过的定制练习
@@ -41,6 +41,7 @@ function merge(base, saved) {
   };
   if (out.settings.skin !== 'neon') out.settings.skin = 'body';
   if (out.settings.motion !== 'calm') out.settings.motion = 'rich';
+  if (!['daily', 'always', 'off'].includes(out.settings.splash)) out.settings.splash = 'daily'; // 开屏：每天第一次 / 每次 / 不放（splash.js）
   out.settings.uiSound = out.settings.uiSound !== false;
   return out;
 }

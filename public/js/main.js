@@ -1,6 +1,6 @@
 // 入口：路由、左边的导航栏（设备状态、等级、配色、教练小鸟啾啾的窝）、全页面的按键声和升级 / 徽章提示。
 import { h, $, $$, clear } from './util.js';
-import { store } from './store.js';
+import { store, today } from './store.js';
 import { midi } from './midi.js';
 import { seqtrak } from './seqtrak.js';
 import { audio } from './audio.js';
@@ -14,6 +14,7 @@ import { LEVELS } from './levels.js';
 import { nudge } from './coach-nudge.js';
 import { initEggs } from './jiu-eggs.js';
 import { callBack } from './jiu.js';
+import { playSplash } from './splash.js';
 import { toast } from './ui.js';
 import { connectDevice } from './device-connect.js';
 import { homeView } from './views/home.js';
@@ -230,6 +231,18 @@ async function boot() {
   installPressSounds();
   coach.mount();
   initEggs(); // 啾啾的彩蛋：窝里的羽毛、学舌、连续练习的天数……
+  // 开屏（splash.js）：先放上去，页面在它后面接着画。用户 2026-11-15 定的默认：每天第一次打开放完整版（按 PLAY 开机），
+  // 同一天再打开放短版；设置里可以改成“每次”（每次都完整）或“不放”。地址带 ?splash / ?splash=short 就照它放；
+  // 带着开发用的参数（截图的 ?still、走查的 ?walk、假真机……）不放，免得挡住截图和走查
+  const asked = new URLSearchParams(location.search).get('splash');
+  const devRun = /[?&](still|walk|fake|raf|nudge|talk|celebrate|finish|freeze|result|clstep|unfold|tab)\b/.test(location.search);
+  let splashMode = asked === null ? null : asked === 'short' ? 'short' : 'full';
+  if (asked === null && !devRun && store.settings.splash !== 'off') {
+    splashMode = store.settings.splash === 'always' || store.data.jiu?.splashDay !== today() ? 'full' : 'short';
+    if (splashMode === 'full') store.update((d) => (d.jiu = { ...(d.jiu || {}), splashDay: today() }));
+  }
+  if (splashMode) playSplash({ mode: splashMode });
+  else document.documentElement.classList.remove('splashing');
   window.addEventListener('hashchange', render);
   await render();
   // 开发用：地址里带 ?fake 时接上一台“假真机”（js/dev/fake-seqtrak.js），没有硬件也能测真机镜像；?fake=demo 还会自动演一段，
