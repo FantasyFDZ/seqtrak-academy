@@ -157,6 +157,21 @@ export async function settingsView(view) {
 
   // ── 练习偏好 ──
   let confirmReset = false;
+  const progSummary = h('div', { class: 'prog-stat-bar' });
+  const renderProgStats = () => {
+    const doneLessons = Object.values(store.data.lessons || {}).filter((x) => x?.done).length;
+    const totalStars = Object.values(store.data.lessons || {}).reduce((a, x) => a + (x?.done ? x.stars || 0 : 0), 0)
+      + Object.values(store.data.charts || {}).reduce((a, x) => a + (x?.bestStars || 0), 0);
+    const doneCl = Object.values(store.data.classroom || {}).filter((x) => x?.done).length;
+    const noteCount = Array.isArray(store.data.notes) ? store.data.notes.length : 0;
+    progSummary.replaceChildren(
+      h('span', {}, h('b', {}, String(doneLessons)), ' 节课程通关'),
+      h('span', {}, h('b', {}, String(totalStars)), ' 颗 ★'),
+      h('span', {}, h('b', {}, String(doneCl)), ' 个小课堂关'),
+      h('span', {}, h('b', {}, String(noteCount)), ' 张啾啾纸条'),
+    );
+  };
+  renderProgStats();
   const resetBtn = h('button', { class: 'btn danger', type: 'button' }, '清空学习进度');
   resetBtn.addEventListener('click', async () => {
     if (!confirmReset) {
@@ -166,6 +181,7 @@ export async function settingsView(view) {
       return;
     }
     store.resetProgress(); // 课程、成绩、经验和徽章都清掉，设置留着
+    renderProgStats();
     toast('进度已清空', 'ok');
     confirmReset = false;
     resetBtn.textContent = '清空学习进度';
@@ -205,16 +221,39 @@ export async function settingsView(view) {
   renderApp();
   const offInstall = onInstallChange(renderApp);
 
-  // ── 界面：配色、动效、界面音效 ──
+  // ── 界面：配色（带双主题微缩硬件预览卡）、动效、界面音效 ──
   const onOff = [{ value: true, label: '开' }, { value: false, label: '关' }];
   const skinSlot = h('div');
   const motionNote = h('span', { class: 'small muted' });
+  const skinCard = (id, name, desc) => {
+    const active = (theme.skin || store.settings.skin) === id;
+    return h('button', {
+      type: 'button',
+      class: ['skin-card', id, active && 'on'],
+      'aria-pressed': String(active),
+      onclick: () => {
+        if ((theme.skin || store.settings.skin) === id) return;
+        theme.clearOverride('skin');
+        sfx.play('skin');
+        store.update((d) => (d.settings.skin = id));
+      },
+    },
+    h('span', { class: 'skin-art', 'aria-hidden': 'true' },
+      h('i', { class: 'sk-cap lit' }),
+      h('i', { class: 'sk-cap' }),
+      h('i', { class: 'sk-cap' }),
+      h('i', { class: 'sk-knob' })),
+    h('span', { class: 'skin-meta' }, h('b', {}, name), h('small', {}, desc)),
+    h('span', { class: 'skin-check', 'aria-hidden': 'true' }, active ? '✓' : ''));
+  };
   const renderLook = () => {
     // 左边的导航栏上也能切配色：切了之后这里要跟着变
-    skinSlot.replaceChildren(segmented([{ value: 'body', label: '机身' }, { value: 'neon', label: '霓虹' }], store.settings.skin, (v) => {
-      theme.clearOverride('skin');
-      store.update((d) => (d.settings.skin = v));
-    }, '配色'));
+    skinSlot.replaceChildren(
+      h('span', { class: 'seg-label', style: { display: 'block', marginBottom: '6px' } }, '配色'),
+      h('div', { class: 'skin-cards' },
+        skinCard('body', '机身', '浅灰面板'),
+        skinCard('neon', '霓虹', '暗房微光')),
+    );
     motionNote.textContent = `丰富：界面跟着节拍动，过关有彩带。克制：去掉一直在动的东西和彩带，只留状态变化。${theme.systemReduced ? '你的系统开着“减少动效”，所以现在不管选哪个都按克制处理。' : ''}`;
   };
   renderLook();
@@ -253,6 +292,7 @@ export async function settingsView(view) {
   const resetFold = h('details', { class: 'fold', open: unfold },
     h('summary', {}, h('span', {}, '清空学习进度'), h('small', {}, '想从头再来的时候用；清了找不回来')),
     h('div', { class: 'fold-body' },
+      progSummary,
       h('p', { class: 'muted small', style: { margin: '0' } }, '课程、音游成绩、小课堂、经验值和徽章都会清掉，上面这些设置留着。'),
       h('div', {}, resetBtn)));
   // 关于啾啾：它是谁、纸条本、样子参考的贴纸（CC BY 4.0，要署名）

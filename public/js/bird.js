@@ -60,6 +60,7 @@ const CSS = `
 .bird .b-act, .bird .b-rig, .bird .b-pose { transform-origin: ${FOOT.x}px ${FOOT.y}px; }
 .bird[data-air] .b-pose { transform-origin: 98px 124px; } /* 在空中绕身子中间转，不绕爪子 */
 .bird .b-headpose, .bird .b-headact { transform-origin: 116px 106px; }
+.bird .b-headpose, .bird .b-pupil { transition: transform .26s cubic-bezier(.2, .8, .2, 1); }
 .bird .b-wing, .bird .b-wingact { transform-origin: 101px 102px; }
 .bird .b-wing-far { transform-origin: 104px 100px; opacity: 0; }
 .bird .b-tail { transform-origin: 74px 128px; }
@@ -198,8 +199,16 @@ const CSS = `
 .b-puff { position: absolute; width: 10px; height: 6px; border-radius: 50%; background: rgba(140, 150, 160, .45); pointer-events: none; animation: b-puff .45s ease-out forwards; }
 @keyframes b-puff { from { opacity: .9; transform: translate(0, 0) scale(.6); } to { opacity: 0; transform: translate(var(--dx), -4px) scale(1.6); } }
 
-/* 霓虹配色：给小鸟描一圈光 */
-:root[data-skin="neon"] .bird svg { filter: drop-shadow(0 0 1.5px rgba(255, 216, 61, .9)) drop-shadow(0 0 10px rgba(255, 138, 36, .45)); }
+/* 鼠标移上去（站在树枝上待机时）：微微歪头看你，不用任何外框就知道能点 */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .bird:not([data-air])[data-mood="idle"]:hover .b-headpose { transform: rotate(-9deg) translateY(-1px); }
+  .bird:not([data-air])[data-mood="idle"]:hover .b-pupil { transform: translate(1.5px, -1px); }
+}
+
+/* 霓虹配色（方案 A）：去掉贴纸感的黄色硬描边，改用柔和空气感暖逆光 + 尾羽冷月光丝高光，让深蓝灰尾羽在暗底上自然显形 */
+:root[data-skin="neon"] .bird { --b-tail-2: #768dad; --b-leg: #a5aeb9; --b-shadow: rgba(0, 0, 0, .38); }
+:root[data-skin="neon"] .bird svg { filter: drop-shadow(0 4px 16px rgba(255, 178, 72, .22)); }
+:root[data-skin="neon"] .bird .b-tail-feather { stroke: rgba(136, 160, 196, .42); stroke-width: 1.1; stroke-linejoin: round; }
 
 /* 动效选“克制”或系统开了“减少动效”：不做循环动作，只换神态 */
 :root[data-fx="calm"] .bird *, .bird.b-calm * { animation: none !important; }
@@ -208,11 +217,11 @@ const CSS = `
 
 function injectCss() {
   const old = document.getElementById('bird-css');
-  if (old?.dataset.v === '4') return;
+  if (old?.dataset.v === '5') return;
   old?.remove();
   const s = document.createElement('style');
   s.id = 'bird-css';
-  s.dataset.v = '4';
+  s.dataset.v = '5';
   s.textContent = CSS;
   document.head.append(s);
 }

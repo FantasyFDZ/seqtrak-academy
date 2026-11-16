@@ -91,6 +91,7 @@ class FxSim extends Emitter {
         if (this[key] > 0) {
           this[key] = 0;
           this.engine?.setLive({ [key]: 0 });
+          this.panel?.showHud(id === 'HIGHPASS' ? 'HIGH PASS' : 'REPEATER', 'BYPASS', 0);
           this.#say(id === 'HIGHPASS' ? '松手了：[HIGH PASS] 复原，低音回来了。' : '松手了：[REPEATER] 复原，接着往下放。');
           this.#event(id === 'HIGHPASS' ? 'highpass' : 'repeater', { value: 0 });
           this.#render();
@@ -172,6 +173,7 @@ class FxSim extends Emitter {
       this.engine.setLive({ [key]: this[key] });
       this.#meter(this.#bar(Math.round(this[key] * 8)), 900);
       if (Math.abs(this[key] - was) > 0.04 || !was) {
+        this.panel?.showHud(id === 'HIGHPASS' ? 'HIGH PASS' : 'REPEATER', id === 'HIGHPASS' ? `${Math.round(this[key] * 100)}%` : this[key] < 0.34 ? '1/4 BEAT' : this[key] < 0.67 ? '1/8 BEAT' : '1/16 STUTTER', this[key]);
         this.#say(id === 'HIGHPASS'
           ? `[HIGH PASS] 按在 **${Math.round(this[key] * 100)}%**：低音被抽走了，越往上越“薄”。${this.playing ? '' : '还没出声：先短按左下角的 [PLAY]。'}一松手就复原。`
           : `[REPEATER] 按着：最后那一小段被切碎了反复（${this[key] < 0.34 ? '一拍一段' : this[key] < 0.67 ? '半拍一段' : '碎碎碎'}）。${this.playing ? '' : '还没出声：先短按左下角的 [PLAY]。'}一松手就接着放。`);
@@ -185,6 +187,7 @@ class FxSim extends Emitter {
     const [name, zh, presets] = this.cat;
     this.#index = name;
     this.#meter(this.#bar(Math.round(v * 8)));
+    this.panel?.showHud(name, `${zh} · ${Math.round(v * 100)}%`, v);
     this.#say(presets
       ? `[FX LEVEL] 推到了 **${Math.round(v * 100)}%**：现在加的是${zh}（${presets[this.fx % 8]}）。${this.playing ? '' : '还没出声：先短按左下角的 [PLAY]。'}`
       : `[FX LEVEL] 推到了 ${Math.round(v * 100)}%。现在选的是“${zh}”这一类，小课堂还没讲到，模拟机里听不出变化：转 [FX] 旋钮换到 FILTER、REVERB 或 DELAY。`);
@@ -222,6 +225,7 @@ class FxSim extends Emitter {
       this.level = 0;
       this.#apply();
       this.#meter({});
+      this.panel?.showHud('CLEAR FX', '0% · DRY', 0);
       this.#say('[CLEAR FX]：效果收到了最小，现在听到的是**原声**。');
       this.#event('clearfx');
     } else if (id === 'SDPAGE') {
@@ -246,6 +250,7 @@ class FxSim extends Emitter {
       this.#apply();
       this.#index = name;
       this.#meter({ [`METER.${n}`]: 'cyan' }, 2600);
+      this.panel?.showHud(`FX · ${name}`, presets ? `${n}/8 ${presets[n - 1]}` : `${zh} ${n}/8`, this.fx / 63);
       this.#say(presets
         ? `效果换成了 **${name}（${zh}）** 这一类的第 ${n} 种：${presets[n - 1]}。${this.level > 0.02 ? '' : '还听不出来：把下面的 [FX LEVEL] 往上推。'}`
         : `转到了 **${name}（${zh}）** 这一类的第 ${n} 种。这一类小课堂还没讲到，模拟机里听不出变化。`);
@@ -261,6 +266,7 @@ class FxSim extends Emitter {
         this.engine.setTrackFilter(this.sel, v);
         this.#index = 'FILTER';
         this.#meter(this.#bar(Math.round(((v + 1) / 2) * 8)));
+        this.panel?.showHud(`${this.sel} FILTER`, Math.abs(v) < 0.05 ? 'CENTER' : v < 0 ? `LPF −${Math.round(-v * 100)}%` : `HPF +${Math.round(v * 100)}%`, (v + 1) / 2);
         const heard = this.engine.loop.parts.some((p) => p.track === this.sel);
         this.#say(`${Math.abs(v) < 0.05 ? `**${TRACK[this.sel].label}** 的滤波器回到了中间：原样。`
           : v < 0 ? `**${TRACK[this.sel].label}** 被捂住了 ${Math.round(-v * 100)}%：亮的那部分没了（低通）。`
@@ -273,6 +279,7 @@ class FxSim extends Emitter {
       this.engine.setTrackReso(this.sel, v);
       this.#index = 'RESONANCE';
       this.#meter(this.#bar(Math.round(v * 8)));
+      this.panel?.showHud(`${this.sel} RESO`, `${Math.round(v * 100)}%`, v);
       const cut = this.filter[this.sel] || 0;
       this.#say(`**${TRACK[this.sel].label}** 的共鸣：${Math.round(v * 100)}%。${Math.abs(cut) < 0.05 ? '滤波器在中间（没捂）时共鸣听不太出来：先把第 3 个旋钮往下拖一点，再来拖它。' : v > 0.5 ? '听到滤波器那儿“喵”的一声了吗？' : ''}`);
       this.#event('reso', { track: this.sel, value: v });
@@ -297,6 +304,17 @@ class FxSim extends Emitter {
     if (part) [...part.pattern].forEach((c, i) => c !== '-' && (lit[`DK${i + 1}`] = 'yellow'));
     if (this.#step >= 0) lit[`DK${this.#step + 1}`] = 'white';
     this.panel.setLit(lit);
+    this.panel.setSlider('FXLEVEL', this.level);
+    this.panel.setSlider('HIGHPASS', this.hp);
+    this.panel.setSlider('REPEATER', this.rep);
+    this.panel.setKnob('FX', ((this.fx / 63) - 0.5) * Math.PI * 1.5);
+    if (this.sdPage) {
+      this.panel.setKnob('SD3', (this.filter[this.sel] || 0) * Math.PI * 0.75);
+      this.panel.setKnob('SD4', ((this.reso[this.sel] || 0) - 0.5) * Math.PI * 1.5);
+    } else {
+      this.panel.setKnob('SD3', 0);
+      this.panel.setKnob('SD4', 0);
+    }
   }
 }
 

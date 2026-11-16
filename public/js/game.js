@@ -757,7 +757,7 @@ export class RhythmGame extends Emitter {
       g.stroke();
       if (whole) {
         g.fillStyle = b < 0 || b >= this.chart.totalBeats ? INK(0.25) : isBar ? INK(0.9) : INK(0.5);
-        g.fillText(String(inBar + 1), x0 - 10, y);
+        g.fillText(String(inBar + 1), x0 - 7, y);
       }
     }
 
@@ -798,14 +798,26 @@ export class RhythmGame extends Emitter {
       }
     }
 
-    // 判定线：跟着节拍更亮一点
+    // 判定线：跟着节拍更亮一点；丰富档下敲击某条轨道时，那一段像琴弦一样产生阻尼回弹振动
     g.strokeStyle = glow;
-    g.lineWidth = 4;
+    g.lineWidth = 3.5;
     g.shadowColor = alpha(glow, 0.5 + 0.4 * pulse);
     g.shadowBlur = pal.glow + 10 * pulse;
     g.beginPath();
     g.moveTo(x0 - 10, hitY);
-    g.lineTo(x0 + totalW + 10, hitY);
+    if (theme.rich && !this.opts.freezeAtBeat) {
+      g.lineTo(x0, hitY);
+      for (let i = 0; i < lanes.length; i++) {
+        const dt = now - this.laneFlash[i];
+        const amp = dt >= 0 && dt < 260 ? Math.sin(dt * 0.055) * Math.exp(-dt * 0.015) * 8 : 0;
+        const lx = x0 + i * laneW;
+        if (Math.abs(amp) > 0.15) g.quadraticCurveTo(lx + laneW / 2, hitY + amp, lx + laneW, hitY);
+        else g.lineTo(lx + laneW, hitY);
+      }
+      g.lineTo(x0 + totalW + 10, hitY);
+    } else {
+      g.lineTo(x0 + totalW + 10, hitY);
+    }
     g.stroke();
     g.shadowBlur = 0;
 

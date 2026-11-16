@@ -5,8 +5,15 @@
 .sl-title { grid-column: 1 / -1; font-weight: 800; font-size: 16px; color: var(--text); }
 .sl-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 
-/* 画面：一块嵌进去的小屏幕（和效果实验台的一样） */
-.sl-screen { position: relative; height: 210px; border-radius: var(--radius); background: var(--field); border: 1px solid var(--line-2); box-shadow: 0 1px 4px var(--shade-2) inset; overflow: hidden; }
+/* 画面：一块嵌进去的精密示波器小屏幕（和效果实验台一样带极淡的坐标暗格网） */
+.sl-screen {
+  position: relative; height: 210px; border-radius: var(--radius);
+  background:
+    linear-gradient(color-mix(in srgb, var(--line) 38%, transparent) 1px, transparent 1px) 0 0 / 28px 28px,
+    linear-gradient(90deg, color-mix(in srgb, var(--line) 38%, transparent) 1px, transparent 1px) 0 0 / 28px 28px,
+    var(--field);
+  border: 1px solid var(--line-2); box-shadow: 0 1px 4px var(--shade-2) inset; overflow: hidden;
+}
 .sl-screen .fx-scope, .sl-env-view, .sl-lfo-view { position: absolute; left: 14px; top: 34px; width: calc(100% - 28px); height: calc(100% - 44px); display: block; }
 .sl-lfo-view { top: 14px; height: calc(100% - 24px); }
 .sl:not(.playing) .sl-screen:has(.fx-scope)::after { content: "点「播放」，这里会动起来"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; color: var(--muted); pointer-events: none; }
@@ -22,18 +29,30 @@
 .sl-hold { position: absolute; right: 12px; bottom: 30px; min-width: 120px; min-height: 64px; font-size: 16px; font-weight: 800; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .sl-hold.down { transform: translateY(3px); background: var(--accent); color: var(--accent-ink); border-color: var(--pri-border); box-shadow: 0 0 0 4px var(--accent-ring); }
 
-/* 右边那一列：桔红底，一个一个旋钮从上往下排 */
-.sl-column { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-width: 128px; padding: 14px 12px; border-radius: 16px; background: var(--accent); border: 1px solid var(--pri-edge); box-shadow: 0 2px 0 var(--accent-2), 0 2px 10px var(--shade-2) inset; }
-.sl-col-cap { font: 700 12px/1.2 var(--mono); letter-spacing: .12em; color: var(--accent-ink); opacity: .8; }
+/* 右边那一列：机身模式是经典桔红分区，深色霓虹模式收敛为深炭灰底座 + 桔红丝印细边（避免暗房里大块纯橙刺眼） */
+.sl-column { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-width: 132px; padding: 14px 12px; border-radius: 16px; background: var(--accent); border: 1px solid var(--pri-edge); box-shadow: 0 2px 0 var(--accent-2), 0 2px 10px var(--shade-2) inset; }
+[data-skin="neon"] .sl-column { background: linear-gradient(180deg, var(--panel-3), var(--panel)); border-color: color-mix(in srgb, var(--accent) 52%, var(--line-2)); box-shadow: 0 1px 0 var(--hilite) inset, 0 8px 24px var(--shade-2); }
+.sl-col-cap { font: 700 12px/1.2 var(--mono); letter-spacing: .12em; color: var(--accent-ink); opacity: .82; }
+[data-skin="neon"] .sl-col-cap { color: var(--accent-text); }
 .sl-knob-box { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.sl-knob-label { font: 800 12px/1.2 var(--mono); letter-spacing: .1em; color: var(--accent-ink); opacity: .55; transition: opacity var(--t-move) var(--out); white-space: nowrap; }
+.sl-knob-label { font: 800 12px/1.2 var(--mono); letter-spacing: .1em; color: var(--accent-ink); opacity: .6; transition: opacity var(--t-move) var(--out), color var(--t-move); white-space: nowrap; }
+[data-skin="neon"] .sl-knob-label { color: var(--muted); opacity: .9; }
 .sl-knob-box.moved .sl-knob-label, .sl-knob-box.touch .sl-knob-label { opacity: 1; }
-.sl-knob { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--knob-edge); box-shadow: 0 3px 0 var(--shade-4), 0 0 0 2px var(--shade-2); cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; outline: none; }
+[data-skin="neon"] .sl-knob-box.moved .sl-knob-label, [data-skin="neon"] .sl-knob-box.touch .sl-knob-label { color: var(--accent-text); }
+.sl-knob { position: relative; width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; background: var(--knob-edge); box-shadow: 0 3px 0 var(--shade-4), 0 0 0 2px var(--shade-2); cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; outline: none; }
+.sl-knob-arc { position: absolute; inset: -5px; width: calc(100% + 10px); height: calc(100% + 10px); pointer-events: none; overflow: visible; }
+.sl-arc-bg { fill: none; stroke: color-mix(in srgb, var(--accent-ink) 28%, transparent); stroke-width: 2.2; stroke-linecap: round; }
+.sl-arc-val { fill: none; stroke: var(--yellow); stroke-width: 2.8; stroke-linecap: round; }
+.sl-arc-zero { fill: var(--accent-ink); opacity: .75; }
+[data-skin="neon"] .sl-arc-bg { stroke: var(--line-3); }
+[data-skin="neon"] .sl-arc-val { stroke: var(--accent); filter: drop-shadow(0 0 4px var(--accent-glow)); }
+[data-skin="neon"] .sl-arc-zero { fill: var(--muted); }
 .sl-knob:focus-visible { box-shadow: 0 3px 0 var(--shade-4), 0 0 0 3px var(--knob-ring); }
 .sl-knob-cap { position: relative; width: 56px; height: 56px; border-radius: 50%; background: radial-gradient(circle at 50% 35%, var(--knob-top), var(--knob)); transition: transform 60ms linear; }
 .sl-knob-mark { position: absolute; left: 50%; top: 5px; width: 4px; height: 18px; margin-left: -2px; border-radius: 2px; background: var(--knob-mark); }
 .sl-knob-box.touch .sl-knob { box-shadow: 0 3px 0 var(--shade-4), 0 0 0 4px var(--yellow-glow); }
-.sl-knob-read { min-height: 18px; max-width: 120px; font-size: 13px; font-weight: 700; line-height: 1.3; text-align: center; color: var(--accent-ink); }
+.sl-knob-read { min-height: 18px; max-width: 120px; font-size: 13px; font-weight: 700; line-height: 1.3; text-align: center; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+[data-skin="neon"] .sl-knob-read { color: var(--text); }
 
 /* 课文里指到小课堂某一关的小卡片（lesson.js 的 classroomLink） */
 a.classroom-link { display: block; color: inherit; text-decoration: none; }
@@ -63,32 +82,65 @@ a.classroom-link:hover { border-color: var(--accent); }
 .sl-wavebox { height: 170px; }
 .sl-wave { position: absolute; inset: 12px; width: calc(100% - 24px); height: calc(100% - 24px); display: block; cursor: ew-resize; touch-action: none; }
 .sl-padrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.sl-pads { display: flex; gap: 8px; }
-.sl-pad { width: 48px; height: 48px; border-radius: 10px; border: 1px solid var(--key-border); background: linear-gradient(var(--key-top), var(--key-bot)); box-shadow: 0 3px 0 var(--key-edge); font: 800 15px var(--mono); color: var(--text); cursor: pointer; touch-action: none; }
-.sl-pad:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--key-edge); background: var(--accent-soft); }
-.sl-loop { min-width: 96px; min-height: 44px; }
+.sl-pads { display: flex; gap: 8px; flex-wrap: wrap; }
+.sl-pad { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 48px; height: 48px; padding: 0; border-radius: 10px; border: 1px solid var(--key-border); background: linear-gradient(var(--key-top), var(--key-bot)); box-shadow: 0 3px 0 var(--key-edge); font: 800 15px/1.05 var(--mono); color: var(--text); cursor: pointer; touch-action: manipulation; transition: transform var(--t-press), box-shadow var(--t-press), border-color var(--t-move), background var(--t-press); }
+.sl-pad small { font: 700 10px/1 var(--mono); color: var(--muted); }
+.sl-pad:active, .sl-pad.is-lit { transform: translateY(2px); box-shadow: 0 1px 0 var(--key-edge), 0 0 0 2px var(--accent-ring); border-color: var(--accent); background: var(--accent-soft); }
+.sl-pad.is-lit small { color: var(--accent-text); }
+.sl-loop { min-width: 96px; min-height: 44px; gap: 7px; font-family: var(--mono); font-weight: 800; letter-spacing: .06em; }
+.sl-loop-led { width: 8px; height: 8px; border-radius: 50%; background: var(--key-lamp); box-shadow: 0 0 0 1px var(--shade-2) inset; transition: background var(--t-move), box-shadow var(--t-move); }
+.sl-loop[aria-pressed="true"] .sl-loop-led { background: var(--yellow); box-shadow: 0 0 10px var(--yellow-glow); }
 
 /* 编曲台：一行一条轨道、一列一个段落；格子 0 灰、1 / 2 是用第几段乐句 */
 .arr { display: flex; flex-direction: column; gap: 12px; }
 .arr-grid { display: grid; gap: 6px; align-items: stretch; }
-.arr-head { text-align: center; font-weight: 800; font-size: 14px; color: var(--text-2); padding: 4px 0; border-radius: 8px; transition: background var(--t-move) var(--out), color var(--t-move); }
+.arr-head { position: relative; overflow: hidden; text-align: center; font-weight: 800; font-size: 14px; color: var(--text-2); padding: 4px 0 6px; border-radius: 8px; transition: background var(--t-move) var(--out), color var(--t-move); }
 .arr-head.now { background: var(--accent); color: var(--accent-ink); }
+.arr-head.now::after { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: var(--prog, 0%); background: var(--yellow); transition: width 90ms linear; }
 .arr-row { display: flex; align-items: center; font-weight: 700; font-size: 14px; color: var(--text); }
-.arr-cell { min-height: 44px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--panel-3); font: 800 15px var(--mono); color: var(--text); cursor: pointer; }
+.arr-cell { min-height: 44px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--panel-3); font: 800 15px var(--mono); color: var(--text); cursor: pointer; transition: transform var(--t-press), filter var(--t-press), box-shadow var(--t-press); }
+.arr-cell:active { transform: translateY(1.5px); }
 /* “轻”的一格：白底 + 桔红粗边（桔红调淡了会发粉，这套课不用粉色） */
 .arr-cell[data-v="1"] { background: var(--panel); border: 2px solid var(--accent); color: var(--accent-2); }
 .arr-cell[data-v="2"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-2); }
+@media (prefers-reduced-motion: no-preference) {
+  [data-fx="rich"] .arr-cell.hit { animation: arr-hit 240ms var(--out); }
+}
+@keyframes arr-hit { 0% { transform: scale(1.05); filter: brightness(1.22); } 100% { transform: none; filter: none; } }
 .arr-energy { display: grid; grid-template-columns: 76px 1fr; align-items: end; gap: 6px; }
 .arr-meter { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; height: 54px; align-items: end; }
-.arr-meter i { display: block; border-radius: 6px 6px 2px 2px; background: color-mix(in srgb, var(--accent) 70%, var(--yellow)); min-height: 4px; transition: height var(--t-move) var(--out); }
+.arr-meter i { display: block; border-radius: 6px 6px 2px 2px; background: color-mix(in srgb, var(--accent) 70%, var(--yellow)); min-height: 4px; transition: height var(--t-move) var(--out), filter var(--t-move), box-shadow var(--t-move); }
+.arr-meter i.now { filter: brightness(1.16); box-shadow: 0 0 0 2px var(--accent-ring); }
 
-/* 录音机 */
+/* 录音机：带刻度与峰值保持针的录音室电平表 */
 .rec { display: flex; flex-direction: column; gap: 12px; }
 .rec-top { gap: 12px; align-items: center; flex-wrap: wrap; }
 .rec-select { min-height: 44px; min-width: 240px; max-width: 100%; }
-.rec-clock { margin-left: auto; font: 800 22px var(--mono); color: var(--text); }
-.rec-level { height: 12px; border-radius: 6px; background: var(--panel-3); overflow: hidden; }
-.rec-level-fill { display: block; height: 100%; width: 0; background: var(--ok); transition: width 60ms linear; }
+.rec-clock { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; font: 800 22px var(--mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.rec.is-rec .rec-clock { color: var(--bad); }
+.rec.is-rec .rec-clock::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+@media (prefers-reduced-motion: no-preference) {
+  [data-fx="rich"] .rec.is-rec .rec-clock::before { animation: rec-blink 1s ease-in-out infinite alternate; }
+}
+@keyframes rec-blink { to { opacity: .28; } }
+.rec-level {
+  position: relative; height: 14px; border-radius: 7px; background: var(--field);
+  border: 1px solid var(--line-2); box-shadow: 0 1px 2px var(--shade-2) inset; overflow: hidden;
+}
+.rec-level::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 11px, color-mix(in srgb, var(--field) 55%, transparent) 11px 13px);
+}
+.rec-level-fill {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--lamp-ok) 0 64%, var(--yellow) 78%, var(--bad) 94%);
+  background-size: 100% 100%; transition: width 45ms linear;
+}
+.rec-level.hot { border-color: var(--bad); }
+.rec-level-peak {
+  position: absolute; top: 1px; bottom: 1px; left: 0; width: 2.5px; margin-left: -1.25px;
+  border-radius: 1px; background: var(--text); opacity: 0; pointer-events: none; transition: opacity 120ms;
+}
 .rec-list { display: flex; flex-direction: column; gap: 8px; }
 .rec-item { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-weight: 700; }
 .rec-item audio { height: 40px; }

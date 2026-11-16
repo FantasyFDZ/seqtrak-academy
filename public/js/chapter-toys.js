@@ -12,6 +12,8 @@ import { store } from './store.js';
 import { SONGS } from './content/songs.js';
 import { songLessonFor } from './content/song-lessons.js';
 import { learn } from './learn-mode.js';
+import { segmented } from './ui.js';
+import { sfx } from './sfx.js';
 
 const C_MINOR = [0, 2, 3, 5, 7, 8, 10]; // 7 个 Synth keys 在 C 小调里比第 1 个高几个半音
 
@@ -20,17 +22,27 @@ const C_MINOR = [0, 2, 3, 5, 7, 8, 10]; // 7 个 Synth keys 在 C 小调里比�
 function samplelab() {
   let buffer = null;
   let name = '';
+  let pickedId = '';
   let start = 0;
   let end = 1;
   let loop = false;
   let pitch = 0;
   let stopLoop = null;
+  let playPos = -1;
+  let playRaf = 0;
   const canvas = h('canvas', { class: 'sl-wave', 'aria-label': '这段声音的样子：拖左右两条线剪掉头和尾' });
   const g = canvas.getContext('2d');
   const note = h('div', { class: 'sl-note' }, '先挑一段声音（或者用电脑的麦克风录一段），再拖画面上的两条线、转右边的旋钮。');
   let colors = {};
   const pick = () => {
-    colors = { wave: theme.css('--accent'), dim: theme.css('--line-3'), ink: theme.css('--text'), mask: theme.css('--panel-3') };
+    colors = {
+      wave: theme.css('--accent'),
+      dim: theme.css('--line-3'),
+      ink: theme.css('--text'),
+      paper: theme.css('--panel'),
+      mask: theme.css('--panel-3'),
+      head: theme.css('--cyan'),
+    };
   };
   pick();
   const offTheme = theme.on('change', () => (pick(), draw()));
@@ -45,6 +57,12 @@ function samplelab() {
       canvas.height = hh;
     }
     g.clearRect(0, 0, w, hh);
+    const mid = hh / 2;
+    // 0 dB 基准细线
+    g.fillStyle = colors.dim;
+    g.globalAlpha = 0.35;
+    g.fillRect(0, Math.round(mid), w, Math.max(1, Math.round(dpr)));
+    g.globalAlpha = 1;
     if (!buffer) {
       g.fillStyle = colors.dim;
       g.font = `${15 * dpr}px ${theme.css('--font') || 'sans-serif'}`;
@@ -54,7 +72,6 @@ function samplelab() {
       return;
     }
     const d = buffer.getChannelData(0);
-    const mid = hh / 2;
     for (let x = 0; x < w; x++) {
       const a = Math.floor((x / w) * d.length);
       const b = Math.floor(((x + 1) / w) * d.length);
@@ -64,14 +81,36 @@ function samplelab() {
       g.fillStyle = inside ? colors.wave : colors.dim;
       g.fillRect(x, mid - peak * mid * 0.9, 1, Math.max(1, peak * mid * 1.8));
     }
-    // 剪掉的部分盖一层，两条线是起点和终点
-    g.globalAlpha = 0.6;
+    // 剪掉的部分盖一层，两条线是起点（S）和终点（E）的裁剪标尺旗
+    g.globalAlpha = 0.62;
     g.fillStyle = colors.mask;
     g.fillRect(0, 0, start * w, hh);
     g.fillRect(end * w, 0, w - end * w, hh);
     g.globalAlpha = 1;
-    g.fillStyle = colors.ink;
-    for (const at of [start, end]) g.fillRect(at * w - 1.5 * dpr, 0, 3 * dpr, hh);
+    if (playPos >= 0) {
+      const px = playPos * w;
+      g.fillStyle = colors.head;
+      g.fillRect(px - 1.2 * dpr, 0, 2.4 * dpr, hh);
+    }
+    const drawFlag = (at, tag, alignRight) => {
+      const x = clamp(at * w, 1.5 * dpr, w - 1.5 * dpr);
+      g.fillStyle = colors.ink;
+      g.fillRect(x - 1.25 * dpr, 0, 2.5 * dpr, hh);
+      const fw = 22 * dpr;
+      const fh = 15 * dpr;
+      const fx = alignRight ? Math.max(0, x - fw) : Math.min(w - fw, x);
+      const fy = alignRight ? hh - fh - 2 * dpr : 2 * dpr;
+      g.beginPath();
+      g.roundRect(fx, fy, fw, fh, 3 * dpr);
+      g.fill();
+      g.fillStyle = colors.paper;
+      g.font = `800 ${9.5 * dpr}px ${theme.css('--mono') || 'monospace'}`;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(tag, fx + fw / 2, fy + fh / 2 + 0.5 * dpr);
+    };
+    drawFlag(start, 'S▸', false);
+    drawFlag(end, '◂E', true);
   }
 
   // 拖线：离哪条近就拖哪条
@@ -105,18 +144,50 @@ function samplelab() {
   canvas.addEventListener('pointerup', up);
   canvas.addEventListener('pointercancel', up);
 
-  async function play(offset = 0) {
+  const stopAnim = () => {
+    cancelAnimationFrame(playRaf);
+    playPos = -1;
+    draw();
+  };
+
+  async function play(offset = 0, padBtn = null) {
     if (!buffer || !(await audio.init())) return;
     stopLoop?.();
     stopLoop = null;
+    cancelAnimationFrame(playRaf);
+    const rate = 2 ** ((pitch + offset) / 12);
+    const span = Math.max(0.01, end - start);
+    const passSec = Math.max(0.02, (span * buffer.duration) / rate);
+    const totalSec = loop ? 2.5 : passSec;
     const stop = playBuffer(audio, buffer, 0, { pitch: pitch + offset, start, end, loop, dur: loop ? 2.5 : null });
     if (loop) stopLoop = stop;
+    if (padBtn) {
+      padBtn.classList.add('is-lit');
+      setTimeout(() => padBtn.classList.remove('is-lit'), Math.min(600, Math.max(140, totalSec * 1000)));
+    }
+    const t0 = performance.now();
+    const stepAnim = () => {
+      const elapsed = (performance.now() - t0) / 1000;
+      if (elapsed >= totalSec) return stopAnim();
+      const phase = loop ? (elapsed / passSec) % 1 : Math.min(1, elapsed / passSec);
+      playPos = start + phase * (end - start);
+      draw();
+      playRaf = requestAnimationFrame(stepAnim);
+    };
+    stepAnim();
   }
+
+  const srcBtns = new Map();
+  const syncSrc = () => {
+    for (const [id, b] of srcBtns) b.classList.toggle('primary', id === pickedId);
+  };
 
   async function choose(id, label) {
     if (!(await audio.init())) return;
     buffer = recordingBuffer(audio.ctx, id, 100);
     name = label;
+    pickedId = id;
+    syncSrc();
     start = 0;
     end = 1;
     draw();
@@ -143,6 +214,8 @@ function samplelab() {
           const ab = await new Blob(chunks).arrayBuffer();
           buffer = await audio.ctx.decodeAudioData(ab);
           name = '你自己录的';
+          pickedId = 'mic';
+          syncSrc();
           start = 0;
           end = 1;
           draw();
@@ -165,21 +238,36 @@ function samplelab() {
 
   const pitchKnob = knob({ label: 'PITCH', title: '音高', value: 0, min: -24, max: 24, readout: (v) => (v === 0 ? '原样' : `${v > 0 ? '+' : ''}${v} 半音`), onInput: (v) => { pitch = v; } });
   pitchKnob.el.addEventListener('pointerup', () => play());
-  const loopBtn = h('button', { class: 'btn sl-loop', type: 'button', 'aria-pressed': 'false' }, 'LOOP 关');
+  const loopLed = h('i', { class: 'sl-loop-led', 'aria-hidden': 'true' });
+  const loopBtn = h('button', { class: 'btn sl-loop', type: 'button', 'aria-pressed': 'false' }, loopLed, 'LOOP');
   loopBtn.addEventListener('click', () => {
     loop = !loop;
-    loopBtn.textContent = loop ? 'LOOP 开' : 'LOOP 关';
     loopBtn.setAttribute('aria-pressed', String(loop));
     loopBtn.classList.toggle('primary', loop);
     note.textContent = loop ? '循环开：中间那一段一直转。把起点终点拖得很近，就成了“嗡嗡”的一个音。' : '循环关：按一下放一遍。';
     play();
   });
   const pads = h('div', { class: 'sl-pads' }, C_MINOR.map((off, i) => {
-    const b = h('button', { class: 'sl-pad', type: 'button' }, String(i + 1));
-    b.addEventListener('pointerdown', () => play(off));
+    let skipClick = false;
+    const b = h('button', { class: 'sl-pad', type: 'button', 'data-sfx': 'none', 'aria-label': `键 ${i + 1}（${off ? `+${off} 半音` : '原音高'}）` },
+      h('b', {}, String(i + 1)),
+      h('small', {}, off ? `+${off}` : '原'));
+    b.addEventListener('pointerdown', (e) => {
+      if (e.button > 0) return;
+      skipClick = true;
+      play(off, b);
+      setTimeout(() => { skipClick = false; }, 250);
+    });
+    b.addEventListener('click', () => {
+      if (!skipClick) play(off, b);
+    });
     return b;
   }));
-  const sources = h('div', { class: 'sl-controls' }, RECORDINGS.map((r) => h('button', { class: 'btn', type: 'button', onclick: () => choose(r.id, r.name) }, r.name)), mic);
+  const sources = h('div', { class: 'sl-controls' }, RECORDINGS.map((r) => {
+    const b = h('button', { class: 'btn', type: 'button', onclick: () => choose(r.id, r.name) }, r.name);
+    srcBtns.set(r.id, b);
+    return b;
+  }), mic);
   const el = h('div', { class: 'sl sl-sample' },
     h('div', { class: 'sl-main' },
       h('div', { class: 'sl-screen sl-wavebox' }, canvas),
@@ -190,7 +278,7 @@ function samplelab() {
   const ro = new ResizeObserver(() => draw());
   ro.observe(canvas);
   setTimeout(draw, 0);
-  return { el: h('div', { class: 'widget sl-box' }, el), destroy: () => (ro.disconnect(), offTheme(), stopLoop?.()) };
+  return { el: h('div', { class: 'widget sl-box' }, el), destroy: () => (cancelAnimationFrame(playRaf), ro.disconnect(), offTheme(), stopLoop?.()) };
 }
 
 // ───────────── 编曲台 ─────────────
@@ -216,6 +304,16 @@ function arranger({ bars = 2 } = {}) {
   const cells = {};
   const meter = h('div', { class: 'arr-meter' }, SECTIONS.map(() => h('i')));
   const note = h('div', { class: 'sl-note' }, '点格子：灰 = 这一段它不出声，1 / 2 = 用第几段乐句（2 更密）。点「从头放」听一遍，看下面那条线（能量）怎么走。');
+  const matchPreset = () => Object.keys(PRESETS).find((k) => ARR_TRACKS.every((t) => PRESETS[k][t.id].every((v, i) => v === grid[t.id][i]))) || null;
+  const presets = segmented(
+    Object.keys(PRESETS).map((k) => ({ value: k, label: k })),
+    '慢慢起来',
+    (k) => {
+      for (const t of ARR_TRACKS) grid[t.id] = [...PRESETS[k][t.id]];
+      paint();
+    },
+  );
+  presets.classList.add('sl-seg');
   const paint = () => {
     for (const t of ARR_TRACKS) SECTIONS.forEach((_, s) => {
       const v = grid[t.id][s];
@@ -228,15 +326,18 @@ function arranger({ bars = 2 } = {}) {
       const e = ARR_TRACKS.reduce((a, t) => a + (grid[t.id][s] ? (grid[t.id][s] === 2 ? 1.4 : 1) : 0), 0);
       bar.style.height = `${Math.round((e / (ARR_TRACKS.length * 1.2)) * 100)}%`;
     });
+    presets.set(matchPreset());
   };
+  const heads = SECTIONS.map((s, i) => h('span', { class: 'arr-head', 'data-s': String(i) }, s));
   const table = h('div', { class: 'arr-grid', style: { gridTemplateColumns: `76px repeat(${SECTIONS.length}, minmax(0, 1fr))` } },
-    h('span'), SECTIONS.map((s, i) => h('span', { class: 'arr-head', 'data-s': String(i) }, s)),
+    h('span'), heads,
     ARR_TRACKS.map((t) => [
       h('span', { class: 'arr-row' }, t.label),
       SECTIONS.map((_, s) => {
-        const c = h('button', { class: 'arr-cell', type: 'button', 'aria-label': `${t.label} · ${SECTIONS[s]}` });
+        const c = h('button', { class: 'arr-cell', type: 'button', 'data-sfx': 'none', 'aria-label': `${t.label} · ${SECTIONS[s]}` });
         c.addEventListener('click', () => {
           grid[t.id][s] = (grid[t.id][s] + 1) % (t.drum ? 3 : 2);
+          sfx.play(grid[t.id][s] ? 'on' : 'off');
           paint();
         });
         cells[`${t.id}${s}`] = c;
@@ -244,13 +345,20 @@ function arranger({ bars = 2 } = {}) {
       }),
     ]));
   let timer = 0;
+  let uiTimeouts = [];
   let playing = false;
   const play = h('button', { class: 'btn primary lg sl-play', type: 'button' }, '▶ 从头放');
   const stop = () => {
     clearInterval(timer);
+    uiTimeouts.forEach(clearTimeout);
+    uiTimeouts = [];
     playing = false;
     play.textContent = '▶ 从头放';
-    table.querySelectorAll('.arr-head.now').forEach((x) => x.classList.remove('now'));
+    heads.forEach((x) => {
+      x.classList.remove('now');
+      x.style.removeProperty('--prog');
+    });
+    meter.querySelectorAll('i').forEach((b) => b.classList.remove('now'));
   };
   play.addEventListener('click', async () => {
     if (playing) return stop();
@@ -259,34 +367,60 @@ function arranger({ bars = 2 } = {}) {
     play.textContent = '■ 停';
     const bpm = 112;
     const stepSec = 60 / bpm / 4;
-    const total = SECTIONS.length * bars * 16;
+    const secSteps = bars * 16;
+    const total = SECTIONS.length * secSteps;
     const t0 = audio.now() + 0.1;
     let next = 0;
     timer = setInterval(() => {
       while (next < total && t0 + next * stepSec < audio.now() + 0.15) {
-        const s = Math.floor(next / (bars * 16));
+        const s = Math.floor(next / secSteps);
         const step = next % 16;
+        const secProg = ((next % secSteps) + 1) / secSteps;
         const t = t0 + next * stepSec;
+        const hitIds = [];
         for (const tr of ARR_TRACKS) {
           const v = grid[tr.id][s];
           if (!v) continue;
+          let fired = false;
           if (tr.drum) {
             const pat = v === 2 ? tr.b : tr.a;
-            if (pat[step] === 'x') audio.drum(tr.drum, t, 0.85);
+            if (pat[step] === 'x') {
+              audio.drum(tr.drum, t, 0.85);
+              fired = true;
+            }
           } else {
-            for (const [st, n, len] of tr.notes) if (st === step) audio.note(n, t, len * stepSec * 0.92, { voice: tr.voice, vel: tr.voice === 'wide' ? 0.45 : 0.7 });
+            for (const [st, n, len] of tr.notes) {
+              if (st === step) {
+                audio.note(n, t, len * stepSec * 0.92, { voice: tr.voice, vel: tr.voice === 'wide' ? 0.45 : 0.7 });
+                fired = true;
+              }
+            }
           }
+          if (fired) hitIds.push(`${tr.id}${s}`);
         }
-        if (step === 0 && next % (bars * 16) === 0) {
-          const sec = s;
-          setTimeout(() => table.querySelectorAll('.arr-head').forEach((x) => x.classList.toggle('now', Number(x.dataset.s) === sec)), Math.max(0, (t - audio.now()) * 1000));
-        }
+        const delayMs = Math.max(0, (t - audio.now()) * 1000);
+        uiTimeouts.push(setTimeout(() => {
+          if (!playing) return;
+          heads.forEach((x, idx) => {
+            const active = idx === s;
+            x.classList.toggle('now', active);
+            if (active) x.style.setProperty('--prog', `${Math.round(secProg * 100)}%`);
+            else x.style.removeProperty('--prog');
+          });
+          meter.querySelectorAll('i').forEach((b, idx) => b.classList.toggle('now', idx === s));
+          for (const key of hitIds) {
+            const cell = cells[key];
+            if (!cell) continue;
+            cell.classList.remove('hit');
+            void cell.offsetWidth;
+            cell.classList.add('hit');
+          }
+        }, delayMs));
         next++;
       }
       if (next >= total && audio.now() > t0 + total * stepSec) stop();
     }, 30);
   });
-  const presets = h('div', { class: 'seg sl-seg' }, Object.keys(PRESETS).map((k) => h('button', { type: 'button', onclick: () => { for (const t of ARR_TRACKS) grid[t.id] = [...PRESETS[k][t.id]]; paint(); } }, k)));
   paint();
   const el = h('div', { class: 'arr' }, table, h('div', { class: 'arr-energy' }, h('span', { class: 'label' }, '能量'), meter), h('div', { class: 'sl-controls' }, play, presets), note);
   return { el: h('div', { class: 'widget sl-box' }, el), destroy: stop };
@@ -305,6 +439,8 @@ function recorder() {
     : '用 USB 线接着机器时，Mac 上会多一个叫 SEQTRAK 的声音输入：机器放出来的声音从这里进电脑，选它就是录机器。第一次用浏览器会问能不能用麦克风，点“允许”。');
   const select = h('select', { class: 'input rec-select', 'aria-label': '从哪个声音输入录' });
   const level = h('i', { class: 'rec-level-fill' });
+  const peakPin = h('i', { class: 'rec-level-peak', 'aria-hidden': 'true' });
+  const levelBox = h('div', { class: 'rec-level', role: 'meter', 'aria-label': '录音输入电平', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0' }, level, peakPin);
   const clock = h('span', { class: 'rec-clock' }, '0:00');
   const recBtn = h('button', { class: 'btn primary lg', type: 'button' }, '● 开始录');
   const list = h('div', { class: 'rec-list' });
@@ -316,6 +452,8 @@ function recorder() {
   let src0 = null;
   let meter = null; // 音量条用的分析器（录完要从 audio.master 上拆下来）
   let tap = null; // 录应用自己的声音时：接在 audio.master 上的那个 MediaStreamDestination
+  let peakHold = 0;
+  let peakHeldUntil = 0;
   async function devices() {
     if (appOnly) {
       select.replaceChildren(h('option', { value: APP_SOURCE }, '应用自己的声音（模拟机）'));
@@ -380,11 +518,25 @@ function recorder() {
       meter = an;
       src0 = src;
       const buf = new Uint8Array(an.fftSize);
+      peakHold = 0;
+      peakHeldUntil = 0;
       const draw = () => {
         an.getByteTimeDomainData(buf);
         let peak = 0;
         for (const v of buf) peak = Math.max(peak, Math.abs(v - 128));
-        level.style.width = `${Math.min(100, (peak / 128) * 140)}%`;
+        const pct = Math.min(100, (peak / 128) * 140);
+        const nowMs = performance.now();
+        if (pct >= peakHold) {
+          peakHold = pct;
+          peakHeldUntil = nowMs + 480;
+        } else if (nowMs > peakHeldUntil) {
+          peakHold = Math.max(pct, peakHold - 1.3);
+        }
+        level.style.width = `${pct}%`;
+        peakPin.style.left = `${peakHold}%`;
+        peakPin.style.opacity = peakHold > 2 ? '1' : '0';
+        levelBox.classList.toggle('hot', pct > 84);
+        levelBox.setAttribute('aria-valuenow', String(Math.round(pct)));
         raf = requestAnimationFrame(draw);
       };
       draw();
@@ -393,6 +545,7 @@ function recorder() {
       rec.ondataavailable = (e) => chunks.push(e.data);
       rec.onstop = () => {
         stopAll();
+        el.classList.remove('is-rec');
         const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
         const url = URL.createObjectURL(blob);
         const secs = Math.round((performance.now() - started) / 1000);
@@ -404,24 +557,29 @@ function recorder() {
         recBtn.textContent = '● 再录一段';
         if (secs >= 5) store.update((d) => (d.showRecordings = [...(d.showRecordings || []), { at: new Date().toISOString(), secs }].slice(-20)));
         level.style.width = '0';
+        peakPin.style.opacity = '0';
+        levelBox.classList.remove('hot');
+        levelBox.setAttribute('aria-valuenow', '0');
         note.textContent = '录好了：在下面听一遍，满意就“存成文件”（浏览器会放进“下载”文件夹）。';
       };
       rec.start(1000);
       started = performance.now();
+      el.classList.add('is-rec');
       tick = setInterval(() => {
         const s = Math.round((performance.now() - started) / 1000);
         clock.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
       }, 500);
       recBtn.textContent = '■ 停止';
-      note.textContent = '正在录：上面那条绿色的会跟着声音跳。录完点“停止”。';
+      note.textContent = '正在录：上面那条电平表会跟着声音跳，细亮针是峰值保持。录完点“停止”。';
     } catch {
       stopAll();
+      el.classList.remove('is-rec');
       note.textContent = appOnly ? '这个浏览器录不了应用自己的声音。在 Chrome 里打开这一页再试。' : '没能打开这个声音输入（浏览器没给权限，或者没接机器）。在 Chrome 地址栏左边的图标里把“麦克风”改成允许，再试一次。';
     }
   });
   const el = h('div', { class: 'rec' },
     h('div', { class: 'row rec-top' }, h('span', { class: 'label' }, '从哪儿录'), select, clock),
-    h('div', { class: 'rec-level' }, level),
+    levelBox,
     h('div', { class: 'sl-controls' }, recBtn),
     note, list);
   return { el: h('div', { class: 'widget sl-box' }, el), destroy: () => { if (rec?.state === 'recording') rec.stop(); stopAll(); } };

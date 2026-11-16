@@ -50,7 +50,12 @@ function build() {
   const steps = h('div', { class: 'spl-steps', 'aria-hidden': 'true' }, keys);
   const title = h('h1', { class: 'spl-title' }, 'SEQTRAK ', h('b', {}, 'Academy'));
   const sub = h('p', { class: 'spl-sub' }, '跟着啾啾，一格一格学会 SEQTRAK');
-  const play = h('button', { class: 'spl-play', type: 'button', 'data-sfx': 'none', 'aria-label': '按 PLAY 进入' }, h('small', {}, '⏻ / PLAY'), h('span', { class: 'spl-cap' }, h('i')));
+  const play = h('button', { class: 'spl-play', type: 'button', 'data-sfx': 'none', 'aria-label': '按 PLAY 进入' },
+    h('small', {}, '⏻ / PLAY'),
+    h('span', { class: 'spl-cap' },
+      h('i'),
+      h('svg', { class: 'spl-glyph', viewBox: '0 0 32 14', 'aria-hidden': 'true', html: '<path d="M8 2.2v4.6M5.2 4a4.5 4.5 0 1 0 5.6 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="16.5" y1="3" x2="15" y2="11" stroke="currentColor" stroke-width="1.2" opacity=".45" stroke-linecap="round"/><path d="M20.5 3.2l7 3.8-7 3.8z" fill="currentColor"/>' }),
+      h('span', { class: 'spl-wave', 'aria-hidden': 'true' })));
   const hint = h('p', { class: 'spl-hint' }, h('b', {}, '按 PLAY 进入'), h('span', {}, '也可以按空格'));
   const skip = h('button', { class: 'spl-skip', type: 'button', 'data-sfx': 'none' }, '跳过');
   const sound = h('button', { class: 'spl-sound', type: 'button', 'data-sfx': 'none', hidden: true }, h('span', { 'aria-hidden': 'true' }, '🔈'), '开声音');

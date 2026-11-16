@@ -12,6 +12,7 @@ import { audio, lphpCutoff } from './audio.js';
 import { LoopPlayer } from './looper.js';
 import { createScope, FxEngine } from './fxlab.js';
 import { theme } from './theme.js';
+import { sfx } from './sfx.js';
 
 if (!document.querySelector('link[data-synthlab]')) {
   document.head.append(h('link', { rel: 'stylesheet', href: '/css/synthlab.css', 'data-synthlab': '' }));
@@ -25,23 +26,55 @@ if (!document.querySelector('link[data-synthlab]')) {
  */
 export function knob({ label, value = 0, min = -64, max = 63, onInput, readout = (v) => String(v), title = '' } = {}) {
   let v = clamp(Math.round(value), min, max);
+  const bipolar = min < 0 && max > 0;
+  const arcVal = h('path', { class: 'sl-arc-val', d: 'M 14 62 A 34 34 0 1 1 62 62', pathLength: '100' });
+  const arc = h('svg', { class: 'sl-knob-arc', viewBox: '0 0 76 76', 'aria-hidden': 'true' },
+    h('path', { class: 'sl-arc-bg', d: 'M 14 62 A 34 34 0 1 1 62 62' }),
+    arcVal,
+    bipolar && h('circle', { class: 'sl-arc-zero', cx: '38', cy: '4', r: '2.1' }));
   const mark = h('i', { class: 'sl-knob-mark' });
-  const body = h('div', { class: 'sl-knob', role: 'slider', tabindex: '0', 'aria-label': title || label, 'aria-valuemin': String(min), 'aria-valuemax': String(max) }, h('i', { class: 'sl-knob-cap' }, mark));
+  const body = h('div', { class: 'sl-knob', role: 'slider', tabindex: '0', 'aria-label': title || label, 'aria-valuemin': String(min), 'aria-valuemax': String(max) }, arc, h('i', { class: 'sl-knob-cap' }, mark));
   const read = h('div', { class: 'sl-knob-read' });
   const word = h('div', { class: 'sl-knob-label' }, label);
   const paint = () => {
-    const turn = ((v - min) / (max - min)) * 270 - 135; // 和机器上一样：最左 −135°，正中间朝上，最右 +135°
+    const pct = ((v - min) / (max - min)) * 100;
+    const turn = (pct / 100) * 270 - 135; // 和机器上一样：最左 −135°，正中间朝上，最右 +135°
     mark.parentNode.style.transform = `rotate(${turn}deg)`;
+    if (bipolar) {
+      const zeroPct = ((0 - min) / (max - min)) * 100;
+      const span = Math.abs(pct - zeroPct);
+      arcVal.setAttribute('stroke-dasharray', `${span.toFixed(1)} 100`);
+      arcVal.setAttribute('stroke-dashoffset', `${-(pct >= zeroPct ? zeroPct : pct).toFixed(1)}`);
+    } else {
+      arcVal.setAttribute('stroke-dasharray', `${pct.toFixed(1)} 100`);
+      arcVal.setAttribute('stroke-dashoffset', '0');
+    }
     body.setAttribute('aria-valuenow', String(v));
     read.textContent = readout(v);
     el.classList.toggle('moved', v !== 0);
   };
+  let lastClick = 0;
+  let lastNotch = Math.round(v / 4);
   const setTo = (next, quiet = false) => {
     const n = clamp(Math.round(next), min, max);
     if (n === v) return;
+    const hitCenter = !quiet && min < 0 && max > 0 && n === 0 && v !== 0;
     v = n;
     paint();
-    if (!quiet) onInput?.(v);
+    if (!quiet) {
+      const now = performance.now();
+      const notch = Math.round(v / 4);
+      if (hitCenter) {
+        sfx.play('center');
+        lastClick = now;
+        lastNotch = notch;
+      } else if (notch !== lastNotch && now - lastClick > 42) {
+        sfx.play('detent');
+        lastClick = now;
+        lastNotch = notch;
+      }
+      onInput?.(v);
+    }
   };
   let drag = null;
   body.addEventListener('pointerdown', (e) => {
@@ -56,7 +89,9 @@ export function knob({ label, value = 0, min = -64, max = 63, onInput, readout =
   });
   body.addEventListener('pointermove', (e) => {
     if (!drag) return;
-    setTo(drag.v + (drag.y - e.clientY) / 2.2); // 往上推 = 顺时针
+    let raw = drag.v + (drag.y - e.clientY) / 2.2; // 往上推 = 顺时针
+    if (min < 0 && max > 0 && Math.abs(raw) <= 2.4) raw = 0; // 正中间（0）有一档轻微的磁吸感
+    setTo(raw);
   });
   const end = () => {
     drag = null;

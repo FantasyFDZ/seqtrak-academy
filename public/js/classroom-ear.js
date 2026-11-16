@@ -104,14 +104,27 @@ export function orderQuiz(spec, env, make) {
     pop(card?.querySelector('.cl-card'));
   };
 
+  const putInSlot = (i) => {
+    if (locked || slots.includes(i) || slots.length >= n) return;
+    slots.push(i);
+    sfx.play('on');
+    paint();
+    if (slots.length === n) f.say('排满了。可以先“按我排的听一遍”，再点“对一下”。');
+  };
+
   function paint() {
     [...pool.children].forEach((box, i) => box.classList.toggle('used', slots.includes(i)));
     row.replaceChildren(...Array.from({ length: n }, (_, k) => {
       const i = slots[k];
-      const s = h('button', { class: ['cl-slot', i !== undefined && 'full'], type: 'button', 'data-sfx': 'none' }, i === undefined ? String(k + 1) : LETTERS[i]);
+      const s = h('button', {
+        class: ['cl-slot', i !== undefined && 'full', !locked && i === undefined && k === slots.length && 'next-slot'],
+        type: 'button',
+        'data-sfx': 'none',
+      }, i === undefined ? String(k + 1) : LETTERS[i]);
       s.addEventListener('click', () => {
         if (locked || i === undefined) return;
         slots.splice(k, 1);
+        sfx.play('off');
         paint();
       });
       return s;
@@ -128,15 +141,11 @@ export function orderQuiz(spec, env, make) {
     target.hidden = !round.target;
     axis.replaceChildren(h('span', {}, `← ${round.ends[0]}`), h('span', {}, `${round.ends[1]} →`));
     pool.replaceChildren(...round.items.map((it, i) => {
-      const face = h('button', { class: 'cl-card', type: 'button', 'data-sfx': 'none' }, h('b', {}, LETTERS[i]), h('span', {}, it.tag || '点我听'));
+      const face = h('button', { class: 'cl-card', type: 'button', 'data-sfx': 'none', title: '单击试听，双击直接放入下方槽位' }, h('b', {}, LETTERS[i]), h('span', {}, it.tag || '点我听'));
       face.addEventListener('click', () => play(i));
-      const put = h('button', { class: 'btn sm', type: 'button' }, '放进去');
-      put.addEventListener('click', () => {
-        if (locked || slots.includes(i) || slots.length >= n) return;
-        slots.push(i);
-        paint();
-        if (slots.length === n) f.say('排满了。可以先“按我排的听一遍”，再点“对一下”。');
-      });
+      face.addEventListener('dblclick', () => putInSlot(i));
+      const put = h('button', { class: 'btn sm', type: 'button', 'data-sfx': 'none' }, '放进去');
+      put.addEventListener('click', () => putInSlot(i));
       return Object.assign(h('div', { class: 'cl-cardbox' }, face, put), { __rank: round.rank[i] }); // __rank：给走查脚本用
     }));
     pool.style.gridTemplateColumns = `repeat(${n}, minmax(0, 1fr))`;
@@ -308,7 +317,10 @@ export function memoryQuiz(spec, env, make) {
     const cols = deck.length <= 6 ? 3 : deck.length <= 8 ? 4 : 5;
     grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
     grid.replaceChildren(...deck.map((c) => {
-      const b = h('button', { class: 'cl-memcard', type: 'button', 'data-sfx': 'none' }, h('b', {}, String(c.i + 1)), h('span', {}));
+      const b = h('button', { class: 'cl-memcard', type: 'button', 'data-sfx': 'none' },
+        h('b', {}, String(c.i + 1)),
+        h('i', { class: 'cl-mem-wave', 'aria-hidden': 'true' }, '∿'),
+        h('span', {}));
       b.__group = c.g.id; // 给走查脚本用
       b.addEventListener('click', () => flip(c, b));
       c.btn = b;
@@ -465,7 +477,8 @@ export function echoQuiz(spec, env, make) {
   let got = [];
   let timer = 0;
   let listening = false;
-  let singing = 0;
+  let singTimers = [];
+  const clearSing = () => singTimers.splice(0).forEach(clearTimeout);
   const sing = h('button', { class: 'btn primary lg', type: 'button' }, '▶ 啾啾唱一句');
   const typed = h('div', { class: 'cl-echo-typed' });
   const keysBox = h('div', { class: 'cl-echo-keys' });
@@ -480,23 +493,40 @@ export function echoQuiz(spec, env, make) {
   const paintTyped = () => typed.replaceChildren(...Array.from({ length: len }, (_, i) => h('i', { class: got[i] !== undefined ? 'on' : '' }, got[i] !== undefined ? String(got[i]) : '·')));
 
   function singNow() {
-    clearTimeout(singing);
+    clearSing();
+    listening = true;
+    got = [];
+    paintTyped();
+    const gap = round.gap || 0.42;
     audio.init().then((ok) => {
       if (!ok) return;
-      const gap = round.gap || 0.42;
       const t0 = audio.now() + 0.05;
       round.degrees.forEach((d, i) => audio.note(noteOf(d), t0 + i * gap, gap * 0.85, { voice: 'keys', vel: 0.7 }));
       jiu.chirp('echo', { notes: round.degrees.map((d, i) => [i * gap, noteOf(d) + 12, gap * 0.8]) });
       jiu.setMood('happy', 1500);
     });
-    listening = true;
-    got = [];
-    paintTyped();
+    round.degrees.forEach((_, i) => {
+      singTimers.push(setTimeout(() => {
+        if (got.length > 0) return;
+        const slot = typed.children[i];
+        if (!slot) return;
+        slot.classList.add('singing');
+        slot.textContent = '♪';
+      }, 50 + i * gap * 1000));
+      singTimers.push(setTimeout(() => {
+        if (got.length > 0) return;
+        const slot = typed.children[i];
+        if (!slot) return;
+        slot.classList.remove('singing');
+        slot.textContent = '·';
+      }, 50 + (i + 0.78) * gap * 1000));
+    });
     f.say('该你了：照着弹。');
   }
   sing.addEventListener('click', singNow);
 
   function press(d, btn) {
+    clearSing();
     audio.init().then((ok) => ok && audio.note(noteOf(d), audio.now() + 0.01, 0.4, { voice: 'keys', vel: 0.85 }));
     if (!listening) return f.say('先点「啾啾唱一句」。');
     got.push(d);
@@ -524,6 +554,7 @@ export function echoQuiz(spec, env, make) {
 
   function next() {
     clearTimeout(timer);
+    clearSing();
     round = make(len);
     got = [];
     listening = false;
@@ -546,7 +577,7 @@ export function echoQuiz(spec, env, make) {
     el,
     destroy() {
       clearTimeout(timer);
-      clearTimeout(singing);
+      clearSing();
       off();
     },
   };

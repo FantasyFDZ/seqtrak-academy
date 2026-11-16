@@ -10,6 +10,7 @@ import { h, clamp, Emitter } from './util.js';
 import { audio } from './audio.js';
 import { LoopPlayer } from './looper.js';
 import { theme } from './theme.js';
+import { sfx } from './sfx.js';
 
 if (!document.querySelector('link[data-fxlab]')) {
   document.head.append(h('link', { rel: 'stylesheet', href: '/css/fxlab.css', 'data-fxlab': '' }));
@@ -411,6 +412,7 @@ export function createScope(engine, { kind = 'spectrum' } = {}) {
   let lastCol = 0;
   let hidden = false;
   const trail = { before: [], after: [] };
+  const peaks = new Float32Array(BARS);
   let freq = null;
   let wave = null;
   let colors = {};
@@ -471,25 +473,36 @@ export function createScope(engine, { kind = 'spectrum' } = {}) {
     const after = n ? bars(n.after) : Array(BARS).fill(0);
     for (let i = 0; i < BARS; i++) {
       const x = i * (bw + gap);
+      const bh = Math.max(2 * dpr, before[i] * base * 0.94);
+      const ah = after[i] * base * 0.94;
+      peaks[i] = after[i] >= peaks[i] ? after[i] : Math.max(0, peaks[i] - 0.011);
       g.fillStyle = colors.before;
-      g.globalAlpha = 0.5;
-      g.fillRect(x, base - Math.max(2 * dpr, before[i] * base * 0.94), bw, Math.max(2 * dpr, before[i] * base * 0.94));
+      g.globalAlpha = 0.42;
+      g.fillRect(x, base - bh, bw, bh);
       g.fillStyle = colors.after;
-      g.globalAlpha = 1;
-      g.fillRect(x, base - after[i] * base * 0.94, bw, after[i] * base * 0.94);
+      g.globalAlpha = 0.92;
+      g.fillRect(x, base - ah, bw, ah);
+      if (peaks[i] > 0.04) {
+        g.globalAlpha = 0.78;
+        g.fillRect(x, Math.max(0, base - peaks[i] * base * 0.94 - 2 * dpr), bw, 1.8 * dpr);
+      }
     }
-    // 滤波器在哪儿下刀：一条竖线，被削掉的那一侧蒙上一层
+    // 滤波器在哪儿下刀：一条发光竖线，被削掉的那一侧蒙上一层
     const cut = engine.cutoff;
     if (cut) {
       const x = xOfFreq(cut, w);
       const high = engine.state.effect === 'highpass';
-      g.globalAlpha = 0.55;
+      g.globalAlpha = 0.52;
       g.fillStyle = colors.mask;
       if (high) g.fillRect(0, 0, x, base);
       else g.fillRect(x, 0, w - x, base);
       g.globalAlpha = 1;
-      g.fillStyle = colors.ink;
-      g.fillRect(x - dpr, 0, 2 * dpr, base);
+      g.save();
+      g.shadowColor = colors.after;
+      g.shadowBlur = 8 * dpr;
+      g.fillStyle = colors.after;
+      g.fillRect(x - 1.2 * dpr, 0, 2.4 * dpr, base);
+      g.restore();
     }
     g.globalAlpha = 1;
     g.fillStyle = colors.ink;
@@ -599,10 +612,19 @@ export function touchStrip({ label = 'FX LEVEL', value = 0.5, onInput, readout =
     track.setAttribute('aria-valuenow', String(Math.round(v * 100)));
     text.textContent = readout(v);
   };
+  let lastTick = Math.round(v * 7);
+  let lastTickAt = 0;
   const setFromEvent = (e) => {
     const r = track.getBoundingClientRect();
     const pad = 14; // 上下各留一点：手指按在最边上也够得到 0 和 100
     v = clamp(1 - (e.clientY - r.top - pad) / (r.height - pad * 2), 0, 1);
+    const tick = Math.round(v * 7);
+    const now = performance.now();
+    if (tick !== lastTick && now - lastTickAt > 55) {
+      sfx.play('detent');
+      lastTick = tick;
+      lastTickAt = now;
+    }
     paint();
     onInput?.(v);
   };

@@ -13,7 +13,7 @@ import { celebrateLevel } from './celebrate.js';
 import { LEVELS } from './levels.js';
 import { nudge } from './coach-nudge.js';
 import { initEggs } from './jiu-eggs.js';
-import { callBack, say as jiuSay, talking as jiuTalking } from './jiu.js';
+import { callBack, isFree, say as jiuSay, talking as jiuTalking } from './jiu.js';
 import { rich } from './util.js';
 import { learn } from './learn-mode.js';
 import { initKeyboard, showKeymap } from './keyboard.js';
@@ -50,27 +50,49 @@ let renderSeq = 0;
 async function render() {
   const seq = ++renderSeq;
   const path = location.hash.replace(/^#/, '') || '/';
-  current?.destroy?.();
-  current = null;
-  coach.hushNudge(); // 啾啾主动说的那句是说给上一页的
-  const view = $('#view');
-  clear(view);
-  view.scrollTop = 0;
-  for (const route of routes) {
-    const m = route.re.exec(path);
-    if (!m) continue;
-    $$('.rail a[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === route.nav));
-    try {
-      const result = (await route.view(view, ...m.slice(1))) || null;
-      if (seq === renderSeq) current = result;
-      else result?.destroy?.(); // 加载期间又切走了
-    } catch (e) {
-      console.error(e);
-      view.append(h('div', { class: 'card' }, h('h3', {}, '这一页出错了'), h('p', { class: 'muted' }, String(e.message || e))));
+  let ran = false;
+  const doSwap = async () => {
+    if (ran) return;
+    ran = true;
+    current?.destroy?.();
+    current = null;
+    coach.hushNudge(); // 啾啾主动说的那句是说给上一页的
+    const view = $('#view');
+    clear(view);
+    view.scrollTop = 0;
+    for (const route of routes) {
+      const m = route.re.exec(path);
+      if (!m) continue;
+      $$('.rail a[data-nav]').forEach((a) => {
+        const on = a.dataset.nav === route.nav;
+        a.classList.toggle('active', on);
+        if (on) a.setAttribute('aria-current', 'page');
+        else a.removeAttribute('aria-current');
+      });
+      try {
+        const result = (await route.view(view, ...m.slice(1))) || null;
+        if (seq === renderSeq) current = result;
+        else result?.destroy?.(); // 加载期间又切走了
+      } catch (e) {
+        console.error(e);
+        view.append(h('div', { class: 'card' }, h('h3', {}, '这一页出错了'), h('p', { class: 'muted' }, String(e.message || e))));
+      }
+      return;
     }
-    return;
+    location.hash = '#/';
+  };
+  const canTransition = booted && theme.rich && typeof document.startViewTransition === 'function'
+    && !document.documentElement.hasAttribute('data-still')
+    && !/[?&](still|walk|fake|raf|clstep|tab)\b/.test(location.search);
+  if (canTransition) {
+    try {
+      await document.startViewTransition(doSwap).updateCallbackDone;
+      return;
+    } catch {
+      /* 浏览器不支持或标签页不可见时直接回退 */
+    }
   }
-  location.hash = '#/';
+  await doSwap();
 }
 
 // ───────────── 左边的导航栏 ─────────────
@@ -117,6 +139,12 @@ function renderChip() {
   // 界面的“呼吸”跟着机器的速度走；没连就按 120
   theme.setBpm(midi.state === 'connected' ? midi.tempoRounded || seqtrak.state.tempo || 120 : 120);
 }
+
+// 「跳到正文」：应用用 #hash 管路由，拦截默认锚点跳转以免把当前路由冲回首页
+$('.skip-link')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  $('#view')?.focus();
+});
 
 // 还没连上的时候，点「设备」顺手就连（连接要用户亲手点一下才行，所以放在这一下里）；页面照常进设备页
 $('#device-chip').addEventListener('click', () => {
@@ -175,12 +203,18 @@ $('#skin-toggle').addEventListener('click', () => {
   store.update((d) => (d.settings.skin = next));
 });
 
-// 啾啾的窝：用鼠标单击不开对话框（点啾啾的身体才开，用户 2026-11-13），双击是叫它回来；
-// 用键盘按回车 / 空格（click 的 detail 是 0）还是打开对话框，免得只用键盘的时候找不到它
+// 啾啾的窝：单击打开 / 收起对话（如果啾啾被拖到了别处，单击就顺手叫它回窝）；双击叫它回来并应一声；键盘回车立即响应
+let nestTap = 0;
 $('#coach-toggle').addEventListener('click', (e) => {
-  if (e.detail === 0) coach.toggle();
+  clearTimeout(nestTap);
+  if (e.detail === 0) return isFree() ? callBack() : coach.toggle();
+  if (e.detail > 1) return;
+  nestTap = setTimeout(() => (isFree() ? callBack() : coach.toggle()), 170);
 });
-$('#coach-toggle').addEventListener('dblclick', () => callBack());
+$('#coach-toggle').addEventListener('dblclick', () => {
+  clearTimeout(nestTap);
+  callBack();
+});
 
 // ───────────── 涨经验、升级、拿徽章 ─────────────
 // 升级是全屏的庆祝（celebrate.js；克制档是一条提示条），徽章和整节课这样的大数是提示条 + 彩带。

@@ -109,12 +109,17 @@ function go(spot, r) {
   // 飞之前先把对话框收起来（用户 2026-11-13）：停稳了再弹出来
   if (talk?.classList.contains('on')) talk.classList.remove('pop');
   talk?.classList.add('away');
+  syncTalkFlag();
   (hover ? bird.hoverAt(x, y, { duration: spot.dur }) : bird.flyTo(x, y, { duration: spot.dur })).then(() => {
     if (me !== moves) return;
     flying = false;
     settle(spot);
     landed();
   });
+}
+
+function syncTalkFlag() {
+  document.documentElement.classList.toggle('jiu-talking', !!talk && talk.classList.contains('on') && !talk.classList.contains('away'));
 }
 
 /** 停稳了：收着的对话框弹回来，等着它停稳再开口的人接着说 */
@@ -128,6 +133,7 @@ function landed() {
       placeTalk();
     }
   }
+  syncTalkFlag();
   landWaiters.splice(0).forEach((f) => f());
 }
 
@@ -326,6 +332,7 @@ export function say({ html = '', paper = null, chips = [], ask = null, next = fa
   const wasOn = talk.classList.contains('on');
   talk.classList.add('on');
   talk.classList.toggle('away', flying); // 正在飞：先收着，停稳了再弹出来（landed）
+  syncTalkFlag();
   if ((!quiet || !wasOn) && !flying) {
     talk.classList.remove('pop');
     void talk.offsetWidth;
@@ -374,6 +381,7 @@ function askForm({ placeholder = '想问什么，直接写', onSubmit }) {
 export function hush() {
   clearTimeout(talkTimer);
   if (talk) talk.classList.remove('on', 'pop', 'away');
+  syncTalkFlag();
   kind = '';
   talkMood = null;
   applyMood();
@@ -445,9 +453,11 @@ export function lap(getRect, { turns = 1, ms = 2200, song = true } = {}) {
     const r = getRect?.();
     if (!bird || lapping || !visible(r) || still() || sfx.held || calmFx()) return resolve();
     lapping = true;
+    document.documentElement.classList.add('jiu-lapping');
     moves++; // 正在飞的那一趟作废
     flying = true;
     talk?.classList.add('away');
+    syncTalkFlag();
     const size = bird.el.offsetWidth;
     const cx = r.left + r.width / 2;
     const cy = r.top + r.height / 2 + size * 0.4; // 爪子绕着转，身子正好绕着中心
@@ -480,6 +490,7 @@ export function lap(getRect, { turns = 1, ms = 2200, song = true } = {}) {
       if (p < 1) requestAnimationFrame(step);
       else {
         lapping = false;
+        document.documentElement.classList.remove('jiu-lapping');
         flying = false;
         current = null; // 飞回该在的地方
         sync();
@@ -832,8 +843,8 @@ export function mount(nestHost, { tap, explain } = {}) {
       return;
     }
     clearTimeout(tapTimer);
-    if (pokes.length >= 2 && now - pokes[pokes.length - 2] < 500) return; // 双击的第二下、连着快点
-    tapTimer = setTimeout(() => onTap?.(), 260);
+    if (pokes.length >= 2 && now - pokes[pokes.length - 2] < 420) return; // 双击的第二下、连着快点
+    tapTimer = setTimeout(() => onTap?.(), 170);
   });
   talkBody = h('div', { class: 'jiu-body' });
   talk = h('div', { class: 'jiu-talk', role: 'status', 'aria-live': 'polite' }, h('i', { class: 'jiu-tail', 'aria-hidden': 'true' }), talkBody);

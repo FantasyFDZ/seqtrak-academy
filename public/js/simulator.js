@@ -29,6 +29,7 @@ import { TRACK } from './tracks.js';
 import { SCALES, KEY_NAMES, POLY_MODES, synthKeyNote, chordNotes, chordName } from './scales.js';
 import { controlInfo } from './controls.js';
 import { RECORDINGS, recordingBuffer, playBuffer } from './sim-samples.js';
+import { sfx } from './sfx.js';
 
 const DRUMS = ['KICK', 'SNARE', 'CLAP', 'HAT1', 'HAT2', 'PERC1', 'PERC2'];
 const SYNTHS = ['SYNTH1', 'SYNTH2', 'DX', 'SAMPLER'];
@@ -104,8 +105,8 @@ const SYNTH_CATEGORIES = ['BASS', 'SYNTH LEAD', 'PIANO', 'KEYBOARD', 'ORGAN', 'P
 const NATURALS = [0, 2, 4, 5, 7, 9, 11];
 const PAT_MAX = 6; // 每条轨道最多 6 段乐句（出厂 3 段）
 const LOOP_STEPS = 128; // 播放器按 8 小节转（乐句最长 8 小节）；短的乐句在里面自己走好几圈
-const HELLO = '这是一台**模拟机**，点它就会响。先短按左下角的 [PLAY] 听听看。';
-const HELLO_KBD = '这是一台**模拟机**，电脑键盘就是它的键（每个键旁边的小方块写着是哪个）。先按一下 〔空格〕（[PLAY]）听听看。';
+const HELLO = '**模拟机已就绪** · 点按面板即可发声，拧动旋钮或推滑条时右上角会浮现实时参数。';
+const HELLO_KBD = '**模拟机已就绪（键盘模式）** · 键旁小字即电脑按键，〔空格〕播放，按 〔?〕 查看全键位。';
 
 const isStepKey = (id) => /^DK\d+$/.test(id || '');
 const noteNames = (notes) => notes.map((n) => midiToName(n).replace(/-?\d+$/, '')).join(' ');
@@ -1517,6 +1518,8 @@ class Simulator extends Emitter {
       p.pat[id] = clamp(p.pat[id] + dir, 0, p.slots - 1);
       this.page = 0;
       this.panel?.setKnob(id, p.pat[id] * 45);
+      this.panel?.showHud(`${TRACK[id].label} · PTN`, `${p.pat[id] + 1} / ${p.slots}`, (p.pat[id] + 1) / p.slots);
+      sfx.play('detent');
       if (this.songMode) this.#storeScene();
       this.#say(`${TRACK[id].label} 换到了**第 ${p.pat[id] + 1} 段乐句**。${this.songMode ? `（记进了 scene ${p.scene + 1}）` : '每条轨道有好几段，互不影响；刚才的内容还在第 1 段，往回转就能找到。'}`);
       this.#event('pattern', { track: id, pattern: p.pat[id] });
@@ -1526,6 +1529,8 @@ class Simulator extends Emitter {
         this.panel?.setKnob(t, p.pat[t] * 45);
       }
       this.page = 0;
+      this.panel?.showHud('ALL · PTN', `SCENE ${p.pat.KICK + 1}`, (p.pat.KICK + 1) / p.slots);
+      sfx.play('detent');
       if (this.songMode) this.#storeScene();
       this.#say('11 条轨道一起换了一段乐句。现场演出时，这就是从“主歌”切到“副歌”的办法。');
       this.#event('pattern', { track: 'ALL', pattern: p.pat.KICK });
@@ -1538,6 +1543,8 @@ class Simulator extends Emitter {
     } else if (id === 'SD1') {
       this.#index = 'SOUND';
       this.#meterLater();
+      this.panel?.showHud(`${TRACK[this.sel]?.label || this.sel} · SOUND`, 'PRESET');
+      sfx.play('detent');
       this.#say(this.sel === 'SAMPLER'
         ? `给采样位 ${this.sampleKey} **换了一个预置采样**（“SOUND”亮了）。模拟机里采样器的预置声音换不出变化；真机上有 392 个预置采样可以挑（人声、音效、打击乐……）。`
         : `给 ${TRACK[this.sel].label} **换了一个音色**（“SOUND”亮了）。模拟机里鼓轨只有一种声音，真机上这里有几百个可以挑。`);
@@ -1550,6 +1557,8 @@ class Simulator extends Emitter {
       this.#showDots([8 - mode]); // 最上面三个灯：MONO、POLY、CHORD
       this.#index = mode === 2 ? 'CHORD' : 'MONO/POLY';
       const m = POLY_MODES[mode];
+      this.panel?.showHud(`${TRACK[this.sel].label} · MODE`, m.name, (mode + 1) / 3);
+      sfx.play('detent');
       this.#say(`${TRACK[this.sel].label} 的弹法：**${m.name}（${m.zh}）**——${m.what}。${mode === 2 ? '按一个 Synth key 试试。' : this.#k('继续往上拖，可以转到 CHORD。', '继续按 〔↑〕，可以转到 CHORD。')}（右边那列文字里亮的是 “${mode === 2 ? 'CHORD' : 'MONO/POLY'}”，小灯最上面三个从上到下是 MONO、POLY、CHORD。）`);
       this.#event('polymode', { track: this.sel, mode });
     } else if (id === 'SD2' && this.sel === 'SAMPLER') {
@@ -1578,6 +1587,8 @@ class Simulator extends Emitter {
     const note = this.#soundResetsPoly(sound.poly);
     this.#index = 'SOUND';
     this.#meterLater();
+    this.panel?.showHud(`${TRACK[track]?.label || track} · SOUND`, sound.name.replace(/^模拟(?: FM)? · /, ''));
+    sfx.play('detent');
     this.#say(`${how}：**${sound.name}**。${lost ? '刚才在旧音色上拧过的（第 2 页那几样、单轨效果）都换成了新音色自己的样子——想留着，换之前先存下来：按住 [ALL] 再按 SOUND 旋钮。' : ''}${note}`);
     this.#event('sound', { track });
     this.#event('soundname', { track, name: sound.name });
@@ -1635,6 +1646,8 @@ class Simulator extends Emitter {
     this.#remember(tr, param, before, v);
     this.#meter = Object.fromEntries(Array.from({ length: clamp(Math.round(((v - min) / (max - min)) * 8), 1, 8) }, (_, i) => [`METER.${i + 1}`, 'white']));
     this.#meterLater();
+    this.panel?.showHud(`${TRACK[tr].label} · ${index}`, v === 0 && !whole ? '0 · CENTER' : `${v > 0 && !whole ? '+' : ''}${v}`, (v - min) / (max - min));
+    sfx.play(v === 0 && !whole ? 'center' : 'detent');
     const demo = ['eqHi', 'eqLo', 'porta', 'arp', 'arpGate', 'arpSpeed', 'fmAlg'].includes(param) ? '模拟机里这一样只做演示，声音不变。' : '';
     const way = param === 'cutoff' && !this.#toldFilter ? this.#k('（模拟机上往下拖是闷、往上拖是薄；真机上那个旋钮往哪边是哪边，手册没写，转着听。）', '（模拟机上按 〔↓〕 是闷、按 〔↑〕 是薄；真机上那个旋钮往哪边是哪边，手册没写，转着听。）') : '';
     if (param === 'cutoff') this.#toldFilter = true;
@@ -1723,6 +1736,8 @@ class Simulator extends Emitter {
     this.#index = cat;
     this.#meter = { [`METER.${preset + 1}`]: 'cyan' };
     this.#meterLater();
+    this.panel?.showHud(`${this.fxSingle ? TRACK[this.sel].label : 'MASTER'} · ${cat}`, `P${preset + 1}`, (preset + 1) / 8);
+    sfx.play('detent');
     const mod = cat === 'MODULATION';
     const whose = this.fxSingle ? `${TRACK[this.sel].label} 的单轨效果` : '整台的效果（MASTER）';
     const masterHeard = !this.fxSingle && ['FILTER', 'REVERB', 'DELAY'].includes(cat);
@@ -1748,6 +1763,7 @@ class Simulator extends Emitter {
     this.#meter = Object.fromEntries(Array.from({ length: Math.round(v * 8) }, (_, i) => [`METER.${i + 1}`, 'white']));
     this.#meterLater();
     const pct = Math.round(v * 100);
+    this.panel?.showHud(cat ? `${this.fxSingle ? 'SINGLE' : 'MASTER'} · ${cat}` : 'FX LEVEL', `${pct}%`, v);
     if (!this.fxSingle) this.#applyFx();
     const heard = !this.fxSingle && ['FILTER', 'REVERB', 'DELAY'].includes(cat);
     this.#say(!cat ? `[FX LEVEL] 推到了 ${pct}%，可现在还没选效果：先转 [FX] 旋钮。`
@@ -2275,14 +2291,18 @@ class Simulator extends Emitter {
     if (id === 'HIGHPASS') {
       this.live.hp = Math.max(0.01, v);
       this.#applyFx();
+      this.panel?.showHud('LIVE · HIGH PASS', `${Math.round(v * 100)}%`, v);
       this.#say(`[HIGH PASS]：低音被削掉了 ${v < 0.3 ? '一点' : v < 0.7 ? '一大半' : '几乎全部'}。**手一松就复原**——这是给现场“抽掉低音、再一把放回来”用的。`);
+      this.#render();
       return this.#event('highpass', { on: true, value: v });
     }
     const len = v < 0.34 ? 4 : v < 0.67 ? 2 : 1;
     const from = Math.max(0, this.step);
     if (!this.#rep || this.#rep.len !== len) this.#rep = { from: from - (from % len), len, n: 0 };
     this.live.rep = v;
+    this.panel?.showHud('LIVE · REPEATER', len === 4 ? '1/4 BEAT' : len === 2 ? '1/8 BEAT' : '1/16 BEAT', v);
     this.#say(`[REPEATER]：反复放刚才那 ${len === 4 ? '一拍' : len === 2 ? '半拍' : '四分之一拍'}，越往上切得越碎。**手一松就接着往下放**。${this.playing ? '' : '（先按 [PLAY]，让机器放起来才有东西可以重复。）'}`);
+    this.#render();
     this.#event('repeater', { on: true, len });
   }
 
@@ -2381,8 +2401,17 @@ class Simulator extends Emitter {
   #render() {
     if (!this.panel) return;
     this.panel.svg.classList.toggle('off', !this.power);
-    if (!this.power) return this.panel.setLit({});
+    if (!this.power) {
+      this.panel.setSlider?.('FXLEVEL', 0);
+      this.panel.setSlider?.('HIGHPASS', 0);
+      this.panel.setSlider?.('REPEATER', 0);
+      return this.panel.setLit({});
+    }
     const p = this.proj;
+    const fxTarget = this.fxSingle ? p.snd[this.sel]?.fx : this.masterFx;
+    this.panel.setSlider?.('FXLEVEL', fxTarget && fxTarget.idx >= 0 ? fxTarget.level : 0);
+    this.panel.setSlider?.('HIGHPASS', this.live.hp || 0);
+    this.panel.setSlider?.('REPEATER', this.live.rep || 0);
     const lit = {};
     for (const t of ALL_TRACKS) {
       const n = (p.pat[t] % 3) + 1; // 3 个小灯：上中下 = 第 1、2、3 段（第 4–6 段同样的位置，亮青蓝）

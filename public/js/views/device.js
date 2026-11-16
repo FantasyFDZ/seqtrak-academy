@@ -69,6 +69,13 @@ export function deviceView(view) {
     }
     const s = seqtrak.state;
     const scale = SCALES[s.scale];
+    const batNode = s.battery === null ? '—' : (() => {
+      const pct = Math.max(0, Math.min(100, Number(s.battery) || 0));
+      const tone = pct <= 20 ? 'low' : pct <= 45 ? 'mid' : 'ok';
+      return h('span', { class: ['bat-meter', tone] },
+        h('i', { class: 'bat-bar', 'aria-hidden': 'true' }, h('b', { style: { width: `${pct}%` } })),
+        `${pct}%`);
+    })();
     statusCard.append(
       h('div', { class: 'row', style: { marginBottom: '16px' } },
         h('span', { class: 'tag ok' }, '已连接'),
@@ -79,12 +86,12 @@ export function deviceView(view) {
       h('dl', { class: 'kv two' },
         h('dt', {}, '固件'), h('dd', {}, s.firmware || '读取中…'),
         h('dt', {}, '速度'), h('dd', {}, s.tempo ? `${s.tempo} BPM` : midi.tempoRounded ? `${midi.tempoRounded} BPM（由时钟推算）` : '—'),
-        h('dt', {}, '状态'), h('dd', {}, midi.playing ? '播放中' : '已停止'),
+        h('dt', {}, '状态'), h('dd', {}, midi.playing ? h('span', { class: 'dev-live' }, h('i', { class: 'dev-dot', 'aria-hidden': 'true' }), '播放中') : '已停止'),
         h('dt', {}, '选中的轨道'), h('dd', {}, seqtrak.track.label),
         h('dt', {}, 'Project'), h('dd', {}, String(s.project + 1)),
         h('dt', {}, '音阶 / 调'), h('dd', {}, scale ? `${scale.name}（第 ${s.scale + 1} 个） / ${KEY_NAMES[s.key] || '?'}` : '—'),
         h('dt', {}, 'Swing'), h('dd', {}, `${s.swing} ticks`),
-        h('dt', {}, '电量'), h('dd', {}, s.battery === null ? '—' : `${s.battery}%`),
+        h('dt', {}, '电量'), h('dd', {}, batNode),
         h('dt', {}, '读写参数'), h('dd', {}, midi.sysex ? '可以（已授权 SysEx）' : '不可以：浏览器没有授权 SysEx，机器读数和步骤检测会受限'),
       ),
     );
@@ -119,14 +126,57 @@ export function deviceView(view) {
 
   // 监视器
   const monitor = h('div', { class: 'monitor' });
-  const addLine = (e) => {
+  let monPaused = false;
+  let monTotal = 0;
+  let rxTimer = 0;
+  let txTimer = 0;
+  const rxLed = h('span', { class: 'mon-led rx' }, h('i', { 'aria-hidden': 'true' }), 'RX');
+  const txLed = h('span', { class: 'mon-led tx' }, h('i', { 'aria-hidden': 'true' }), 'TX');
+  const monCount = h('span', { class: 'mon-count' }, '0 条');
+  const pauseBtn = h('button', {
+    class: 'btn sm',
+    type: 'button',
+    'aria-pressed': 'false',
+    onclick: () => {
+      monPaused = !monPaused;
+      pauseBtn.setAttribute('aria-pressed', String(monPaused));
+      pauseBtn.classList.toggle('primary', monPaused);
+    },
+  }, '暂停滚动');
+  const clearBtn = h('button', {
+    class: 'btn sm ghost',
+    type: 'button',
+    onclick: () => {
+      clear(monitor);
+      monTotal = 0;
+      monCount.textContent = '0 条';
+    },
+  }, '清空');
+  const monBar = h('div', { class: 'mon-bar' }, rxLed, txLed, monCount, h('span', { class: 'spacer' }), pauseBtn, clearBtn);
+
+  const blinkLed = (dir) => {
+    if (dir === 'out') {
+      txLed.classList.add('lit');
+      clearTimeout(txTimer);
+      txTimer = setTimeout(() => txLed.classList.remove('lit'), 160);
+    } else {
+      rxLed.classList.add('lit');
+      clearTimeout(rxTimer);
+      rxTimer = setTimeout(() => rxLed.classList.remove('lit'), 160);
+    }
+  };
+  const addLine = (e, live = true) => {
+    if (live) blinkLed(e.dir);
+    if (monPaused && live) return;
+    monTotal++;
+    monCount.textContent = `${monTotal} 条`;
     const t = new Date().toLocaleTimeString('zh-CN', { hour12: false });
     monitor.append(h('div', { class: e.dir }, h('span', { class: 't' }, t), e.dir === 'out' ? `→ ${e.hex}` : `${e.text}　${e.hex}`));
     while (monitor.children.length > 200) monitor.firstChild.remove();
     monitor.scrollTop = monitor.scrollHeight;
   };
-  midi.log.slice(-40).forEach(addLine);
-  offs.push(midi.on('log', addLine));
+  midi.log.slice(-40).forEach((e) => addLine(e, false));
+  offs.push(midi.on('log', (e) => addLine(e, true)), () => { clearTimeout(rxTimer); clearTimeout(txTimer); });
 
   // 录一段发给开发者
   const note = h('input', { class: 'input', placeholder: '这段时间你在机器上做了什么？例如“按了 Drum key 1，然后转了 KICK 旋钮”', style: { flex: '1', minWidth: '240px' } });
@@ -164,6 +214,7 @@ export function deviceView(view) {
       h('div', { class: 'card' },
         h('h3', {}, 'MIDI 监视器'),
         h('p', { class: 'muted small', style: { margin: '6px 0 10px' } }, '机器发来的每一条消息（时钟除外）。在机器上按个键、转个旋钮，这里就会滚动。绿色是机器发来的，蓝色是应用发出的。'),
+        monBar,
         monitor,
         h('div', { class: 'row', style: { marginTop: '12px' } }, note, recordBtn),
         h('p', { class: 'muted small', style: { marginTop: '8px' } }, `如果课程里某一步“检测不到”你的操作，在这里录一段，开发时可以据此修正。当前延迟校准值：${store.settings.inputOffsetMs}ms。`),

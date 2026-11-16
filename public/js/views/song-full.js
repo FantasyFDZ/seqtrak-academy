@@ -133,8 +133,20 @@ export function songFullView(view, id) {
       }
     });
     const mv = sc.moves?.[p.track];
+    let autoFill = null;
+    let autoLine = null;
+    if (mv) {
+      const yHz = (f) => {
+        const norm = Math.max(0.08, Math.min(0.95, Math.log(Math.max(120, f) / 160) / Math.log(15000 / 160)));
+        return +(ih - 2 - norm * (ih - 6)).toFixed(1);
+      };
+      const y0 = yHz(mv[0]);
+      const y1 = yHz(mv[1]);
+      autoFill = h('path', { class: 'daw-auto-fill', d: `M0 ${ih} L0 ${y0} L${w} ${y1} L${w} ${ih} Z` });
+      autoLine = h('path', { class: 'daw-auto-line', d: `M0 ${y0} L${w} ${y1}` });
+    }
     return h('button', { class: ['daw-clip', mv && 'move'], type: 'button', style: { left: `${sc.start * PX}px`, width: `${w}px` }, title: `${sc.name} · ${TRACK[p.track].label} 乐句 ${no}${mv ? `，滤波器${moveWord(mv).long}` : ''}。点一下，下面看这段乐句`, onclick: () => pickTrack(ti) },
-      h('svg', { class: 'daw-notes', width: w, height: ih, viewBox: `0 0 ${w} ${ih}`, 'aria-hidden': 'true' }, marks),
+      h('svg', { class: 'daw-notes', width: w, height: ih, viewBox: `0 0 ${w} ${ih}`, 'aria-hidden': 'true' }, autoFill, marks, autoLine),
       h('span', { class: 'daw-tag' }, `${no}${mv ? moveWord(mv).arrow : ''}`));
   };
   const rows = tracks.map((p, ti) => {
@@ -242,7 +254,16 @@ export function songFullView(view, id) {
   const playBtn = h('button', { class: 'btn primary sp-play', type: 'button', dataset: { sfx: 'none' }, onclick: () => (player.playing ? stop() : playFrom(player.loop ?? 0)) });
   const loopBtn = h('button', { class: 'btn', type: 'button', 'aria-pressed': 'false', dataset: { sfx: 'none' }, onclick: () => toggleLoop() });
   const resetBtn = h('button', { class: 'btn ghost', type: 'button', onclick: () => { player.solo = null; player.muted.clear(); refresh(); } }, '取消独奏和静音');
+  const lcd = h('span', { class: 'sf-lcd', 'aria-hidden': 'true' });
   const where = h('span', { class: 'sf-where' });
+  const paintLcd = (g) => {
+    const pos = Math.max(0, g);
+    const barNo = String(Math.floor(pos / 16) + 1).padStart(2, '0');
+    const beatNo = Math.floor((pos % 16) / 4) + 1;
+    const curSec = g >= 0 ? pos * stepSec : 0;
+    lcd.textContent = `BAR ${barNo}.${beatNo}  ${mmss(curSec)} / ${mmss(totalSec)}`;
+    lcd.classList.toggle('live', g >= 0 && (player.playing || frozen));
+  };
 
   const refresh = () => {
     const si = at >= 0 ? player.sceneAt(at) : -1;
@@ -267,6 +288,7 @@ export function songFullView(view, id) {
     where.textContent = si >= 0
       ? `${player.loop !== null ? '循环' : '正在放'}：第 ${si + 1} 段「${scenes[si].name}」${scenes[si].steps >= 16 ? ` · 第 ${Math.floor((at - scenes[si].start) / 16) + 1} / ${scenes[si].bars} 小节` : ''}`
       : `${scenes.length} 段，从头放完约 ${mmss(totalSec)}`;
+    paintLcd(at);
     ctx.set(`曲目 · 《${song.title}》的 SEQTRAK 完整版`, describe(song, spec, arr, player, at));
   };
 
@@ -278,6 +300,7 @@ export function songFullView(view, id) {
     if (si >= 0) secs[si].bar.style.width = `${(((g - scenes[si].start) + 1) / scenes[si].steps) * 100}%`;
     movePlayhead(g);
     lightPats();
+    paintLcd(g);
     const bar = si >= 0 ? Math.floor((g - scenes[si].start) / 16) : -1;
     if (si !== lastScene || bar !== lastBar) {
       lastScene = si;
@@ -373,7 +396,7 @@ export function songFullView(view, id) {
         h('span', { class: 'tag' }, `${scenes.length} 段 · 约 ${mmss(totalSec)}`))),
     h('div', { class: 'sp-body' },
       h('div', { class: 'sp-main' },
-        h('div', { class: 'sp-transport' }, playBtn, loopBtn, resetBtn, followBtn, where),
+        h('div', { class: 'sp-transport' }, playBtn, loopBtn, resetBtn, followBtn, lcd, where),
         summary,
         scroller),
       side),

@@ -30,7 +30,7 @@ function stopAudition() {
   audition = null;
 }
 
-function startAudition(chart, { card, cover, cells, button }) {
+function startAudition(chart, { card, cover, cells, button, ring }) {
   stopAudition();
   const spb = 60 / chart.bpm;
   const byStep = Array.from({ length: chart.stepsPerLoop }, () => []);
@@ -45,14 +45,25 @@ function startAudition(chart, { card, cover, cells, button }) {
     }
   };
   let lit = [];
+  let lap = 0;
+  let prevStep = -1;
+  const totalSteps = AUDITION_LAPS * chart.stepsPerLoop;
   const unlight = () => {
     for (const c of lit) c.classList.remove('hit');
     lit = [];
   };
-  // 播放头跟着听到的声音走，正响的格子亮一下
+  const setRing = (pct) => {
+    if (!ring) return;
+    ring.value = pct;
+    ring.style.setProperty('--value', String(pct));
+  };
+  // 播放头跟着听到的声音走，正响的格子亮一下，圆键外圈同步推进两圈进度环
   player.onStep((step) => {
     unlight();
     if (step < 0) return;
+    if (prevStep >= 0 && step < prevStep) lap++;
+    prevStep = step;
+    setRing(Math.min(100, Math.round(((lap * chart.stepsPerLoop + step + 1) / totalSteps) * 100)));
     cover.style.setProperty('--at', String(step));
     lit = cells[step] || [];
     for (const c of lit) c.classList.add('hit');
@@ -66,12 +77,14 @@ function startAudition(chart, { card, cover, cells, button }) {
       unlight();
       card.classList.remove('playing');
       cover.style.removeProperty('--at');
+      setRing(0);
       button.replaceChildren(icon(ICON_PLAY));
       button.setAttribute('aria-pressed', 'false');
     },
   };
   audition = me;
   card.classList.add('playing');
+  setRing(2);
   button.replaceChildren(icon(ICON_STOP));
   button.setAttribute('aria-pressed', 'true');
   player.start();
@@ -106,13 +119,21 @@ function coverOf(chart) {
   return { el, cells };
 }
 
+function chartKind(def) {
+  if (def.chords) return 'chord';
+  if (def.melody) return 'melody';
+  return 'drum';
+}
+
 function chartCard(def) {
   const chart = normalizeChart(def);
   const best = store.data.charts[def.id];
   const tracks = [...Object.keys(def.lanes || {}).map((t) => TRACK[t]?.label || t), def.melody ? '贝斯' : null, def.chords ? '和弦' : null].filter(Boolean);
   const { el: cover, cells } = coverOf(chart);
+  const ring = h('progress', { class: 'cover-ring', max: '100', value: '0', 'aria-label': `「${def.title}」试听进度` });
   const button = h('button', { class: 'cover-play', type: 'button', 'aria-label': `试听「${def.title}」`, 'aria-pressed': 'false', dataset: { sfx: 'none' } }, icon(ICON_PLAY));
-  const card = h('div', { class: ['chart-card', best?.bestStars && 'done'] },
+  const playWrap = h('span', { class: 'cover-play-wrap' }, ring, button);
+  const card = h('div', { class: ['chart-card', best?.bestStars && 'done'], dataset: { kind: chartKind(def), stars: String(best?.bestStars || 0) } },
     h('a', { href: `#/arcade/${def.id}` },
       cover,
       h('div', { class: 'chart-body' },
@@ -128,14 +149,21 @@ function chartCard(def) {
         ),
       ),
     ),
-    button,
+    playWrap,
   );
   button.addEventListener('click', () => {
     if (card.classList.contains('playing')) stopAudition();
-    else startAudition(chart, { card, cover, cells, button });
+    else startAudition(chart, { card, cover, cells, button, ring });
   });
   return card;
 }
+
+const DRILL_IDEAS = [
+  ['反拍闭镲', '想练反拍闭镲，底鼓稳着'],
+  ['切分底鼓', '来个带切分底鼓的律动，别太快'],
+  ['慢速稳拍', '慢一点（85 BPM 左右），练稳准度'],
+  ['和弦切换', '想练两个和弦来回切换'],
+];
 
 function listView(view) {
   ctx.set('练习场（谱面列表）');
@@ -157,25 +185,92 @@ function listView(view) {
       button.textContent = label;
     }
   });
+  const ideas = h('div', { class: 'drill-ideas' },
+    h('span', { class: 'small muted' }, '随手点一个：'),
+    DRILL_IDEAS.map(([short, full]) => h('button', {
+      type: 'button',
+      class: 'chip',
+      onclick: () => {
+        request.value = full;
+        request.focus();
+      },
+    }, short)),
+  );
+
+  const earnedStars = CHARTS.reduce((a, c) => a + (store.data.charts[c.id]?.bestStars || 0), 0);
+  const fullCleared = CHARTS.filter((c) => (store.data.charts[c.id]?.bestStars || 0) >= 3).length;
+  let filter = 'all';
+  const FILTERS = [
+    ['all', `全部 ${CHARTS.length}`],
+    ['drum', '鼓组'],
+    ['melody', '低音线'],
+    ['chord', '和弦'],
+    ['todo', '待拿满 3★'],
+  ];
+  const groups = [];
+  const emptyNote = h('p', { class: 'muted arcade-empty', hidden: true }, '这一类谱面你都已经拿满 3 颗星了！切回「全部」随便挑一首热手。');
+  const filterBtns = FILTERS.map(([id, label]) => h('button', {
+    type: 'button',
+    class: ['chip', id === filter && 'on'],
+    'aria-pressed': String(id === filter),
+    onclick: () => applyFilter(id),
+  }, label));
+  const filterBar = h('div', { class: 'arcade-bar' },
+    h('div', { class: 'arcade-chips' }, filterBtns),
+    h('span', { class: 'arcade-summary' }, h('b', {}, `${earnedStars}`), ` / ${CHARTS.length * 3} ★ · 三星通关 ${fullCleared} 首`),
+  );
 
   view.append(
-    h('div', { class: 'page-head' }, h('h1', {}, '练习场'), h('p', {}, '不赶进度的时候来这里。卡片上面那块就是这个谱面的图案：彩色的格子要你打，灰的是伴奏；右下角的圆键可以先听一遍。进去以后能选“示范 / 跟打 / 独奏”和速度，成绩会记下来给啾啾参考。')),
+    h('div', { class: 'page-head' }, h('h1', {}, '练习场'), h('p', {}, '不赶进度的时候来这里。卡片上面那块就是这个谱面的图案：彩色的格子要你打，灰的是伴奏；右下角的圆键可以先听一遍。进去以后能选“示范 / 跟打 / 独奏”和速度，成绩会记下来给啾啾参考。'), filterBar),
     h('div', { class: 'card' },
       h('h3', {}, '让啾啾按你的弱点出题'),
       h('p', { class: 'muted', style: { margin: '6px 0 14px' } }, '啾啾会看你最近几局的数据（哪里漏、偏早还是偏晚），写一个专门针对它的节奏，几秒钟就好。'),
       h('div', { class: 'row' }, h('div', { style: { flex: '1', minWidth: '240px' } }, request), button),
+      ideas,
     ),
+    emptyNote,
   );
 
-  const section = (title, items) => view.append(
-    h('h2', { class: 'group-title' }, title, h('span', {}, `${items.length} 个`)),
-    h('div', { class: 'charts' }, items.map(chartCard)));
+  const section = (title, items) => {
+    const cards = items.map(chartCard);
+    const countEl = h('span', {}, `${items.length} 个`);
+    const headEl = h('h2', { class: 'group-title' }, title, countEl);
+    const gridEl = h('div', { class: 'charts' }, cards);
+    groups.push({ headEl, gridEl, countEl, cards });
+    view.append(headEl, gridEl);
+  };
   const drills = store.data.drills || [];
   if (drills.length) section('AI 定制', drills);
   for (const group of CHART_GROUPS) {
     const items = CHARTS.filter((c) => c.group === group);
     if (items.length) section(group, items);
   }
+
+  function applyFilter(next) {
+    filter = next;
+    stopAudition();
+    filterBtns.forEach((b, i) => {
+      const on = FILTERS[i][0] === filter;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    let shownTotal = 0;
+    for (const g of groups) {
+      let shown = 0;
+      for (const c of g.cards) {
+        const match = filter === 'all'
+          || (filter === 'todo' ? Number(c.dataset.stars) < 3 : c.dataset.kind === filter);
+        c.hidden = !match;
+        if (match) shown++;
+      }
+      g.headEl.hidden = shown === 0;
+      g.gridEl.hidden = shown === 0;
+      g.countEl.textContent = `${shown} 个`;
+      shownTotal += shown;
+    }
+    emptyNote.hidden = shownTotal > 0;
+  }
+
   return { destroy: stopAudition };
 }
 

@@ -109,9 +109,17 @@ export function songsView(view, id, full) {
       ORDER_RULES,
     ].filter(Boolean).join('\n'));
   };
+  let filter = 'all';
+  const cardItems = [];
+  const groups = [];
+  const doneMaxCh = Math.max(1, ...CHAPTERS.filter((c) => !c.soon && c.lessons?.length && c.lessons.every((l) => store.lesson(l.id).done)).map((c) => c.no + 1));
+  const readyNow = (s) => chapterOf(s) <= doneMaxCh;
+  let applyFilter = () => {};
+
   const save = () => {
     store.update((d) => (d.songs.picked = [...picked]));
     counter.textContent = `已选 ${picked.size} 首`;
+    applyFilter();
     describe();
   };
 
@@ -174,18 +182,74 @@ export function songsView(view, id, full) {
     describe();
   }, 500));
 
+  const filterBar = h('div', { class: 'songs-filter', role: 'toolbar', 'aria-label': '筛选曲目' });
+  const emptyNote = h('p', { class: 'muted songs-empty', hidden: true }, '这一档里还没有歌，换个筛选看看。');
+  const groupNodes = Object.entries(SONG_STYLES).map(([key, style]) => {
+    const songs = SONGS.filter((s) => s.style === key).sort(byEase);
+    const entries = songs.map((s) => {
+      const el = card(s);
+      cardItems.push({ song: s, el });
+      return el;
+    });
+    const wrap = h('section', { class: 'songs-group' },
+      h('h2', { class: 'group-title', style: { '--c': style.color } }, h('i', { class: 'dot' }), style.label, h('span', {}, songs.length > 1 ? `${songs.length} 首 · 由易到难` : `${songs.length} 首`)),
+      h('div', { class: 'songs' }, entries));
+    groups.push({ key, wrap, entries: songs.map((s, idx) => ({ song: s, el: entries[idx] })) });
+    return wrap;
+  });
+
+  const filterBtns = new Map();
+  const makePill = (id, labelFn) => {
+    const b = h('button', {
+      type: 'button',
+      class: ['chip', filter === id && 'on'],
+      'aria-pressed': String(filter === id),
+      onclick: () => {
+        filter = id;
+        applyFilter();
+      },
+    }, labelFn());
+    filterBtns.set(id, { btn: b, labelFn });
+    return b;
+  };
+  filterBar.append(
+    makePill('all', () => `全部 ${SONGS.length}`),
+    makePill('ready', () => `现在可学 ${SONGS.filter(readyNow).length}`),
+    makePill('picked', () => `已选 ${picked.size}`),
+    ...Object.entries(SONG_STYLES).map(([k, st]) => makePill(`style:${k}`, () => st.label)),
+  );
+
+  applyFilter = () => {
+    for (const [id, { btn, labelFn }] of filterBtns) {
+      btn.textContent = labelFn();
+      btn.classList.toggle('on', filter === id);
+      btn.setAttribute('aria-pressed', String(filter === id));
+    }
+    let totalShown = 0;
+    for (const g of groups) {
+      let shown = 0;
+      for (const it of g.entries) {
+        const ok = filter === 'all'
+          || (filter === 'ready' && readyNow(it.song))
+          || (filter === 'picked' && picked.has(it.song.id))
+          || (filter === `style:${g.key}`);
+        it.el.hidden = !ok;
+        if (ok) shown++;
+      }
+      g.wrap.hidden = shown === 0;
+      totalShown += shown;
+    }
+    emptyNote.hidden = totalShown > 0;
+  };
+
   const scroll = h('div', { class: 'songs-scroll' },
     h('div', { class: 'page-head' },
       h('h1', {}, '曲目'),
-      h('p', {}, '这些都是你挑的歌——你听过的，和上过排行榜的热门——按五种风格分好了，都是结构清楚、层次不多、适合在 SEQTRAK 上一层层搭出来的。点卡片勾选你最想学的，目标是最后留下 5–10 首，可以随时回来改。封面上带圆键的，是已经拆成 SEQTRAK 分轨的歌：听到的是最后在机器上能做出来的样子，不是原曲。'),
+      h('p', {}, '这些都是你挑的歌——你听过的，和上过排行榜的热门——按风格分好了，都是结构清楚、层次不多、适合在 SEQTRAK 上一层层搭出来的。点卡片勾选你最想学的，目标是最后留下 5–10 首，可以随时回来改。封面上带圆键的，是已经拆成 SEQTRAK 分轨的歌：听到的是最后在机器上能做出来的样子，不是原曲。'),
     ),
-    Object.entries(SONG_STYLES).map(([key, style]) => {
-      const songs = SONGS.filter((s) => s.style === key).sort(byEase);
-      return [
-        h('h2', { class: 'group-title', style: { '--c': style.color } }, h('i', { class: 'dot' }), style.label, h('span', {}, songs.length > 1 ? `${songs.length} 首 · 由易到难` : `${songs.length} 首`)),
-        h('div', { class: 'songs' }, songs.map(card)),
-      ];
-    }),
+    filterBar,
+    emptyNote,
+    groupNodes,
     h('div', { class: 'card songs-wish' },
       h('h3', {}, '还想学别的？'),
       wish),

@@ -33,10 +33,11 @@ export function confetti(origin, n = 26, { spread = 170 } = {}) {
     y = innerHeight * 0.4;
   }
   const host = fxLayer();
+  const shapes = ['strip', 'dot', 'diamond'];
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2;
     const r = spread * (0.5 + Math.random());
-    const c = h('i', { class: 'confetti' });
+    const c = h('i', { class: 'confetti', dataset: { shape: shapes[i % shapes.length] } });
     c.style.cssText = `left:${x}px;top:${y}px;background:${CONFETTI[i % CONFETTI.length]};--dx:${(Math.cos(a) * r).toFixed(0)}px;--dy:${(Math.sin(a) * r - spread * 0.35).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg`;
     host.append(c);
     setTimeout(() => c.remove(), 1200);

@@ -18,7 +18,8 @@ import { toast } from '../ui.js';
 import { countUp, typeOut } from '../fx.js';
 import { coachFace, setCoachMood } from '../coach-face.js';
 import { homeHello } from '../jiu-eggs.js';
-import { callBack } from '../jiu.js';
+import { callBack, isFree } from '../jiu.js';
+import { sfx } from '../sfx.js';
 import { firmwareBehind } from '../device-connect.js';
 
 const svg = (cls, box, inner) => h('svg', { class: cls, viewBox: box, 'aria-hidden': 'true', html: inner });
@@ -82,7 +83,7 @@ function greeting(p, nextUp, started) {
 
 // ───────────── 地图怎么排 ─────────────
 
-const BASE = 124; // 一个区域里，第一行关卡的中线离区域顶边多远
+const BASE = 136; // 一个区域里，第一行关卡的中线离区域顶边多远（给章节铭牌与“继续”旗标留出呼吸间距）
 const WAVE = 18; // 关卡一上一下，偏离中线多少：路就弯起来了
 const ROW_H = 204; // 一个区域里要排两行时，行与行隔多远（窗口窄的时候）
 const TAIL = 156; // 最后一行中线以下留多少（放课名和星星）
@@ -178,9 +179,14 @@ export function homeView(view) {
   // ── 接着练：啾啾飞过来打招呼 + 下一关 ──
   const face = coachFace({ size: 64 });
   cleanup.push(() => face.release());
-  // 问候卡上那个圆盘：鼠标单击不开对话框（点啾啾的身体才开），双击叫它回来；键盘按回车还是打开对话框
+  // 问候卡上的栖木：单击打开 / 收起啾啾对话（如果被拖到别处就先叫它回来），双击叫它回来；键盘回车立即响应
+  let perchTap = 0;
+  cleanup.push(() => clearTimeout(perchTap));
   const openCoach = (e) => {
-    if (e.detail === 0) coach.toggle(true);
+    clearTimeout(perchTap);
+    if (e.detail === 0) return isFree() ? callBack() : coach.toggle();
+    if (e.detail > 1) return;
+    perchTap = setTimeout(() => (isFree() ? callBack() : coach.toggle()), 170);
   };
   const askPlan = () => coach.ask('看看我的进度和最近几局的数据：今天这半小时我该怎么练？给我一个三步的小计划。', { format: 'plan' });
   cleanup.push(coach.offer([['今天怎么练？', askPlan]]));
@@ -223,7 +229,7 @@ export function homeView(view) {
   }
   const resume = h('section', { class: 'resume' },
     h('div', { class: 'greet' },
-      h('button', { class: 'greet-face', type: 'button', 'data-sfx': 'none', title: '点啾啾和它说话；双击这里叫它回来', 'aria-label': '和啾啾说话', onclick: openCoach, ondblclick: () => callBack() }, face.el),
+      h('button', { class: 'greet-face', type: 'button', 'data-sfx': 'none', title: '点一下和啾啾说话；双击叫它回来', 'aria-label': '和啾啾说话', onclick: openCoach, ondblclick: () => { clearTimeout(perchTap); callBack(); } }, face.el),
       say),
     resumeBody,
   );
@@ -330,7 +336,12 @@ export function homeView(view) {
       const val = (v) => (typeof v === 'function' ? v() : v);
       const got = !!val(mini.done);
       const stars = Math.max(1, Math.min(3, val(mini.stars) || 1));
-      nodeEls.push(h('a', { class: ['map-node', 'mini', got && 'done'], href: mini.href, 'aria-label': `小关 ${mini.title}：${got ? '学过了' : '可以学'}` },
+      const noteIdx = nodeEls.length;
+      nodeEls.push(h('a', {
+        class: ['map-node', 'mini', got && 'done'], href: mini.href, 'aria-label': `小关 ${mini.title}：${got ? '学过了' : '可以学'}`,
+        onpointerenter: (e) => e.pointerType === 'mouse' && sfx.penta(noteIdx, { hover: true }),
+        onpointerdown: (e) => e.button === 0 && sfx.penta(noteIdx),
+      },
         h('span', { class: 'cap' }, h('span', { class: 'no' }, mini.no || mini.id), h('span', { class: 'lamp' })),
         h('span', { class: 'kind' }, mini.kind || '小课堂'),
         h('span', { class: 'name' }, mini.title),
@@ -342,6 +353,7 @@ export function homeView(view) {
       const isNow = nextUp?.lesson.id === lesson.id;
       const boss = i === chapter.lessons.length - 1;
       const stars = state.stars || 1;
+      const noteIdx = nodeEls.length;
       const whyLocked = () => toast(`${lesson.no}「${lesson.title}」还没解锁：先学完前一关。想跳着看，可以在「设置」里打开“全部课程解锁”。`, '', 4200);
       nodeEls.push(h(locked ? 'div' : 'a', {
         class: ['map-node', state.done ? 'done' : isNow ? 'now' : locked ? 'locked' : 'open', boss && 'boss'],
@@ -350,6 +362,8 @@ export function homeView(view) {
         role: locked ? 'button' : null,
         'aria-disabled': locked ? 'true' : null,
         onclick: locked ? whyLocked : null,
+        onpointerenter: locked ? null : (e) => e.pointerType === 'mouse' && sfx.penta(noteIdx, { hover: true }),
+        onpointerdown: locked ? null : (e) => e.button === 0 && sfx.penta(noteIdx),
         onkeydown: locked ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), whyLocked()) : null,
         'aria-label': `${lesson.no} ${lesson.title}${boss ? '（章节挑战）' : ''}：${state.done ? `已通关，${stars} 颗星` : locked ? '还没解锁' : isNow ? '现在这一关' : '可以学'}`,
       },

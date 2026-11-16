@@ -3,7 +3,7 @@
 // 一次只有一张，新的会把旧的换掉。点按钮、点卡片外面、按 Esc 都能收起。样式在 app.css 的“全屏的庆祝”。
 import { h } from './util.js';
 import { sfx } from './sfx.js';
-import { confetti } from './fx.js';
+import { confetti, countUp } from './fx.js';
 import { coachFace, setCoachMood } from './coach-face.js';
 import { lap } from './jiu.js';
 
@@ -68,11 +68,24 @@ export function closeCelebration() {
 export function xpLine({ gained = 0, from, to }) {
   const up = !!from && to.lv > from.lv;
   const bar = h('i', { style: { width: `${Math.round((up || !from ? 0 : from.pct) * 100)}%` } });
-  const el = h('div', { class: 'xp-line' },
-    h('b', {}, gained == null ? `${to.xp} 经验` : gained > 0 ? `+${gained} 经验` : '经验没变'), // 重学一节以前拿满的课，不会再给一遍
-    h('span', { class: 'xp-bar' }, bar),
-    h('span', { class: up ? 'xp-up' : '' }, to.next ? `Lv ${to.lv} ${to.name} · 离下一级还差 ${to.next.at - to.xp}` : `Lv ${to.lv} ${to.name}`));
-  return { el, fill: () => (bar.style.width = `${Math.round(to.pct * 100)}%`) };
+  const gainEl = h('b', {}, gained == null ? `${to.xp} 经验` : gained > 0 ? `+${gained} 经验` : '经验没变'); // 重学一节以前拿满的课，不会再给一遍
+  const rightText = (rem) => (to.next ? `Lv ${to.lv} ${to.name} · 离下一级还差 ${rem}` : `Lv ${to.lv} ${to.name}`);
+  const rightEl = h('span', { class: up ? 'xp-up' : '' }, rightText(to.next ? to.next.at - to.xp : 0));
+  const el = h('div', { class: 'xp-line' }, gainEl, h('span', { class: 'xp-bar' }, bar), rightEl);
+  return {
+    el,
+    fill: () => {
+      bar.style.width = `${Math.round(to.pct * 100)}%`;
+      if (gained != null && gained > 0) {
+        countUp(gainEl, gained, { from: 0, ms: 900, fmt: (v) => `+${Math.round(v)} 经验` });
+      }
+      if (to.next && from && !up && gained > 0) {
+        const startRem = Math.max(0, to.next.at - from.xp);
+        const endRem = Math.max(0, to.next.at - to.xp);
+        countUp(rightEl, endRem, { from: startRem, ms: 900, fmt: (v) => rightText(Math.round(v)) });
+      }
+    },
+  };
 }
 
 /** 徽章：一颗圆章加名字 */

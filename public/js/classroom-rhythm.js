@@ -8,6 +8,7 @@ import { normalizeChart } from './chart.js';
 import { LoopPlayer } from './looper.js';
 import { midi } from './midi.js';
 import { store } from './store.js';
+import { segmented } from './ui.js';
 import { byTier, keys16, playButton, tapPad, tapTime, pad16 } from './classroom-kit.js';
 import { audio } from './audio.js';
 
@@ -91,19 +92,19 @@ function countalong(spec, env) {
     grid.setHead(s);
     [...words.children].forEach((w, i) => w.classList.toggle('on', i === s && pad16(grid.get())[i] === 'x'));
   });
-  const seg = h('div', { class: 'seg cl-seg' });
-  const paintSeg = () => seg.replaceChildren(...choices.map(([name, p], i) => h('button', {
-    type: 'button', class: i === at ? 'on' : '',
-    onclick: () => {
-      at = i;
+  const seg = segmented(
+    choices.map(([name], i) => ({ value: String(i), label: name })),
+    String(at),
+    (v) => {
+      at = Number(v);
+      const p = choices[at][1];
       grid.set(p);
       apply(p);
-      paintSeg();
       paintSay();
       env.touched();
     },
-  }, name)));
-  paintSeg();
+  );
+  seg.classList.add('cl-seg');
   paintSay();
   const padCtl = spec.pad ? tapPad('拍', () => {
     audio.drum('PERC1', 0, 0.6);
@@ -166,7 +167,7 @@ function twohands(spec, env) {
   player.set({ HAT1: spec.hat || 'x-x-x-x-x-x-x-x-' });
   const gK = keys16({ pattern: kick, small: true });
   const gS = keys16({ pattern: snare, small: true });
-  const say = h('div', { class: 'cl-note' }, '点「播放」，左手跟着上面那排拍“咚”，右手跟着下面那排拍“啪”。');
+  const say = h('div', { class: 'cl-note' }, '点「播放」，左手跟着上面那排拍“咚”（键盘 F），右手跟着下面那排拍“啪”（键盘 J）。');
   let beats = [];
   player.onSchedule = (step, t) => {
     beats.push({ step, t });
@@ -176,30 +177,83 @@ function twohands(spec, env) {
     gK.setHead(s);
     gS.setHead(s);
   });
+  const tagL = h('em', { class: 'cl-pad-tag', 'aria-hidden': 'true' });
+  const tagR = h('em', { class: 'cl-pad-tag', 'aria-hidden': 'true' });
+  let tagTimerL = 0;
+  let tagTimerR = 0;
+  const flashTag = (which, text, tone) => {
+    const tag = which === 'KICK' ? tagL : tagR;
+    tag.textContent = text;
+    tag.dataset.tone = tone;
+    tag.classList.add('on');
+    if (which === 'KICK') {
+      clearTimeout(tagTimerL);
+      tagTimerL = setTimeout(() => tag.classList.remove('on'), 680);
+    } else {
+      clearTimeout(tagTimerR);
+      tagTimerR = setTimeout(() => tag.classList.remove('on'), 680);
+    }
+  };
   const judge = (which, perf) => {
     if (!player.playing || !beats.length) return (say.textContent = '先点「播放」。');
     const t = tapTime(perf);
     const near = beats.reduce((a, b) => (Math.abs(b.t - t) < Math.abs(a.t - t) ? b : a));
     const want = (which === 'KICK' ? kick : snare)[near.step] === 'x';
     const other = (which === 'KICK' ? snare : kick)[near.step] === 'x';
+    const errMs = Math.round((t - near.t) * 1000);
     env.touched();
-    say.textContent = want ? (which === 'KICK' ? '咚：对了。' : '啪：对了。') : other ? `这一下该${which === 'KICK' ? '右手（军鼓）' : '左手（底鼓）'}。` : '这一格两只手都歇着。';
+    if (want) {
+      const tight = Math.abs(errMs) <= 35;
+      flashTag(which, tight ? '准 !' : errMs < 0 ? `偏早 ${Math.abs(errMs)}ms` : `偏晚 +${errMs}ms`, tight ? 'ok' : 'warn');
+      say.textContent = `${which === 'KICK' ? '咚' : '啪'}：对了（${tight ? '正踩在点上' : errMs < 0 ? `略早 ${Math.abs(errMs)}ms` : `略晚 ${errMs}ms`}）。`;
+    } else if (other) {
+      flashTag(which, '串手啦', 'bad');
+      say.textContent = `这一下该${which === 'KICK' ? '右手（军鼓）' : '左手（底鼓）'}。`;
+    } else {
+      flashTag(which, '空拍', 'bad');
+      say.textContent = '这一格两只手都歇着。';
+    }
   };
   const left = tapPad('咚', (p) => {
     audio.drum('KICK', 0, 0.9);
     judge('KICK', p);
-  }, '左手 · 底鼓');
+  }, '左手 · 底鼓 〔F〕');
   const right = tapPad('啪', (p) => {
     audio.drum('SNARE', 0, 0.9);
     judge('SNARE', p);
-  }, '右手 · 军鼓');
+  }, '右手 · 军鼓 〔J〕');
+  left.el.append(tagL);
+  right.el.append(tagR);
   left.destroy(); // 两块垫子都不听真机：真机上用音游那一步打
   right.destroy();
+  const onKey = (e) => {
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return;
+    const k = e.key.toLowerCase();
+    if (k === 'f' || k === 'j') {
+      e.preventDefault();
+      const padEl = k === 'f' ? left.el : right.el;
+      padEl.classList.add('hit');
+      setTimeout(() => padEl.classList.remove('hit'), 90);
+      audio.drum(k === 'f' ? 'KICK' : 'SNARE', 0, 0.9);
+      judge(k === 'f' ? 'KICK' : 'SNARE', e.timeStamp);
+    }
+  };
+  window.addEventListener('keydown', onKey);
   const el = h('div', { class: 'cl-toy cl-hands2' },
     h('div', { class: 'cl-row' }, playButton(player), h('span', { class: 'spacer' })),
-    h('div', { class: 'cl-two-grids' }, h('div', {}, h('span', { class: 'cl-cap' }, '底鼓（左手）'), gK.el), h('div', {}, h('span', { class: 'cl-cap' }, '军鼓（右手）'), gS.el)),
+    h('div', { class: 'cl-two-grids' }, h('div', {}, h('span', { class: 'cl-cap' }, '底鼓（左手 · F）'), gK.el), h('div', {}, h('span', { class: 'cl-cap' }, '军鼓（右手 · J）'), gS.el)),
     h('div', { class: 'cl-two-pads' }, left.el, right.el), say);
-  return { el, destroy: () => player.stop() };
+  return {
+    el,
+    destroy: () => {
+      clearTimeout(tagTimerL);
+      clearTimeout(tagTimerR);
+      window.removeEventListener('keydown', onKey);
+      player.stop();
+    },
+  };
 }
 
 export const RHYTHM_TOYS = { rhythm, countalong, nudge, twohands };

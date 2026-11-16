@@ -33,12 +33,13 @@ const TOO_MANY_EXTRAS = 6;
 export function calibrateWidget({ title = '延迟校准' } = {}) {
   const chart = normalizeChart({ id: 'calibrate', title: '每一拍按一下', bpm: 96, bars: 1, loops: 4, lanes: { KICK: 'x---x---x---x---' } });
   const host = h('div', { class: 'calib-stage' });
-  const info = h('div', { class: 'row small' });
+  const info = h('div', { class: 'calib-info' });
   const open = h('button', { class: 'btn', type: 'button' }, '开始校准（约 15 秒）');
   const fold = h('button', { class: 'btn sm ghost', type: 'button', hidden: true }, '收起');
   let game = null;
   let opened = false;
   let spoiled = false; // 这一轮中途机器开始播放了：结果作废
+  let lastStd = null;
 
   /** 舞台上的一张卡片。actions = [[按钮上的字, 点了做什么, 是不是主按钮], …] */
   const card = (heading, text, actions) => h('div', { class: 'game-card' },
@@ -47,11 +48,27 @@ export function calibrateWidget({ title = '延迟校准' } = {}) {
     h('div', { class: 'game-actions' }, actions.map(([label, fn, primary]) => h('button', { class: ['btn', primary && 'primary'], type: 'button', onclick: fn }, label))));
 
   function showInfo() {
-    const v = store.settings.inputOffsetMs;
+    const v = store.settings.inputOffsetMs || 0;
+    const clamped = Math.max(-60, Math.min(60, v));
+    const pct = 50 + (clamped / 60) * 50;
+    const spreadPct = lastStd !== null ? Math.min(45, (lastStd / 60) * 50) : 0;
+    const tone = Math.abs(v) <= 8 ? 'ok' : Math.abs(v) <= 28 ? 'mid' : 'far';
     info.replaceChildren(
-      h('span', { class: 'muted' }, '现在的校准值：'),
-      h('b', { class: 'mono' }, v === 0 ? '0ms（还没校准）' : fmtMs(v)),
-      v !== 0 ? h('button', { class: 'btn sm ghost', type: 'button', onclick: () => { store.update((d) => (d.settings.inputOffsetMs = 0)); showInfo(); } }, '清零') : '',
+      h('div', { class: 'row small' },
+        h('span', { class: 'muted' }, '现在的校准值：'),
+        h('b', { class: 'mono' }, v === 0 && lastStd === null ? '0ms（还没校准）' : fmtMs(v)),
+        lastStd !== null ? h('span', { class: 'muted mono' }, `· 波动 ±${Math.round(lastStd)}ms`) : '',
+        v !== 0 ? h('button', { class: 'btn sm ghost', type: 'button', onclick: () => { lastStd = null; store.update((d) => (d.settings.inputOffsetMs = 0)); showInfo(); } }, '清零') : '',
+      ),
+      h('div', { class: ['calib-gauge', v === 0 && lastStd === null && 'idle', tone], 'aria-hidden': 'true' },
+        h('span', { class: 'calib-zone' }),
+        h('span', { class: 'calib-zero' }),
+        spreadPct > 0 ? h('span', { class: 'calib-band', style: { left: `${Math.max(0, pct - spreadPct)}%`, width: `${Math.min(100, spreadPct * 2)}%` } }) : null,
+        h('i', { class: 'calib-pin', style: { left: `${pct}%` } }),
+        h('small', { class: 'l' }, '−60ms 偏早'),
+        h('small', { class: 'c' }, '0'),
+        h('small', { class: 'r' }, '偏晚 +60ms'),
+      ),
     );
   }
 
@@ -101,6 +118,7 @@ export function calibrateWidget({ title = '延迟校准' } = {}) {
           [['再测一次', again, true], ['先不测了', close]]));
       } else if (hits >= 10 && r.stdMs < 70) {
         const offset = Math.round(r.meanMs);
+        lastStd = r.stdMs;
         store.update((d) => (d.settings.inputOffsetMs = offset));
         game.showCard(card(`校准完成：${fmtMs(offset)}`,
           `你打得很均匀（波动 ±${Math.round(r.stdMs)}ms），整体${offset > 8 ? '偏晚' : offset < -8 ? '偏早' : '几乎正好'}。之后的判定会自动把这个差值扣掉。`,

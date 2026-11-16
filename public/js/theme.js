@@ -22,6 +22,19 @@ class Theme extends Emitter {
   constructor() {
     super();
     reduced?.addEventListener?.('change', () => this.#paint());
+    window.addEventListener?.('storage', (e) => {
+      if (e.key !== LS_KEY || !e.newValue) return;
+      try {
+        const parsed = JSON.parse(e.newValue);
+        if (parsed && (parsed.skin === 'neon' || parsed.skin === 'body')) {
+          this.skin = this.#override.skin || parsed.skin;
+          if (parsed.motion === 'calm' || parsed.motion === 'rich') this.motion = parsed.motion;
+          this.#paint();
+        }
+      } catch {
+        /* 忽略格式不对的旧值 */
+      }
+    });
   }
 
   /** 系统开着“减少动效” */
@@ -70,8 +83,9 @@ class Theme extends Emitter {
     this.#painted = true;
     root.dataset.skin = this.skin;
     root.dataset.fx = this.fx;
-    // 装成应用以后，窗口标题栏的颜色跟着配色走（机身浅灰 / 霓虹深色）
+    // 装成应用以后，窗口标题栏和原生控件配色跟着配色走（机身浅灰 / 霓虹深色）
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', this.skin === 'neon' ? '#0d0e12' : '#e6e7e9');
+    document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', this.skin === 'neon' ? 'dark' : 'light');
     this.#cache.clear();
     if (changed) this.emit('change', { skin: this.skin, fx: this.fx });
   }

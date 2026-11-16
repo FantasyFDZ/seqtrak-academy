@@ -99,8 +99,10 @@ function onKeyDown(e) {
     if (e.key === 'Escape') {
       e.preventDefault();
       closeKeymap();
+      return;
     }
-    return;
+    // 键位图开着时：如果底下正好有模拟机，就允许边看键位图边按响它（只有合上按钮拿焦点按回车时留给合上按钮）
+    if (!simVisible() || (e.code === 'Enter' && document.activeElement?.closest?.('.km-pop button'))) return;
   }
   if (!simVisible() || covered()) {
     lastSkip = { code: e.code, why: !simulator.panel?.el.isConnected ? 'no-panel' : covered() ? 'covered' : `hidden ${JSON.stringify(simulator.panel.svg.getBoundingClientRect())}` };

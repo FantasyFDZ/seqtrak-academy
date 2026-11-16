@@ -8,6 +8,7 @@ import { LoopPlayer } from './looper.js';
 import { store } from './store.js';
 import { sfx } from './sfx.js';
 import { confetti, pop } from './fx.js';
+import { segmented } from './ui.js';
 import { SCALES, KEY_NAMES } from './scales.js';
 import { ArrangementPlayer, partEvents, arrangementTracks, partPitches } from './song-player.js';
 import { SONG_PARTS } from './content/song-parts.js';
@@ -145,9 +146,8 @@ function counter({ phrase = 8, showBars = true } = {}) {
 
 /** 一排歌名按钮（挑一首） */
 function songChips(ids, now, onPick) {
-  const box = h('div', { class: 'seg cl-seg cl-dj-songs' });
-  const paint = (cur) => box.replaceChildren(...ids.map((id) => h('button', { type: 'button', class: id === cur ? 'on' : '', onclick: () => { paint(id); onPick(id); } }, title(id))));
-  paint(now);
+  const box = segmented(ids.map((id) => ({ value: id, label: title(id) })), now, (id) => onPick(id));
+  box.classList.add('cl-seg', 'cl-dj-songs');
   return box;
 }
 
@@ -557,7 +557,8 @@ function energymap(spec, env) {
     tl = timeline(scenes, { energy });
     tl.blocks.forEach((b, i) => {
       b.setAttribute('role', 'button');
-      b.addEventListener('click', () => {
+      b.setAttribute('tabindex', '0');
+      const activate = () => {
         stop();
         player = new ArrangementPlayer(SONG_PARTS[id], ARRANGEMENTS[id]);
         player.loop = i;
@@ -567,6 +568,14 @@ function energymap(spec, env) {
         say.innerHTML = rich(`**${sc.name}**${sc.name === SECTION_KINDS[sc.kind]?.label ? '' : `（${SECTION_KINDS[sc.kind]?.label}）`}：能量 ${energy[i]}。${energy[i] === Math.max(...energy) ? '整首最满的就是这儿。' : energy[i] === Math.min(...energy) ? '整首最空的一段。' : ''}`);
         timer = setTimeout(stop, (60 / SONG_PARTS[id].bpm) * 4 * Math.min(4, sc.bars) * 1000);
         env.touched();
+      };
+      b.addEventListener('click', activate);
+      b.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') activate();
+        if (e.key === ' ') e.preventDefault();
+      });
+      b.addEventListener('keyup', (e) => {
+        if (e.key === ' ') activate();
       });
     });
     box.replaceChildren(tl.el);
@@ -760,6 +769,17 @@ function transition(spec, env) {
   let wrong = 0;
   let over = false;
   const cnt = counter({ phrase, showBars });
+  const clashPill = h('span', { class: 'cl-low-clash' }, '⚠ 低频相撞');
+  const syncMixHud = () => {
+    if (!mix) return;
+    const lv = mix.levels();
+    const playing = !!mix.player.playing;
+    meter.children[0].style.width = `${Math.round(lv.deck[0] * 100)}%`;
+    meter.children[1].style.width = `${Math.round(lv.deck[1] * 100)}%`;
+    decks[0].el.classList.toggle('live', playing && lv.deck[0] > 0.08);
+    decks[1].el.classList.toggle('live', playing && lv.deck[1] > 0.08);
+    clashPill.classList.toggle('on', playing && lv.low[0] > 0.45 && lv.low[1] > 0.45);
+  };
   const deckBox = (i) => {
     const low = h('button', { class: 'btn cl-low on', type: 'button' }, '低音：开');
     low.addEventListener('click', () => {
@@ -767,14 +787,16 @@ function transition(spec, env) {
       mix.setLow(i, on);
       low.classList.toggle('on', on);
       low.textContent = on ? '低音：开' : '低音：关';
+      syncMixHud();
       env.touched();
     });
     const name = h('b', {});
     const sub = h('span', {});
-    return { el: h('div', { class: 'cl-deck' }, h('i', {}, 'AB'[i]), h('div', {}, name, sub), low), name, sub, low };
+    return { el: h('div', { class: 'cl-deck' }, h('i', { class: 'cl-platter' }, 'AB'[i]), h('div', {}, name, sub), low), name, sub, low };
   };
   const decks = [deckBox(0), deckBox(1)];
   const fader = h('input', { class: 'cl-range cl-xfader', type: 'range', min: 0, max: 1000, value: 0, 'aria-label': '推子：A ↔ B' });
+  const faderWrap = h('div', { class: 'cl-xfader-wrap' }, h('i', { class: 'cl-xfader-mid', 'aria-hidden': 'true' }), fader);
   const play = h('button', { class: 'btn primary lg cl-play', type: 'button' }, '▶ 放 A');
   const swap = h('button', { class: 'btn', type: 'button' }, '换一对歌');
   const note = h('div', { class: 'cl-note' });
@@ -795,6 +817,7 @@ function transition(spec, env) {
     fader.value = '0';
     log = [];
     over = false;
+    syncMixHud();
     // 听到的是第几步：一小节 16 步，绕回来一次就是下一小节
     let laps = 0;
     let lastS = -1;
@@ -802,6 +825,7 @@ function transition(spec, env) {
       if (s < 0) {
         laps = 0;
         lastS = -1;
+        syncMixHud();
         return cnt.set(-1);
       }
       if (s < lastS) laps++;
@@ -811,8 +835,7 @@ function transition(spec, env) {
     mix.onBeat = (g) => {
       const lv = mix.levels();
       log.push({ g, f: mix.fader, low: lv.low });
-      meter.children[0].style.width = `${Math.round(lv.deck[0] * 100)}%`;
-      meter.children[1].style.width = `${Math.round(lv.deck[1] * 100)}%`;
+      syncMixHud();
       if (!free && !over) watchAttempt();
     };
     note.innerHTML = rich(free ? '点「放 A」。推子在 A 这头；往右推，B 慢慢进来。两边的“低音”开关试试关一下。'
@@ -882,6 +905,7 @@ function transition(spec, env) {
     mix?.stop();
     play.textContent = '▶ 放 A';
     cnt.set(-1);
+    syncMixHud();
   };
   play.addEventListener('click', async () => {
     if (mix.player.playing) return stopMix();
@@ -898,10 +922,12 @@ function transition(spec, env) {
     over = false;
     await mix.start();
     play.textContent = '■ 停';
+    syncMixHud();
     env.touched();
   });
   fader.addEventListener('input', () => {
     mix.setFader(Number(fader.value) / 1000);
+    syncMixHud();
     env.touched();
   });
   swap.addEventListener('click', () => {
@@ -912,9 +938,9 @@ function transition(spec, env) {
   setupPair();
   paintLamps();
   const el = h('div', { class: 'cl-toy cl-dj cl-mixer' },
-    h('div', { class: 'cl-row' }, play, swap, h('span', { class: 'spacer' }), showBars ? cnt.el : h('div', { class: 'cl-dj-blind sm' }, '这一档不给看小节数'), !free && lamps),
+    h('div', { class: 'cl-row' }, play, swap, showBars && clashPill, h('span', { class: 'spacer' }), showBars ? cnt.el : h('div', { class: 'cl-dj-blind sm' }, '这一档不给看小节数'), !free && lamps),
     h('div', { class: 'cl-decks' }, decks[0].el, decks[1].el),
-    h('div', { class: 'cl-xrow' }, h('b', {}, 'A'), fader, h('b', {}, 'B')),
+    h('div', { class: 'cl-xrow' }, h('b', {}, 'A'), faderWrap, h('b', {}, 'B')),
     meter, note);
   return {
     el,
@@ -1179,14 +1205,16 @@ function keymatch(spec, env) {
     playBtn.textContent = '■ 停';
     env.touched();
   });
-  const soloSeg = h('div', { class: 'seg cl-seg' });
-  const paintSolo = (now) => soloSeg.replaceChildren(...[['a', '只听 A'], ['b', '只听 B'], ['ab', '一起']].map(([k, label]) => h('button', { type: 'button', class: k === now ? 'on' : '', onclick: () => solo(k) }, label)));
   const solo = (which) => {
     mute = which === 'a' ? { a: false, b: true } : which === 'b' ? { a: true, b: false } : { a: false, b: false };
-    paintSolo(which);
     env.touched();
   };
-  paintSolo('ab');
+  const soloSeg = segmented(
+    [['a', '只听 A'], ['b', '只听 B'], ['ab', '一起']].map(([value, label]) => ({ value, label })),
+    'ab',
+    (which) => solo(which),
+  );
+  soloSeg.classList.add('cl-seg');
   const move = (d) => {
     shift = clamp(shift + d, -6, 6);
     paint();

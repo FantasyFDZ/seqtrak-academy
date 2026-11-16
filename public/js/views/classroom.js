@@ -222,7 +222,17 @@ function cardsPage(view) {
     h('h2', {}, line.name, h('small', {}, `${LEVELS.filter((l) => l.line === line.id && done[l.id]?.done).length} / ${LEVELS.filter((l) => l.line === line.id).length}`)),
     h('div', { class: 'cl-cardgrid' }, LEVELS.filter((l) => l.line === line.id).map((l) => {
       const rec = done[l.id];
-      const c = h('button', { class: ['cl-kcard', rec?.done ? `got m${rec.stars || 0}` : 'locked', l.kind === 'boss' && 'boss'], type: 'button', 'data-sfx': rec?.done ? 'press' : 'tick' },
+      const c = h('button', {
+        class: ['cl-kcard', rec?.done ? `got m${rec.stars || 0}` : 'locked', l.kind === 'boss' && 'boss'],
+        type: 'button',
+        'data-sfx': rec?.done ? 'press' : 'tick',
+        onpointermove: rec?.done ? (e) => {
+          if (e.pointerType !== 'mouse') return;
+          const r = c.getBoundingClientRect();
+          c.style.setProperty('--mx', `${Math.round(((e.clientX - r.left) / r.width) * 100)}%`);
+          c.style.setProperty('--my', `${Math.round(((e.clientY - r.top) / r.height) * 100)}%`);
+        } : null,
+      },
         h('span', { class: 'no' }, l.id),
         h('b', {}, l.title),
         h('span', { class: 'about' }, rec?.done ? l.about : '？'),

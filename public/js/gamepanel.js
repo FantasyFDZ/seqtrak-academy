@@ -12,6 +12,8 @@ import { coach } from './coach.js';
 import { segmented } from './ui.js';
 import { mirror } from './mirror.js';
 import { gameMirror } from './game-mirror.js';
+import { audio } from './audio.js';
+import { sound } from './sound.js';
 
 const STAGE_NAME = { demo: '看示范', guide: '跟打', solo: '独奏' };
 const START_TITLE = { demo: '先看一遍示范', guide: '跟着示范音一起打', solo: '关掉示范，自己来' };
@@ -61,14 +63,59 @@ export function mountGame(container, chartDef, opts = {}) {
   const wrap = h('div', { class: ['game-wrap', opts.fill && 'fill'] }, root);
   container.append(wrap);
 
-  // ───────────── 真机镜像 ─────────────
+  // ───────────── 真机镜像 / 未连机时的键位与律动预演卡 ─────────────
   let gm = null;
+  let kcaps = [];
   const showNotReady = () => {
     notReady.style.display = gm && gm.known && !gm.ready && state.assist !== 'demo' ? '' : 'none';
   };
+  function auditionLane(li) {
+    const sample = chart.loopTargets.find((t) => t.lane === li);
+    if (!sample) return;
+    const play = () => {
+      if (sample.kind === 'drum') sound.drum(sample.sound, 0, 0.9);
+      else if (sample.kind === 'chord') for (const n of sample.notes) sound.note(n, 0, 0.28, sample.voice || 'keys', 0.52);
+      else sound.note(sample.midi, 0, 0.25, sample.voice || 'bass', 0.85);
+    };
+    if (audio.ready) play();
+    else audio.init().then((ok) => ok && play());
+  }
+  function buildDeck() {
+    const n = Math.min(32, chart.stepsPerLoop || 16);
+    kcaps = chart.lanes.map((lane, li) => {
+      const btn = h('button', {
+        type: 'button',
+        class: 'gp-kcap',
+        'data-sfx': 'none',
+        style: { '--c': lane.color },
+        title: `点一下试听 ${lane.label}`,
+        onpointerdown: (e) => {
+          if (e.button !== 0) return;
+          btn.classList.add('down');
+          setTimeout(() => btn.classList.remove('down'), 130);
+          if (!game || (game.state !== 'countin' && game.state !== 'playing')) auditionLane(li);
+        },
+      },
+        h('i', { class: 'gp-kbar' }),
+        h('b', {}, lane.label),
+        lane.key ? h('kbd', {}, lane.key === ' ' ? '空格' : lane.key.toUpperCase()) : null);
+      return { key: (lane.key || '').toLowerCase(), el: btn, li };
+    });
+    const rows = chart.lanes.map((lane, li) => {
+      const steps = new Set(chart.loopTargets.filter((t) => t.lane === li).map((t) => t.step));
+      return h('div', { class: 'gp-lrow', style: { '--n': String(n), '--c': lane.color } },
+        h('span', { class: 'gp-lname' }, lane.label),
+        h('div', { class: 'gp-lcells' }, Array.from({ length: n }, (_, s) => h('i', { class: [s % 4 === 0 && 'beat', steps.has(s) && 'on'] }))));
+    });
+    return h('div', { class: 'gp-deck' },
+      h('div', { class: 'gp-deck-head' }, h('span', { class: 'label' }, '本局键位 · 点按试音'), h('small', {}, `${chart.bpm} BPM`)),
+      h('div', { class: 'gp-keys' }, kcaps.map((k) => k.el)),
+      h('div', { class: 'gp-loop' }, h('span', { class: 'label' }, `一圈律动（${chart.bars || 1} 小节）`), ...rows));
+  }
   function mountMirror() {
     gm?.destroy();
     gm = null;
+    kcaps = [];
     clear(check);
     clear(bench);
     if (mirror.available) {
@@ -76,6 +123,8 @@ export function mountGame(container, chartDef, opts = {}) {
       check.append(gm.card);
       bench.append(gm.panel);
       gm.onChange(showNotReady);
+    } else {
+      bench.append(buildDeck());
     }
     showNotReady();
   }
@@ -224,6 +273,15 @@ export function mountGame(container, chartDef, opts = {}) {
   }
 
   const onKey = (e) => {
+    if (!e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && kcaps.length) {
+      const k = e.key.toLowerCase();
+      const hit = kcaps.find((x) => x.key && x.key === k);
+      if (hit) {
+        hit.el.classList.add('down');
+        setTimeout(() => hit.el.classList.remove('down'), 120);
+        if (game && (game.state === 'idle' || game.state === 'done')) auditionLane(hit.li);
+      }
+    }
     if (e.key !== 'Enter' || e.isComposing || !game) return;
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.isContentEditable)) return;

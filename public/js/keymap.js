@@ -10,6 +10,9 @@
 // 用的是 event.code（按键的位置），和输入法、大小写、Shift 都没关系。
 import { h } from './util.js';
 import { TRACK } from './tracks.js';
+import { audio } from './audio.js';
+import { sound } from './sound.js';
+import { sfx } from './sfx.js';
 
 const DRUM_ORDER = ['KICK', 'SNARE', 'CLAP', 'HAT1', 'HAT2', 'PERC1', 'PERC2'];
 const letters = (s, start) => [...s].map((c, i) => [`Key${c}`, `DK${start + i}`, c]);
@@ -268,22 +271,112 @@ export function keyHint(task) {
 const PURE_HOLD = new Set(['MUTE', 'SOLO', 'DELETE', 'PROJECT']);
 const SYNTH_TRACKS = new Set(['SYNTH1', 'SYNTH2', 'DX', 'SAMPLER']);
 
+// 活体键位仪：页面上有键位图时，按电脑键盘（或用鼠标点图上的键）会实时点亮并试听
+const liveViews = new Set();
+let liveHooked = false;
+const SYNTH_PREVIEW = [60, 63, 65, 67, 70, 72, 75]; // C 小调七个键
+
+function previewId(id, allowSound = true) {
+  if (!id || !allowSound) return;
+  const play = () => {
+    if (DRUM_ORDER.includes(id)) sound.drum(id, 0, 0.88);
+    else if (id === 'SYNTH1') sound.note(48, 0, 0.24, 'bass', 0.75);
+    else if (id === 'SYNTH2') sound.note(60, 0, 0.26, 'polysynth', 0.7);
+    else if (id === 'DX') sound.note(67, 0, 0.28, 'fmep', 0.72);
+    else if (id === 'SAMPLER') sound.drum('CLAP', 0, 0.75);
+    else if (/^SK(\d)$/.test(id)) sound.note(SYNTH_PREVIEW[Number(id.slice(2)) - 1] || 60, 0, 0.26, 'keys', 0.78);
+    else if (/^DK(\d+)$/.test(id)) sfx.penta(Number(id.slice(2)) - 1);
+    else sfx.play('tick');
+  };
+  if (audio.ready) play();
+  else audio.init().then((ok) => ok && play());
+}
+
+function ensureLiveHook() {
+  if (liveHooked) return;
+  liveHooked = true;
+  const typing = (el) => !!el?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
+  const prune = () => {
+    for (const v of liveViews) if (!v.root.isConnected) liveViews.delete(v);
+  };
+  addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing || typing(e.target)) return;
+    prune();
+    if (!liveViews.size) return;
+    const id = idOfCode(e.code);
+    const simActive = !!document.querySelector('.panel-wrap .panel-svg');
+    for (const v of liveViews) v.setDown(e.code, true, id);
+    if (!e.repeat && id && !simActive) previewId(id, true);
+  }, true);
+  addEventListener('keyup', (e) => {
+    prune();
+    for (const v of liveViews) v.setDown(e.code, false);
+  }, true);
+  addEventListener('blur', () => {
+    for (const v of liveViews) v.clearAll();
+  });
+}
+
 /**
  * 整张键位图：画成一块电脑键盘，每个键上写着它在机器上是哪个键，颜色按机器上的分区（步进键、演奏键、轨道旋钮、功能键）。
+ * 敲键盘或用鼠标点键帽会实时下沉点亮（页面上没有模拟机时还会发出对应的试音）。
  * opts.compact = 小一号（课文里、设备页上用的是正常大小，弹出来的那张也是）
  */
 export function keymapView({ compact = false } = {}) {
+  ensureLiveHook();
+  const byCode = new Map();
+  const status = !compact ? h('div', { class: 'km-live', 'aria-live': 'polite' }, h('span', { class: 'km-dot' }), h('span', {}, '直接按电脑键盘或点下面的键帽，可以实时测试键位与声音')) : null;
+  const tell = (label, id, code) => {
+    if (!status) return;
+    const turn = code === 'ArrowUp' || code === 'ArrowDown';
+    status.classList.add('active');
+    status.lastChild.textContent = turn
+      ? `刚按下 〔${label}〕 → 转动当前按住或指着的旋钮`
+      : id ? `刚按下 〔${label}〕 → 机器上的 ${DEVICE_LABEL[id] || nameOf(id)}（${id}）` : `〔${label}〕 在模拟机里不用`;
+  };
   const rows = KEY_ROWS.map((row, r) => h('div', { class: ['km-row', `km-r${r}`] }, row.map(([code, id, label]) => {
     const wide = ['Tab', 'CapsLock', 'ShiftLeft', 'ShiftRight', 'Backspace', 'Enter', 'Space'].includes(code);
     const turn = code === 'ArrowUp' || code === 'ArrowDown';
-    return h('div', { class: ['km-key', `z-${turn ? 'turn' : zoneOf(id)}`, wide && 'wide', `k-${code}`], title: id ? `${label} = ${nameOf(id)}` : '' },
+    const keyEl = h('div', {
+      class: ['km-key', `z-${turn ? 'turn' : zoneOf(id)}`, wide && 'wide', `k-${code}`],
+      dataset: { code, id: id || '' },
+      title: id ? `${label} = ${nameOf(id)}（点一下试听）` : '',
+      onpointerdown: !compact && (id || turn) ? (e) => {
+        if (e.button !== 0) return;
+        keyEl.classList.add('is-live');
+        tell(label, id, code);
+        previewId(id, true);
+        const up = () => {
+          keyEl.classList.remove('is-live');
+          removeEventListener('pointerup', up, true);
+          removeEventListener('pointercancel', up, true);
+        };
+        addEventListener('pointerup', up, true);
+        addEventListener('pointercancel', up, true);
+      } : null,
+    },
       h('b', {}, label),
       h('small', {}, turn ? '转旋钮' : id ? nameOf(id) : ''));
+    byCode.set(code, { el: keyEl, label, id });
+    return keyEl;
   })));
   const legend = h('div', { class: 'km-legend' },
     [['step', '步进键（机器上那两排方键，1–16）'], ['synth', '录音键 + 7 个 Synth keys'], ['track', '轨道旋钮（按 = 选中；按着它再按 ↑ ↓ = 转）'], ['func', '功能键（机器边上那一圈）'], ['strip', '触摸条：按着 = 手指按在上面']]
       .map(([z, t]) => h('span', {}, h('i', { class: `z-${z}` }), t)));
-  return h('div', { class: ['keymap', compact && 'compact'] }, h('div', { class: 'km-board' }, rows), legend);
+  const root = h('div', { class: ['keymap', compact && 'compact'] }, status, h('div', { class: 'km-board' }, rows), legend);
+  liveViews.add({
+    root,
+    setDown(code, isDown, id) {
+      const item = byCode.get(code);
+      if (!item) return;
+      item.el.classList.toggle('is-live', isDown);
+      if (isDown) tell(item.label, id || item.id, code);
+    },
+    clearAll() {
+      for (const item of byCode.values()) item.el.classList.remove('is-live');
+    },
+  });
+  return root;
 }
 
 /** 键位的几句话（教练的上下文、设备页、0.1 用）：每样一行 */

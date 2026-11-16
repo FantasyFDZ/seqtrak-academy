@@ -58,18 +58,65 @@ export function tapPad(label, onHit, sub = '') {
 
 export const pad16 = (p) => String(p || '').replace(/[^xX-]/g, '').toLowerCase().padEnd(16, '-').slice(0, 16);
 
-/** 16 个格子，摆成机器上那两排方键的样子（上排 1–8，下排 9–16）。editable = 可以点 */
+/** 16 个格子，摆成机器上那两排方键的样子（上排 1–8，下排 9–16）。editable = 可以点按或按住横扫涂抹 */
 export function keys16({ pattern = '', editable = false, onChange, small = false } = {}) {
   let p = pad16(pattern);
-  const cells = Array.from({ length: 16 }, (_, i) => h(editable ? 'button' : 'i', { class: 'cl-key', type: editable ? 'button' : null, 'data-sfx': 'none', 'aria-label': `第 ${i + 1} 格` }, small ? null : h('span', {}, String(i + 1))));
+  const cells = Array.from({ length: 16 }, (_, i) => h(editable ? 'button' : 'i', {
+    class: 'cl-key',
+    type: editable ? 'button' : null,
+    'data-sfx': 'none',
+    'aria-pressed': editable ? 'false' : null,
+    'aria-label': `第 ${i + 1} 格`,
+  }, small ? null : h('span', {}, String(i + 1))));
   const el = h('div', { class: ['cl-keys', small && 'small'] }, cells);
-  const paint = () => cells.forEach((c, i) => c.classList.toggle('on', p[i] === 'x'));
+  const paint = () => cells.forEach((c, i) => {
+    const isOn = p[i] === 'x';
+    c.classList.toggle('on', isOn);
+    if (editable) c.setAttribute('aria-pressed', String(isOn));
+  });
   if (editable) {
-    cells.forEach((c, i) => c.addEventListener('click', () => {
-      p = p.slice(0, i) + (p[i] === 'x' ? '-' : 'x') + p.slice(i + 1);
+    const cellIdx = new Map(cells.map((c, i) => [c, i]));
+    let paintVal = null;
+    let skipClickCell = null;
+    const applyAt = (i, wantOn) => {
+      const ch = wantOn ? 'x' : '-';
+      if (p[i] === ch) return;
+      p = p.slice(0, i) + ch + p.slice(i + 1);
       paint();
+      sfx.play(wantOn ? 'on' : 'off');
       onChange?.(p, i);
-    }));
+    };
+    cells.forEach((c, i) => {
+      c.addEventListener('pointerdown', (e) => {
+        if (e.button > 0) return;
+        paintVal = p[i] !== 'x';
+        skipClickCell = c;
+        applyAt(i, paintVal);
+        const end = () => {
+          paintVal = null;
+          setTimeout(() => { skipClickCell = null; }, 0);
+        };
+        window.addEventListener('pointerup', end, { once: true, passive: true });
+        window.addEventListener('pointercancel', end, { once: true, passive: true });
+      });
+      c.addEventListener('click', () => {
+        if (skipClickCell === c) {
+          skipClickCell = null;
+          return;
+        }
+        applyAt(i, p[i] !== 'x');
+      });
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (paintVal === null) return;
+      if (e.pointerType === 'mouse' && !(e.buttons & 1)) {
+        paintVal = null;
+        return;
+      }
+      const hit = document.elementFromPoint(e.clientX, e.clientY)?.closest('button.cl-key');
+      const idx = hit && cellIdx.get(hit);
+      if (idx !== undefined) applyAt(idx, paintVal);
+    });
   }
   paint();
   return {

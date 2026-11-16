@@ -1155,14 +1155,42 @@ function stepGame(step, env, cleanup) {
   return h('div', { class: 'step-body fill' }, host);
 }
 
-/** 小测：一次只摆一题。选项是一排键帽，按下去马上知道对错；答对了才出“下一题”。全部答对才能继续。 */
+/** 小测：一次只摆一题。选项是一排键帽（也支持直接按键盘 A–D / 1–4 选、回车进下一题），按下去马上知道对错；全部答对才能继续。 */
 function stepQuiz(step, env, cleanup) {
   const player = new LoopPlayer();
-  cleanup.push(() => player.stop());
+  let playTimer = 0;
+  let activePlayBtn = null;
+  let activePlayLabel = '';
+  const stopListen = () => {
+    clearTimeout(playTimer);
+    playTimer = 0;
+    player.stop();
+    if (activePlayBtn) {
+      activePlayBtn.classList.remove('primary');
+      activePlayBtn.textContent = activePlayLabel;
+      activePlayBtn = null;
+    }
+  };
+  cleanup.push(stopListen);
+
   const total = step.questions.length;
   const solved = step.questions.map(() => false);
+  let curQ = 0;
   let anyWrong = false; // 有没有错过：一题都没错就是“全对”（啾啾唱一段，jiu-eggs.js）
-  const show = (i) => items.forEach((item, j) => (item.hidden = j !== i));
+  const qDots = total > 1 ? h('div', { class: 'quiz-dots', 'aria-label': '小测进度' }) : null;
+  const paintQDots = () => {
+    if (!qDots) return;
+    qDots.replaceChildren(...step.questions.map((_, j) => h('i', {
+      class: [solved[j] && 'done', j === curQ && 'now'],
+    }, solved[j] ? '✓' : String(j + 1))));
+  };
+  const show = (i) => {
+    stopListen();
+    curQ = clamp(i, 0, total - 1);
+    items.forEach((item, j) => (item.hidden = j !== curQ));
+    paintQDots();
+  };
+  const metas = [];
   const items = step.questions.map((q, qi) => {
     const explain = h('div', { class: 'quiz-explain' });
     const more = h('button', { class: 'btn primary', type: 'button', onclick: () => show(qi + 1) }, '下一题 →');
@@ -1182,6 +1210,7 @@ function stepQuiz(step, env, cleanup) {
           confetti(btn, 10, { spread: 90 });
           setCoachMood('happy', 1400);
           more.hidden = qi >= total - 1;
+          paintQDots();
           if (solved.every(Boolean)) {
             env.setReady(true);
             if (!anyWrong) quizPerfect();
@@ -1196,26 +1225,58 @@ function stepQuiz(step, env, cleanup) {
       });
       return btn;
     });
+    metas.push({ options, more });
     const listen = q.play && h('div', { class: 'row', style: { marginBottom: '12px' } },
-      (Array.isArray(q.play) ? q.play : [q.play]).map((p) => h('button', {
-        class: 'btn', type: 'button', dataset: { sfx: 'none' },
-        onclick: () => {
-          player.stop();
-          player.bpm = p.bpm || 100;
-          player.swing = p.swing || 0;
-          player.steps = p.steps || 16; // 两小节的例子写 steps: 32
-          player.set(p.tracks || {}, p.notes || [], p.voice || 'bass');
-          player.start();
-          setTimeout(() => player.stop(), (p.seconds || 5) * 1000);
-        },
-      }, `▶ ${p.label || '听一听'}`)));
+      (Array.isArray(q.play) ? q.play : [q.play]).map((p) => {
+        const idleText = `▶ ${p.label || '听一听'}`;
+        const playBtn = h('button', {
+          class: 'btn', type: 'button', dataset: { sfx: 'none' },
+          onclick: () => {
+            if (activePlayBtn === playBtn) return stopListen();
+            stopListen();
+            activePlayBtn = playBtn;
+            activePlayLabel = idleText;
+            playBtn.classList.add('primary');
+            playBtn.textContent = `■ 停（${p.label || '试听中'}）`;
+            player.bpm = p.bpm || 100;
+            player.swing = p.swing || 0;
+            player.steps = p.steps || 16; // 两小节的例子写 steps: 32
+            player.set(p.tracks || {}, p.notes || [], p.voice || 'bass');
+            player.start();
+            playTimer = setTimeout(stopListen, (p.seconds || 5) * 1000);
+          },
+        }, idleText);
+        return playBtn;
+      }));
     const item = h('div', { class: 'quiz-item' },
-      total > 1 && h('div', { class: 'quiz-n' }, `第 ${qi + 1} 题 / 共 ${total} 题`),
+      total > 1 && h('div', { class: 'quiz-n' }, `第 ${qi + 1} 题 / 共 ${total} 题 · 可按键盘 A–${'ABCDEF'[Math.min(5, options.length - 1)]}`),
       h('div', { class: 'quiz-q', html: rich(q.q) }), listen, h('div', { class: 'quiz-opts' }, options), explain, more);
     item.hidden = qi !== 0;
     return item;
   });
-  return h('div', { class: 'step-body quiz' }, renderBlocks(step.blocks, cleanup), items);
+  paintQDots();
+  const onKey = (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+    if (document.activeElement?.matches('input, textarea, select, [contenteditable]')) return;
+    if (document.documentElement.classList.contains('jiu-talking')) return;
+    const cur = metas[curQ];
+    if (!cur) return;
+    if (e.key === 'Enter' && !cur.more.hidden && !document.activeElement?.matches('button, a')) {
+      e.preventDefault();
+      show(curQ + 1);
+      return;
+    }
+    const letterIdx = 'abcdef'.indexOf(e.key.toLowerCase());
+    const numIdx = /^[1-6]$/.test(e.key) ? Number(e.key) - 1 : -1;
+    const pickIdx = letterIdx >= 0 ? letterIdx : numIdx;
+    if (pickIdx >= 0 && pickIdx < cur.options.length && !cur.options[pickIdx].disabled) {
+      e.preventDefault();
+      cur.options[pickIdx].click();
+    }
+  };
+  window.addEventListener('keydown', onKey);
+  cleanup.push(() => window.removeEventListener('keydown', onKey));
+  return h('div', { class: 'step-body quiz' }, renderBlocks(step.blocks, cleanup), qDots, items);
 }
 
 const isDrumTrack = (t) => TRACK[t]?.kind === 'drum';
@@ -1228,7 +1289,28 @@ function stepProgram(step, env, cleanup) {
   const tracks = step.tracks || Object.keys(step.target);
   const bpm = step.bpm || 100;
   const player = new LoopPlayer({ bpm, swing: step.swing || 0 });
-  cleanup.push(() => player.stop());
+  let targetTimer = 0;
+  const targetIdleLabel = step.hidden ? '▶ 听目标（可以反复听）' : '▶ 听一听目标';
+  const targetPlayBtn = h('button', { class: 'btn', type: 'button', dataset: { sfx: 'none' } }, targetIdleLabel);
+  const stopTargetPlay = () => {
+    clearTimeout(targetTimer);
+    targetTimer = 0;
+    player.stop();
+    targetBoard?.setHead(-1);
+    targetPlayBtn.classList.remove('primary');
+    targetPlayBtn.textContent = targetIdleLabel;
+  };
+  targetPlayBtn.addEventListener('click', () => {
+    if (player.playing) return stopTargetPlay();
+    clearTimeout(targetTimer);
+    // step.listen = “听目标”时放什么（合成器轨的目标只有位置，要另外给出音来：{ tracks, notes, voice }）
+    player.set(step.listen?.tracks ?? step.target, step.listen?.notes || [], step.listen?.voice || 'bass').onStep((s) => targetBoard?.setHead(s));
+    targetPlayBtn.classList.add('primary');
+    targetPlayBtn.textContent = '■ 停止试听';
+    player.start();
+    targetTimer = setTimeout(stopTargetPlay, (60 / bpm) * 4 * 2 * 1000 + 100);
+  });
+  cleanup.push(stopTargetPlay);
 
   const targetBoard = step.hidden ? null : patternBoard({ tracks, pattern: step.target, caption: '目标' });
   const single = tracks.length === 1 ? tracks[0] : null;
@@ -1244,16 +1326,7 @@ function stepProgram(step, env, cleanup) {
     renderBlocks(step.blocks, cleanup),
     h('div', { class: 'widget prog-target' },
       h('div', { class: 'row', style: { marginBottom: '6px' } },
-        h('button', {
-          class: 'btn', type: 'button',
-          onclick: () => {
-            player.stop();
-            // step.listen = “听目标”时放什么（合成器轨的目标只有位置，要另外给出音来：{ tracks, notes, voice }）
-            player.set(step.listen?.tracks ?? step.target, step.listen?.notes || [], step.listen?.voice || 'bass').onStep((s) => targetBoard?.setHead(s));
-            player.start();
-            setTimeout(() => player.stop(), (60 / bpm) * 4 * 2 * 1000 + 100);
-          },
-        }, step.hidden ? '▶ 听目标（可以反复听）' : '▶ 听一听目标'),
+        targetPlayBtn,
         h('span', { class: 'muted small' }, `${bpm} BPM · ${step.hidden ? '这次不给你看答案，靠耳朵' : '亮着的格子 = 有声音的步'}`),
       ),
       targetBoard?.el,
@@ -1626,14 +1699,29 @@ export function lessonView(view, lessonId) {
     finishLesson();
   }
 
-  // 进度条：一格一步，到过的可以点回去。格子画得细，能点到的范围是整条页头那么高
+  // 进度条：一格一步，到过的可以点回去（或 Tab 选中回车回去），悬停或聚焦会露出这一步的名字
   function renderDots() {
-    dots.replaceChildren(...lesson.steps.map((s, i) => h('i', {
-      class: i === index ? 'now' : i <= reached ? 'done' : '',
-      role: i <= reached ? 'button' : null,
-      'aria-label': `第 ${i + 1} 步：${s.title}`,
-      onclick: () => i <= reached && go(i),
-    })));
+    dots.replaceChildren(...lesson.steps.map((s, i) => {
+      const unlocked = i <= reached;
+      const dot = h('i', {
+        class: i === index ? 'now' : unlocked ? 'done' : '',
+        role: unlocked ? 'button' : null,
+        tabindex: unlocked ? '0' : null,
+        dataset: unlocked ? { tip: `${i + 1}. ${s.title}` } : {},
+        'aria-label': `第 ${i + 1} 步：${s.title}`,
+        onclick: () => unlocked && go(i),
+      });
+      if (unlocked) {
+        dot.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') go(i);
+          if (e.key === ' ') e.preventDefault();
+        });
+        dot.addEventListener('keyup', (e) => {
+          if (e.key === ' ') go(i);
+        });
+      }
+      return dot;
+    }));
   }
 
   function go(i) {

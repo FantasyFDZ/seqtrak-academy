@@ -501,7 +501,17 @@ class Coach {
     });
     node.addEventListener('keydown', (e) => {
       const k = keyAt(e.target);
-      if (!k || (e.key !== 'Enter' && e.key !== ' ')) return;
+      if (!k) return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.#keyFromNote(k.dataset.key, back);
+      } else if (e.key === ' ') {
+        e.preventDefault();
+      }
+    });
+    node.addEventListener('keyup', (e) => {
+      const k = keyAt(e.target);
+      if (!k || e.key !== ' ') return;
       e.preventDefault();
       this.#keyFromNote(k.dataset.key, back);
     });
@@ -607,14 +617,22 @@ class Coach {
       stop();
       jiu.hush();
     };
+    const onEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      stop();
+      jiu.hush();
+    };
     const stop = () => {
       panel.el.classList.remove('jiu-picking');
       removeEventListener('pointerdown', onDown, true);
+      removeEventListener('keydown', onEsc, true);
       if (this.#stopPick === stop) this.#stopPick = null;
     };
     this.#stopPick = stop;
     panel.el.classList.add('jiu-picking');
     addEventListener('pointerdown', onDown, true);
+    addEventListener('keydown', onEsc, true);
     jiu.say({ html: '点一下你想问的那个键，我飞过去讲，啾。', mood: 'listen', call: 'look', chips: [['算了', () => stop(), { ghost: true }]] });
   }
 

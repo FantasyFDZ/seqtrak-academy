@@ -65,7 +65,13 @@ const SOUNDS = {
   star: () => { tone('sine', 1320, 1320, 0.3, 0.1); tone('sine', 2640, 2640, 0.18, 0.04); },
   badge: () => { run([784, 1175], 'triangle', 0.3, 0.13, 0.11); tone('sine', 2350, 2350, 0.4, 0.04, 0.11); }, // 拿到徽章
   levelup: () => { run([523, 659, 784, 1047], 'triangle', 0.24, 0.13, 0.08); run([523, 784, 1047], 'sine', 0.6, 0.06, 0); tone('sine', 1568, 1568, 0.5, 0.05, 0.34); }, // 升级
+  detent: () => { tone('triangle', 520, 250, 0.018, 0.04); noise(0.008, 4200, 0.022); }, // 旋钮一格一格的机械阻尼声
+  center: () => { tone('triangle', 880, 1320, 0.085, 0.075); tone('sine', 1760, 1760, 0.14, 0.03); }, // 旋钮回到正中间（0）的磁吸定位音
 };
+
+// C 小调五声音阶（两八度）：闯关地图上的关卡按顺序轻轻拨出一串音，扫过去像拨拇指琴
+const PENTA = [261.63, 311.13, 349.23, 392.0, 466.16, 523.25, 622.25, 698.46, 783.99, 932.33];
+let lastPentaAt = 0;
 
 export const sfx = {
   names: Object.keys(SOUNDS),
@@ -100,6 +106,22 @@ export const sfx = {
     if (audio.ready) fn();
     // 浏览器要先有一次点击才让出声：第一下通常就是在点击里调到这儿的，等它醒了再补上
     else audio.init().then((ok) => ok && enabled && !holds && fn());
+    return true;
+  },
+
+  /** 按五声音阶轻轻拨一个音（index 决定音高；hover = true 时只在声音引擎已唤醒时发声） */
+  penta(index = 0, { hover = false } = {}) {
+    if (!enabled || holds > 0) return false;
+    const now = performance.now();
+    if (now - lastPentaAt < 55) return false;
+    lastPentaAt = now;
+    const f = PENTA[((index % PENTA.length) + PENTA.length) % PENTA.length];
+    const playNote = () => {
+      tone('triangle', f, f * 0.998, hover ? 0.14 : 0.2, hover ? 0.05 : 0.09);
+      tone('sine', f * 2, f * 2, hover ? 0.09 : 0.14, hover ? 0.018 : 0.032);
+    };
+    if (audio.ready) playNote();
+    else if (!hover) audio.init().then((ok) => ok && enabled && !holds && playNote());
     return true;
   },
 };

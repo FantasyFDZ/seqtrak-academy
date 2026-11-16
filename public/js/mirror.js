@@ -643,6 +643,7 @@ class DeviceMirror extends Emitter {
           const now = this.v.get(`pat:${p}`);
           delete this.#patFrom[p];
           if (now === undefined || now === from) return; // 转过去又转回来了：等于没动
+          this.panel?.showHud(`${t.label} · PTN`, `PTN ${now + 1}`, (now + 1) / (this.v.get('patMode') ? 6 : 3));
           this.#act([t.id], now === 0
             ? `${t.label} 回到了**第 1 段乐句**。`
             : `**${t.label} 换到了第 ${now + 1} 段乐句**——它的旋钮被转动了。每条轨道有好几段乐句，转旋钮就是在它们之间换。不是故意的话，往回转到第 ${from + 1} 段，原来的内容还在。`, { type: 'pattern', track: t.id, pattern: now });
@@ -668,25 +669,30 @@ class DeviceMirror extends Emitter {
         break;
       case 'tempo':
         this.#showBar(Math.max(1, Math.round((v / 300) * 8)));
+        this.panel?.showHud('TEMPO', `${v} BPM`, clamp((v - 40) / 260, 0, 1));
         this.#act([v > old ? 'BPM+' : 'BPM-'], `速度 **${v} BPM**。${Math.abs(v - old) === 1 ? '按住不放会连续变。' : ''}`, { type: 'tempo', bpm: v });
         break;
       case 'swing':
         this.#showBar(Math.round(4 + (v / 58) * 4));
+        this.panel?.showHud('SWING', v === 0 ? '0 · STRAIGHT' : `${v > 0 ? '+' : ''}${v}`, (v + 58) / 116);
         this.#act(v === 0 && old !== 0 ? ['DELETE', 'SWING'] : ['SWING'], v === 0 ? '摇摆归零：节奏变回笔直的了。' : `摇摆 ${v}（范围 −58 到 58）：每对十六分音符里的后一个被往后推了。`, { type: 'swing', value: v });
         break;
       case 'scale':
         this.#showDots([8 - v]);
+        this.panel?.showHud('SCALE', SCALES[v]?.name || `#${v + 1}`);
         this.#act(['SCALE'], `音阶换成了 **${SCALES[v]?.zh || v + 1}**${SCALES[v] ? `：${SCALES[v].mood}` : ''}。`, { type: 'scalekey', scale: v, key: this.v.get('key') });
         break;
       case 'key': {
         const i = NATURALS.indexOf(v);
         const lower = NATURALS.filter((n) => n < v).length;
         this.#showDots(i >= 0 ? [i + 1] : [lower, lower + 1]);
+        this.panel?.showHud('KEY', KEY_NAMES[v] || String(v));
         this.#act(['KEY'], `调换成了 **${KEY_NAMES[v] || v}**：7 个 Synth keys 整体移了位置。`, { type: 'scalekey', scale: this.v.get('scale'), key: v });
         break;
       }
       case 'oct':
         this.#showDots([v + 4]);
+        this.panel?.showHud(`${t.label} · OCTAVE`, v > 0 ? `+${v}` : String(v), (v + 3) / 5);
         this.#act(['OCTAVE'], `${t.label} 的八度：${v > 0 ? `+${v}` : v}。数字越小声音越低。`, { type: 'octave', track: t.id, value: v });
         break;
       case 'poly': {
@@ -696,6 +702,7 @@ class DeviceMirror extends Emitter {
         const bySound = performance.now() - (this.#soundAt[p] ?? -1e9) < 900; // 刚换完音色紧跟着变的，是音色带来的，不是你转的旋钮
         this.#showDots([8 - v]); // 右边那列小灯最上面三个：MONO、POLY、CHORD
         this.#index = v === 2 ? 'CHORD' : 'MONO/POLY';
+        if (!bySound) this.panel?.showHud(`${t.label} · MODE`, mode.name, (v + 1) / 3);
         const what = v === 2 ? '现在每个 Synth key 弹出来的是**一整个和弦**。' : v === 1 ? '可以同时按好几个键，一个键出一个音。' : '一次只出一个音，按下一个，上一个就断：适合贝斯和主旋律。';
         const text = bySound
           ? `换了音色之后，${t.label} 的弹法跟着变成了 **${mode.name}（${mode.zh}）**：这个开关是存在音色里的。${v === 2 ? what : '想要和弦，再转一次旋钮 2（右边那列从上往下数第 2 个），转到 “CHORD” 亮。'}`
@@ -733,7 +740,9 @@ class DeviceMirror extends Emitter {
         const bySound = performance.now() - (this.#soundAt[p] ?? -1e9) < 1500;
         const knob = { attack: 'SD1', decay: 'SD2', cutoff: 'SD3', reso: 'SD4', rev: 'SD1', dly: 'SD2', fmAlg: 'SD1', fmAmt: 'SD2', fmFreq: 'SD3', fmFb: 'SD4' }[name];
         this.#index = index;
-        this.#showBar(name === 'fmAlg' ? Math.round(((v + 1) / 12) * 8) : RAW_PARAMS.has(name) ? Math.round((v / 127) * 8) : Math.round(((v + 64) / 127) * 8), index);
+        const ratio = name === 'fmAlg' ? (v + 1) / 12 : RAW_PARAMS.has(name) ? v / 127 : (v + 64) / 127;
+        this.#showBar(Math.round(ratio * 8), index);
+        if (!bySound) this.panel?.showHud(`${t.label} · ${index}`, name === 'fmAlg' ? `ALG ${v + 1}` : RAW_PARAMS.has(name) ? `${v}` : v === 0 ? '0 · CENTER' : `${v > 0 ? '+' : ''}${v}`, ratio);
         this.#act(bySound ? [] : [knob], bySound
           ? `换了音色，${t.label} 的${zh}也跟着变成了新音色自己的（${paramWords(name, v)}）：这些都是存在音色里的。`
           : `${t.label} 的**${zh}**：${paramWords(name, v)}${name === 'fmAlg' ? '' : RAW_PARAMS.has(name) ? `（${v} / 127）` : v === 0 ? '' : `（${v > 0 ? '+' : ''}${v}）`}。${how}。`, bySound ? null : { type: 'param', track: t.id, param: name, value: v });

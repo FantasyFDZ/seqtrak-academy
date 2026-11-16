@@ -183,10 +183,11 @@ export function songPartsView(view, id) {
     return { el, cells, starts, solo, mute };
   });
 
-  // ── 上面那一排：放 / 停、一层层加、全部恢复、现在响的是哪几层 ──
+  // ── 上面那一排：放 / 停、一层层加、全部恢复、LCD 小节表、现在响的是哪几层 ──
   const playBtn = h('button', { class: 'btn primary sp-play', type: 'button', 'aria-pressed': 'false', dataset: { sfx: 'none' }, onclick: () => (player.playing && !building ? stop() : playAll()) });
   const buildBtn = h('button', { class: 'btn', type: 'button', 'aria-pressed': 'false', dataset: { sfx: 'none' }, onclick: () => (building ? stop() : startBuild()) }, '一层层加上去');
   const resetBtn = h('button', { class: 'btn ghost', type: 'button', onclick: () => resetMix() }, '取消独奏和静音');
+  const lcd = h('span', { class: 'sf-lcd', 'aria-live': 'off' }, `BAR 01.1 · ${spec.bpm} BPM`);
   // 现在响的是哪几层：独奏、静音、一层层加的时候跟着变（不另写一行字，免得这一排忽高忽低）
   const chips = order.map((layer) => ({ layer, el: h('span', { class: 'sp-chip' }, LAYERS[layer].label) }));
   buildBtn.title = `先只放鼓，每 ${BUILD_LAPS * spec.bars} 小节加一层：${order.map((l) => LAYERS[l].label).join(' → ')}`;
@@ -213,6 +214,10 @@ export function songPartsView(view, id) {
     for (const r of rows) r.cells[at]?.classList.remove('now');
     at = s;
     if (s >= 0) {
+      const bar = Math.floor(s / 16) + 1;
+      const beat = Math.floor((s % 16) / 4) + 1;
+      lcd.textContent = `BAR ${String(bar).padStart(2, '0')}.${beat} · ${spec.bpm} BPM`;
+      lcd.classList.add('live');
       for (const r of rows) {
         r.cells[s].classList.add('now');
         // 刚响的色块闪一下：每次都把动效从头放一遍（样式里只在“丰富”动效档下动）
@@ -222,6 +227,9 @@ export function songPartsView(view, id) {
           b.classList.add('hit');
         }
       }
+    } else {
+      lcd.textContent = `BAR 01.1 · ${spec.bpm} BPM`;
+      lcd.classList.remove('live');
     }
     if (lap !== lapSeen || s < 0) {
       lapSeen = lap;
@@ -313,15 +321,36 @@ export function songPartsView(view, id) {
         h('span', { class: 'tag' }, `${spec.bars} 小节一圈`))),
     h('div', { class: 'sp-body' },
       h('div', { class: 'sp-main' },
-        h('div', { class: 'sp-transport' }, playBtn, buildBtn, resetBtn, h('span', { class: 'sp-chips', 'aria-label': '现在响的是哪几层' }, chips.map((c) => c.el))),
+        h('div', { class: 'sp-transport' }, playBtn, buildBtn, resetBtn, lcd, h('span', { class: 'sp-chips', 'aria-label': '现在响的是哪几层' }, chips.map((c) => c.el))),
         // 用户 2026-11-11 说一开始没注意到能单听某一轨：在这里明说一句
-        h('p', { class: 'sp-summary' }, spec.summary, ' ', h('span', { class: 'sp-tip' }, '想单听哪一条，点它的「独奏」；想把哪一条拿掉，点「静音」。')),
+        h('p', { class: 'sp-summary' }, spec.summary, ' ', h('span', { class: 'sp-tip' }, '想单听哪一条，点它的「独奏」（或按数字键 1–6）；空格键播放 / 暂停。')),
         h('div', { class: 'sp-tracks' }, rows.map((r) => r.el))),
       side),
   ));
+  const onKey = (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+    if (document.activeElement?.matches('input, textarea, select, [contenteditable]')) return;
+    if (e.code === 'Space' && !document.activeElement?.matches('button, a')) {
+      e.preventDefault();
+      if (player.playing) stop();
+      else playAll();
+      return;
+    }
+    const m = /^Digit([1-9])$/.exec(e.code);
+    if (m) {
+      const idx = Number(m[1]) - 1;
+      if (idx < rows.length) {
+        e.preventDefault();
+        if (e.shiftKey) toggleMute(idx);
+        else toggleSolo(idx);
+      }
+    }
+  };
+  window.addEventListener('keydown', onKey);
   refresh();
   return {
     destroy() {
+      window.removeEventListener('keydown', onKey);
       player.stop();
       view.classList.remove('fixed');
     },

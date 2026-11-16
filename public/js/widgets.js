@@ -14,6 +14,14 @@ import { SOUND_DESIGN_WIDGETS } from './synth-lab.js'; // 第 4 章的音色实�
 import { CHAPTER_WIDGETS } from './chapter-toys.js'; // 第 5–8 章：samplelab / arranger / recorder
 import { keymapView } from './keymap.js';
 import { ARRANGEMENT_WIDGETS } from './arrangement-widgets.js'; // 完整版的课：arrangement（一排 scene）/ arrpattern（一段乐句的格子）
+import { segmented } from './ui.js';
+
+function syncSlider(slider, text) {
+  slider.style.setProperty('--attr-min', slider.min || 0);
+  slider.style.setProperty('--attr-max', slider.max || 100);
+  slider.style.setProperty('--control-value', slider.value);
+  if (text) slider.setAttribute('aria-valuetext', text);
+}
 
 function playButton(player, labels = ['▶ 播放', '■ 停止']) {
   const btn = h('button', { class: 'btn primary', type: 'button' }, labels[0]);
@@ -41,11 +49,13 @@ function bpm({ value = 100, min = 60, max = 180, tracks = { KICK: 'x---x---x---x
   const genre = h('div', { class: 'small muted', style: { marginTop: '12px' } }, genreAt(value));
   const lights = [1, 2, 3, 4].map((n) => h('i', { class: n === 1 ? 'first' : '' }, String(n)));
   const slider = h('input', { type: 'range', min, max, value, step: 1, 'aria-label': '速度 BPM' });
+  syncSlider(slider, `${value} BPM`);
   slider.addEventListener('input', () => {
     const v = Number(slider.value);
     player.bpm = v;
     num.textContent = String(v);
     genre.textContent = genreAt(v);
+    syncSlider(slider, `${v} BPM`);
   });
   player.onStep((s) => lights.forEach((l, i) => l.classList.toggle('on', s >= 0 && Math.floor(s / 4) === i)));
   const el = h('div', { class: 'widget' },
@@ -71,13 +81,15 @@ function count({ value = 4, bpm: tempo = 84, title = '把一拍切开：四分 �
   const player = new LoopPlayer({ bpm: tempo });
   const spans = COUNT_LABELS.map((s, i) => h('span', { class: i % 4 === 0 ? 'b' : '' }, s));
   const say = h('div', { class: 'small muted', style: { marginTop: '10px' } });
-  const seg = h('div', { class: 'seg' });
   const apply = () => {
     player.set({ KICK: 'x---x---x---x---', HAT1: SUBDIV[div].pattern });
     spans.forEach((s, i) => (s.style.opacity = SUBDIV[div].pattern[i] === 'x' ? 1 : 0.28));
     say.textContent = `嘴里跟着念：${SUBDIV[div].say}。镲的声音就落在亮着的格子上，底鼓始终只在 1、2、3、4。`;
-    seg.replaceChildren(...[4, 8, 16].map((d) => h('button', { type: 'button', class: d === div ? 'on' : '', onclick: () => { div = d; apply(); } }, SUBDIV[d].label)));
   };
+  const seg = segmented([4, 8, 16].map((d) => ({ value: d, label: SUBDIV[d].label })), div, (d) => {
+    div = d;
+    apply();
+  });
   player.onStep((s) => spans.forEach((el, i) => el.classList.toggle('on', i === s)));
   apply();
   const el = h('div', { class: 'widget' },
@@ -152,10 +164,12 @@ function swing({ bpm: tempo = 92, title = 'Swing：把每对 16 分音符的后�
   const num = h('span', {}, '0');
   const say = h('div', { class: 'small muted', style: { marginTop: '12px' } }, '0 = 机器一样笔直。');
   const slider = h('input', { type: 'range', min: 0, max: 58, value: 0, step: 1, 'aria-label': 'Swing 量' });
+  syncSlider(slider, '0 ticks');
   slider.addEventListener('input', () => {
     const v = Number(slider.value);
     player.swing = v / 120; // SEQTRAK：1 步 = 120 ticks
     num.textContent = String(v);
+    syncSlider(slider, `${v} ticks`);
     say.textContent = v === 0 ? '0 = 机器一样笔直。' : v < 20 ? '有一点点松动，人味出来了。' : v < 42 ? '明显在“摇”了——Hip-hop、House 常用这个范围。' : '接近三连音的摇摆，爵士和老派 Boom Bap 的感觉。';
   });
   const el = h('div', { class: 'widget' },
@@ -175,17 +189,49 @@ function pianoKeys({ from = 48, octaves = 2, voice = 'keys', highlight = () => f
   const el = h('div', { class: 'piano' });
   const total = octaves * 7;
   const keys = new Map();
+  const nodeToMidi = new Map();
+  let glissActive = false;
+  let lastGliss = null;
+  let skipClick = null;
+
   const press = (midiNote, node) => {
-    audio.init().then(() => audio.note(midiNote, 0, 0.5, { voice }));
+    audio.init().then((ok) => ok && audio.note(midiNote, 0, 0.5, { voice }));
     node.classList.add('down');
     setTimeout(() => node.classList.remove('down'), 160);
     onPlay?.(midiNote);
   };
+  const bindKey = (node, m) => {
+    keys.set(m, node);
+    nodeToMidi.set(node, m);
+    node.addEventListener('pointerdown', (e) => {
+      if (e.button > 0) return;
+      e.stopPropagation();
+      glissActive = true;
+      lastGliss = m;
+      skipClick = node;
+      press(m, node);
+      const end = () => {
+        glissActive = false;
+        lastGliss = null;
+        setTimeout(() => { skipClick = null; }, 0);
+      };
+      window.addEventListener('pointerup', end, { once: true, passive: true });
+      window.addEventListener('pointercancel', end, { once: true, passive: true });
+    });
+    node.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (skipClick === node) {
+        skipClick = null;
+        return;
+      }
+      press(m, node);
+    });
+  };
   for (let o = 0; o < octaves; o++) {
     WHITE.forEach((semi) => {
       const m = from + o * 12 + semi;
-      const node = h('div', { class: 'white', onpointerdown: () => press(m, node) }, midiToName(m));
-      keys.set(m, node);
+      const node = h('button', { type: 'button', class: 'white', 'data-sfx': 'none' }, midiToName(m));
+      bindKey(node, m);
       el.append(node);
     });
   }
@@ -193,11 +239,24 @@ function pianoKeys({ from = 48, octaves = 2, voice = 'keys', highlight = () => f
     for (const [semi, afterWhite] of BLACK) {
       const m = from + o * 12 + semi;
       const left = ((o * 7 + afterWhite + 1) / total) * 100;
-      const node = h('div', { class: 'black', style: { left: `calc(${left}% - 2.1%)` }, title: midiToName(m), onpointerdown: (e) => { e.stopPropagation(); press(m, node); } });
-      keys.set(m, node);
+      const node = h('button', { type: 'button', class: 'black', 'data-sfx': 'none', style: { left: `calc(${left}% - 2.1%)` }, title: midiToName(m), 'aria-label': midiToName(m) });
+      bindKey(node, m);
       el.append(node);
     }
   }
+  el.addEventListener('pointermove', (e) => {
+    if (!glissActive) return;
+    if (e.pointerType === 'mouse' && !(e.buttons & 1)) {
+      glissActive = false;
+      return;
+    }
+    const hit = document.elementFromPoint(e.clientX, e.clientY)?.closest('.piano button');
+    const m = hit && nodeToMidi.get(hit);
+    if (m !== undefined && m !== lastGliss) {
+      lastGliss = m;
+      press(m, hit);
+    }
+  });
   const refresh = () => {
     for (const [m, node] of keys) {
       node.classList.toggle('in', !!highlight(m));
@@ -309,7 +368,11 @@ function chordstack({ scale = 0, key = 0, start = 1, size = 3, voice = 'keys', t
     });
     return btn;
   });
-  const sizeSeg = h('div', { class: 'seg' });
+  const sizeSeg = segmented([1, 2, 3, 4].map((n) => ({ value: n, label: `${n} 个音` })), state.size, (n) => {
+    state.size = n;
+    refresh();
+    playChord(notes(), { voice });
+  });
   const refresh = () => {
     const used = keysUsed();
     const ns = notes();
@@ -318,7 +381,6 @@ function chordstack({ scale = 0, key = 0, start = 1, size = 3, voice = 'keys', t
       btn.classList.toggle('primary', order >= 0);
       btn.replaceChildren(h('b', {}, midiToName(scaleNotes[i]).replace(/-?\d+$/, '')), h('span', { class: 'small', style: { opacity: 0.75 } }, order >= 0 ? `键 ${i + 1} · 第 ${order + 1} 层` : `键 ${i + 1}`));
     });
-    sizeSeg.replaceChildren(...[1, 2, 3, 4].map((n) => h('button', { type: 'button', class: n === state.size ? 'on' : '', onclick: () => { state.size = n; refresh(); playChord(notes(), { voice }); } }, `${n} 个音`)));
     keyboard.refresh();
     const names = noteNames(ns);
     const mood = MOOD[chordMood(ns)][1];
@@ -359,7 +421,15 @@ function chordkeys({ scale = 0, key = 0, octave = 0, size = 4, voice = 'keys', t
     });
     return btn;
   });
-  const sizeSeg = h('div', { class: 'seg' });
+  const sizeSeg = segmented(
+    [{ value: 3, label: '只听下面 3 个音' }, { value: 4, label: '4 个音（机器上的）' }],
+    state.size,
+    (n) => {
+      state.size = n;
+      refresh();
+      if (state.picked) playChord(chord(state.picked), { voice });
+    },
+  );
   const refresh = () => {
     keyButtons.forEach((btn, i) => {
       const ns = chordNotes(i + 1, { scale, key, octave, size: 4 });
@@ -370,10 +440,6 @@ function chordkeys({ scale = 0, key = 0, octave = 0, size = 4, voice = 'keys', t
         h('span', { class: 'small', style: { opacity: 0.8 } }, h('i', { style: { display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: dot[mood], marginRight: '4px' } }), `键 ${i + 1}${MOOD[mood][0] ? ` · ${MOOD[mood][0]}` : ''}`),
       );
     });
-    sizeSeg.replaceChildren(
-      h('button', { type: 'button', class: state.size === 3 ? 'on' : '', onclick: () => { state.size = 3; refresh(); if (state.picked) playChord(chord(state.picked), { voice }); } }, '只听下面 3 个音'),
-      h('button', { type: 'button', class: state.size === 4 ? 'on' : '', onclick: () => { state.size = 4; refresh(); if (state.picked) playChord(chord(state.picked), { voice }); } }, '4 个音（机器上的）'),
-    );
     keyboard.refresh();
     if (state.picked) {
       const ns = chord(state.picked);

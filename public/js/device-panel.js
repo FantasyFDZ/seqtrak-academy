@@ -16,6 +16,7 @@ import { h } from './util.js';
 
 const W = 1000;
 const H = 280;
+let panelUid = 0;
 const C = {
   body: '#f0562b',
   bodyDark: '#d9441b',
@@ -30,8 +31,8 @@ const C = {
   out: '#3f444c',
   outDim: '#8a9099',
   led: '#9a9ea6',
-  orangeDim: '#a93612', // 桔红区里没亮的文字
-  orangeDeep: '#8f2c10',
+  orangeDim: '#78240a', // 桔红区里没亮的丝印文字（加深对比度，避免糊成一片）
+  orangeDeep: '#84270c',
   hl: '#00b8d9',
 };
 const LED = { yellow: '#ffd21f', white: '#ffffff', cyan: '#18d7e0', blue: '#3d7bff', purple: '#b56bff', red: '#ff3b30', green: '#34d058', orange: '#ff8a3d' };
@@ -76,9 +77,11 @@ const text = (x, y, s, opts = {}) =>
  *   onDown(id) / onUp(id, 按住的毫秒数, 是否转过) / onTurn(id, ±1)   当模拟机外壳用时的原始手势
  */
 export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, onTurn } = {}) {
+  const pid = `dp${++panelUid}`;
   const parts = new Map(); // id → { node, ring }
   const leds = new Map();
   const knobLines = new Map();
+  const sliders = new Map();
   const interactive = !!(onPick || onDown || onUp || onTurn);
 
   const reg = (id, node, ring) => {
@@ -132,19 +135,27 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
   };
 
   const svg = h('svg', { class: 'panel-svg', viewBox: `-84 -40 ${W + 178} ${H + 66}`, role: 'img', 'aria-label': 'SEQTRAK 面板' });
+  const defs = h('defs', {
+    html: `<linearGradient id="${pid}-gray" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dcdfe4"/><stop offset="1" stop-color="#cbcfd5"/></linearGradient>`
+      + `<linearGradient id="${pid}-orange" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f55f34"/><stop offset="1" stop-color="#e54c21"/></linearGradient>`
+      + `<radialGradient id="${pid}-knob" cx="50%" cy="32%" r="68%"><stop offset="0" stop-color="#5a5f69"/><stop offset="1" stop-color="#343840"/></radialGradient>`
+      + `<linearGradient id="${pid}-key" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f9fafb"/><stop offset="1" stop-color="#e9ecef"/></linearGradient>`,
+  });
   const layer = h('g');
   const rings = h('g', { 'pointer-events': 'none' });
   const holds = h('g', { 'pointer-events': 'none' });
   const keycaps = h('g', { class: 'pc-keys', 'pointer-events': 'none' }); // 键盘学习方式：每个控件旁边标着电脑上对应的键（setKeys）
   const spots = new Map(); // id → 小键帽摆在哪：[x, y]（左上角）
 
-  // 机身：左边和中间（鼓区、合成器区）是灰色，右边（音色与效果区）是桔红；下面一道投影
+  // 机身：左边和中间（鼓区、合成器区）是阳极氧化浅灰，右边（音色与效果区）是桔红；带微倒角高光与底投影
   layer.append(
-    h('rect', { x: 3, y: 7, width: W, height: H, rx: 16, fill: '#00000022' }),
-    h('rect', { x: 0, y: 0, width: W, height: H, rx: 14, fill: C.gray }),
-    h('path', { d: `M596 0 H${W - 14} a14 14 0 0 1 14 14 V${H - 14} a14 14 0 0 1 -14 14 H596 Z`, fill: C.body }),
-    h('rect', { x: 0, y: 0, width: W, height: H, rx: 14, fill: 'none', stroke: '#00000040', 'stroke-width': 1.5 }),
+    h('rect', { x: 3, y: 8, width: W, height: H, rx: 16, fill: '#00000024' }),
+    h('rect', { x: 0, y: 0, width: W, height: H, rx: 14, fill: `url(#${pid}-gray)` }),
+    h('path', { d: `M596 0 H${W - 14} a14 14 0 0 1 14 14 V${H - 14} a14 14 0 0 1 -14 14 H596 Z`, fill: `url(#${pid}-orange)` }),
+    h('line', { x1: 14, y1: 1.4, x2: W - 14, y2: 1.4, stroke: '#ffffff52', 'stroke-width': 1.2, 'pointer-events': 'none' }),
+    h('rect', { x: 0, y: 0, width: W, height: H, rx: 14, fill: 'none', stroke: '#00000042', 'stroke-width': 1.5 }),
     h('line', { x1: 407, y1: 8, x2: 407, y2: H - 8, stroke: C.grayDark, 'stroke-width': 1.5 }),
+    h('line', { x1: 596, y1: 1, x2: 596, y2: H - 1, stroke: '#00000028', 'stroke-width': 1.2 }),
     h('rect', { x: 83, y: -20, width: 84, height: 20, rx: 3, fill: '#1c1d20' }),
     text(125, -6, 'YAMAHA', { size: 9, fill: '#e9ebee', spacing: 1.5 }),
   );
@@ -159,9 +170,9 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
     const line = h('line', { x1: x, y1: y - 15, x2: x, y2: y - 8, stroke: '#f1f2f3', 'stroke-width': 2.2, 'stroke-linecap': 'round' });
     knobLines.set(id, { line, x, y });
     g.append(
-      h('circle', { cx: x, cy: y + 2, r: 17.5, fill: '#00000030' }),
-      h('circle', { cx: x, cy: y, r: 17, fill: C.knob }),
-      h('circle', { cx: x, cy: y, r: 11, fill: C.knobTop }),
+      h('circle', { cx: x, cy: y + 2.2, r: 17.6, fill: '#00000033' }),
+      h('circle', { cx: x, cy: y, r: 17, fill: C.knob, stroke: '#17191d', 'stroke-width': 1 }),
+      h('circle', { cx: x, cy: y, r: 11.4, fill: `url(#${pid}-knob)`, stroke: '#ffffff1c', 'stroke-width': 0.8 }),
       line,
     );
     [-15, 0, 16].forEach((dy, i) => {
@@ -169,17 +180,18 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
       leds.set(`${id}.${i + 1}`, led);
       g.append(led);
     });
-    g.append(text(x, y < 100 ? y + 31 : y - 25, label, { size: 8.5 }));
+    g.append(text(x, y < 100 ? y + 33 : y - 26, label, { size: 8.5 }));
     spots.set(id, [x - 36, y - 6]);
-    layer.append(reg(id, g, { type: 'circle', x, y, r: 23 }));
+    layer.append(reg(id, g, { type: 'circle', x, y, r: 21.5 }));
   }
 
   // 方形键
   const key = (id, x, y, kind, label) => {
     const g = h('g');
     g.append(
-      h('rect', { x: x - 20, y: y - 18, width: 40, height: 40, rx: 6, fill: '#00000026' }),
-      h('rect', { x: x - 20, y: y - 20, width: 40, height: 40, rx: 6, fill: C.key, stroke: C.keyEdge, 'stroke-width': 1 }),
+      h('rect', { x: x - 20, y: y - 17.8, width: 40, height: 40, rx: 6, fill: '#00000028' }),
+      h('rect', { x: x - 20, y: y - 20, width: 40, height: 40, rx: 6, fill: `url(#${pid}-key)`, stroke: C.keyEdge, 'stroke-width': 1 }),
+      h('line', { x1: x - 15, y1: y - 18.6, x2: x + 15, y2: y - 18.6, stroke: '#ffffffcc', 'stroke-width': 1, 'pointer-events': 'none' }),
     );
     const led = kind === 'rec'
       ? h('circle', { cx: x, cy: y, r: 5, fill: '#c3c6cb' })
@@ -231,7 +243,7 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
   const indexG = h('g');
   indexG.append(h('rect', { x: 600, y: 10, width: 62, height: 262, rx: 6, fill: '#00000000' }));
   INDEX_LABELS.forEach((s, i) => {
-    const t = text(631, 23.5 + i * 12.68, s, { size: 6, fill: C.orangeDim, weight: 700 });
+    const t = text(631, 23.5 + i * 12.68, s, { size: 6.4, fill: C.orangeDim, weight: 700 });
     leds.set(`INDEX.${s}`, t);
     indexG.append(t);
   });
@@ -250,7 +262,12 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
     const g = h('g');
     const line = h('line', { x1: x, y1: y - 13, x2: x, y2: y - 7, stroke: '#f1f2f3', 'stroke-width': 2.2, 'stroke-linecap': 'round' });
     knobLines.set(id, { line, x, y });
-    g.append(h('circle', { cx: x, cy: y + 2, r: 15, fill: '#00000030' }), h('circle', { cx: x, cy: y, r: 14.5, fill: C.knob }), h('circle', { cx: x, cy: y, r: 9, fill: C.knobTop }), line);
+    g.append(
+      h('circle', { cx: x, cy: y + 2, r: 15, fill: '#00000032' }),
+      h('circle', { cx: x, cy: y, r: 14.5, fill: C.knob, stroke: '#17191d', 'stroke-width': 1 }),
+      h('circle', { cx: x, cy: y, r: 9.4, fill: `url(#${pid}-knob)`, stroke: '#ffffff1c', 'stroke-width': 0.8 }),
+      line,
+    );
     if (label) g.append(text(x, y + 26, label, { size: 7.5, fill: C.inkGray }));
     layer.append(reg(id, g, { type: 'circle', x, y, r: 20 }));
   };
@@ -262,12 +279,15 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
   sw.append(h('rect', { x: 782, y: 104, width: 28, height: 12, rx: 6, fill: C.orangeDeep }), h('circle', { cx: 789, cy: 110, r: 5, fill: C.knob }), text(796, 99, 'MASTER  SINGLE', { size: 5.6, fill: C.inkGray }));
   layer.append(reg('MASTERSINGLE', sw, { type: 'rect', x: 776, y: 92, w: 40, h: 28, r: 6 }));
 
-  // 三条触摸滑条
+  // 三条触摸滑条（带实时灯柱反馈 setSlider）
   const slider = (id, x, label) => {
     const g = h('g');
-    g.append(h('rect', { x: x - 14, y: 170, width: 28, height: 84, rx: 7, fill: C.bodyDark, stroke: '#b93a14' }));
-    for (let i = 0; i < 7; i++) g.append(h('line', { x1: x - 8, y1: 180 + i * 10.6, x2: x + 8, y2: 180 + i * 10.6, stroke: C.orangeDeep, 'stroke-width': 1.4, 'stroke-linecap': 'round' }));
-    g.append(text(x, 162, label, { size: 6.8, fill: C.inkGray }));
+    const fill = h('rect', { x: x - 12, y: 252, width: 24, height: 0, rx: 5, fill: '#ffcb1f', opacity: 0, 'pointer-events': 'none' });
+    const thumb = h('line', { x1: x - 10, y1: 250, x2: x + 10, y2: 250, stroke: '#ffffff', 'stroke-width': 2.4, 'stroke-linecap': 'round', opacity: 0, 'pointer-events': 'none' });
+    sliders.set(id, { fill, thumb });
+    g.append(h('rect', { x: x - 14, y: 170, width: 28, height: 84, rx: 7, fill: C.bodyDark, stroke: '#b53712' }), fill);
+    for (let i = 0; i < 7; i++) g.append(h('line', { x1: x - 8, y1: 180 + i * 10.6, x2: x + 8, y2: 180 + i * 10.6, stroke: C.orangeDeep, 'stroke-width': 1.4, 'stroke-linecap': 'round', 'pointer-events': 'none' }));
+    g.append(thumb, text(x, 162, label, { size: 6.8, fill: C.inkGray }));
     spots.set(id, [x - 7, 140]);
     layer.append(reg(id, g, { type: 'rect', x: x - 18, y: 152, w: 36, h: 106, r: 9 }));
   };
@@ -282,7 +302,7 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
   spk.append(text(956, 19, 'MIC', { size: 6, fill: C.inkGray }));
   layer.append(reg('SPEAKER', spk, { type: 'rect', x: 829, y: 4, w: 143, h: 136, r: 10 }));
 
-  svg.append(layer, keycaps, holds, rings);
+  svg.append(defs, layer, keycaps, holds, rings);
 
   const resolve = (ids) => (ids || []).flatMap((id) => GROUPS[id] || [id]);
 
@@ -338,6 +358,26 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
   function setKnob(id, deg) {
     const k = knobLines.get(id);
     if (k) k.line.setAttribute('transform', `rotate(${deg} ${k.x} ${k.y})`);
+  }
+
+  /** 把触摸滑条（FXLEVEL / HIGHPASS / REPEATER）的灯柱推到 0–1 的高度 */
+  function setSlider(id, ratio) {
+    const s = sliders.get(id);
+    if (!s) return;
+    const v = Math.max(0, Math.min(1, Number(ratio) || 0));
+    if (v <= 0.01) {
+      s.fill.setAttribute('opacity', '0');
+      s.thumb.setAttribute('opacity', '0');
+      return;
+    }
+    const hPx = Math.max(4, Math.round(v * 80));
+    const y = 252 - hPx;
+    s.fill.setAttribute('y', String(y));
+    s.fill.setAttribute('height', String(hPx));
+    s.fill.setAttribute('opacity', '0.52');
+    s.thumb.setAttribute('y1', String(y + 1));
+    s.thumb.setAttribute('y2', String(y + 1));
+    s.thumb.setAttribute('opacity', '0.96');
   }
 
   const FULL_VIEW = svg.getAttribute('viewBox');
@@ -408,6 +448,16 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
       if (w / hh > aspect) grow(w, w / aspect);
       else grow(hh * aspect, hh);
     }
+    // 避免局部取景框正好劈在边缘丝印文字中间（比如把左侧 VOL + / DELETE 切成 OL + / LETE）
+    if (x < -2 && x > -80) {
+      w += x - -82;
+      x = -82;
+    }
+    if (x + w > W + 2 && x + w < W + 88) w = W + 90 - x;
+    if (y < -2 && y > -36) {
+      hh += y - -38;
+      y = -38;
+    }
     // 不取到整台外面去
     const [fx, fy, fw, fh] = FULL_VIEW.split(' ').map(Number);
     w = Math.min(w, fw);
@@ -458,8 +508,26 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
 
   setHighlight(highlight);
   setLit(lit);
-  const el = h('div', { class: 'panel-wrap' }, svg);
-  const panel = { el, svg, setHighlight, setHeld, setLit, setKnob, flash, focus, spot, setKeys, setFocusable, has: (id) => parts.has(id) };
+  // 虚拟微型 OLED 读数窗：无屏硬件在拧旋钮 / 推滑条时浮现实时参数，1.6 秒后自动隐去
+  const hudLabel = h('span', { class: 'oled-k' });
+  const hudVal = h('b', { class: 'oled-v' });
+  const hudFill = h('i');
+  const hudBar = h('span', { class: 'oled-bar', hidden: true }, hudFill);
+  const hud = h('div', { class: 'panel-oled', 'aria-hidden': 'true' }, hudLabel, hudVal, hudBar);
+  let hudTimer = 0;
+  function showHud(label, value, ratio = null) {
+    if (document.documentElement.hasAttribute('data-still')) return;
+    hudLabel.textContent = label || '';
+    hudVal.textContent = value ?? '';
+    const hasBar = typeof ratio === 'number' && Number.isFinite(ratio);
+    hudBar.hidden = !hasBar;
+    if (hasBar) hudFill.style.width = `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%`;
+    hud.classList.add('on');
+    clearTimeout(hudTimer);
+    hudTimer = setTimeout(() => hud.classList.remove('on'), 1600);
+  }
+  const el = h('div', { class: 'panel-wrap' }, svg, hud);
+  const panel = { el, svg, setHighlight, setHeld, setLit, setKnob, setSlider, flash, focus, spot, setKeys, setFocusable, showHud, has: (id) => parts.has(id) };
   recent.push(panel);
   if (recent.length > 24) recent.shift();
   return panel;

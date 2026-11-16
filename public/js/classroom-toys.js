@@ -10,6 +10,7 @@ import { midi } from './midi.js';
 import { store } from './store.js';
 import { sfx } from './sfx.js';
 import { confetti, pop } from './fx.js';
+import { segmented } from './ui.js';
 import { SCALES, chordNotes, chordMood, synthKeyNotes, synthKeyNote, chordName, KEY_NAMES } from './scales.js';
 import { createFxLab, FxEngine, ROOMS, ECHOES, EFFECTS } from './fxlab.js';
 import {
@@ -84,12 +85,16 @@ function beatwalk(spec, env, _level, blind = false) {
     }
   });
 
-  const accentSeg = h('div', { class: 'seg cl-seg' });
-  const paintSeg = () => accentSeg.replaceChildren(
-    h('button', { type: 'button', class: accent ? 'on' : '', onclick: () => { accent = true; paintSeg(); env.touched(); } }, '重音：开'),
-    h('button', { type: 'button', class: accent ? '' : 'on', onclick: () => { accent = false; paintSeg(); env.touched(); say.textContent = '四下一模一样：数不出哪个是 1 了。'; } }, '关'),
+  const accentSeg = segmented(
+    [{ value: true, label: '重音：开' }, { value: false, label: '关' }],
+    accent,
+    (v) => {
+      accent = v;
+      env.touched();
+      if (!v) say.textContent = '四下一模一样：数不出哪个是 1 了。';
+    },
   );
-  paintSeg();
+  accentSeg.classList.add('cl-seg');
   paintTally();
   const el = h('div', { class: ['cl-toy', 'cl-beat', blind && 'blind'] },
     h('div', { class: 'cl-row' }, playButton(player, { onToggle: (p) => el.classList.toggle('playing', p) }), !blind && accentSeg, h('span', { class: 'spacer' }), tally),
@@ -267,7 +272,11 @@ function stack(spec, env) {
     });
     return k;
   });
-  const sizeSeg = h('div', { class: 'seg cl-seg' });
+  const sizeSeg = segmented([1, 2, 3].map((n) => ({ value: n, label: `${n} 层` })), state.size, (n) => {
+    state.size = n;
+    paint(true);
+  });
+  sizeSeg.classList.add('cl-seg');
   function paint(sound) {
     const u = used();
     const ns = notes();
@@ -282,7 +291,6 @@ function stack(spec, env) {
     const mood = state.size === 3 ? chordMood(ns) : 'other';
     badge.textContent = MOODS[mood][0] ? `${MOODS[mood][0]} · ${MOODS[mood][1]}` : '';
     badge.dataset.mood = mood;
-    sizeSeg.replaceChildren(...[1, 2, 3].map((n) => h('button', { type: 'button', class: n === state.size ? 'on' : '', onclick: () => { state.size = n; paint(true); } }, `${n} 层`)));
     say.innerHTML = rich(state.size === 1 ? '只有地基：一个音，一根线。' : state.size === 2 ? `从键 ${u[0]} 起，**跳过一个**，拿键 ${u[1]}。有点颜色了。` : `键 ${u.join('、')}：隔一个拿一个，三层。${MOODS[mood][0] ? `听起来**${MOODS[mood][0]}**。` : ''}`);
     if (sound) {
       playChord(ns);
@@ -523,8 +531,14 @@ function swingfeel(spec, env) {
   const num = h('b', {}, '0');
   const say = h('div', { class: 'cl-note' }, '0：笔直，像机器。');
   const slider = h('input', { class: 'cl-range', type: 'range', min: 0, max: 58, step: 1, value: 0, 'aria-label': '摇摆的量' });
+  slider.style.setProperty('--attr-min', '0');
+  slider.style.setProperty('--attr-max', '58');
+  slider.style.setProperty('--control-value', '0');
+  slider.setAttribute('aria-valuetext', '0');
   slider.addEventListener('input', () => {
     const v = Number(slider.value);
+    slider.style.setProperty('--control-value', String(v));
+    slider.setAttribute('aria-valuetext', String(v));
     player.swing = v / 120; // 和 SEQTRAK 一样：一步 = 120 ticks，摇摆最多 58
     row.style.setProperty('--swing', String(v / 120));
     num.textContent = String(v);
@@ -985,26 +999,52 @@ function pentajam(spec, env) {
   const box = h('div', { class: 'cl-penta-keys' });
   const say = h('div', { class: 'cl-note' });
   const keysFor = () => (mode === 'penta' ? [0, 1, 2, 3, 4, 5].map((i) => 60 + PENTA[i]) : Array.from({ length: 13 }, (_, i) => 60 + i));
+  let glissOn = false;
+  let lastM = null;
+  const triggerPenta = (m, b) => {
+    audio.init().then((ok) => ok && audio.note(m + 12, audio.now() + 0.01, 0.45, { voice: 'pluck', vel: 0.85 }));
+    b.classList.add('down');
+    setTimeout(() => b.classList.remove('down'), 150);
+    env.touched();
+  };
+  const keyMap = new Map();
   const paint = () => {
+    keyMap.clear();
     box.replaceChildren(...keysFor().map((m) => {
       const b = h('button', { class: ['cl-wkey', BLACK.has(m % 12) && 'black'], type: 'button', 'data-sfx': 'none' }, h('b', {}, NAMES[m % 12]));
+      keyMap.set(b, m);
       b.addEventListener('pointerdown', (e) => {
+        if (e.button > 0) return;
         e.preventDefault();
-        audio.init().then((ok) => ok && audio.note(m + 12, audio.now() + 0.01, 0.45, { voice: 'pluck', vel: 0.85 }));
-        b.classList.add('down');
-        setTimeout(() => b.classList.remove('down'), 150);
-        env.touched();
+        glissOn = true;
+        lastM = m;
+        triggerPenta(m, b);
+        const end = () => { glissOn = false; lastM = null; };
+        window.addEventListener('pointerup', end, { once: true, passive: true });
+        window.addEventListener('pointercancel', end, { once: true, passive: true });
       });
+      b.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && !e.repeat && triggerPenta(m, b));
       return b;
     }));
     box.style.gridTemplateColumns = `repeat(${keysFor().length}, minmax(0, 1fr))`;
-    say.innerHTML = rich(mode === 'penta' ? '这几个键是 **C 小调五声**：C、D#、F、G、A#，再加一个高一层的 C。点「播放」，跟着鼓**乱按**：怎么按都不难听。' : '现在是 **12 个键全上**。再乱按试试：有的音会“酸”，跟伴奏打架。');
+    say.innerHTML = rich(mode === 'penta' ? '这几个键是 **C 小调五声**：C、D#、F、G、A#，再加一个高一层的 C。点「播放」，跟着鼓**乱按或横扫滑奏**：怎么弹都不难听。' : '现在是 **12 个键全上**。再乱按试试：有的音会“酸”，跟伴奏打架。');
   };
-  const seg = h('div', { class: 'seg cl-seg' });
-  const paintSeg = () => seg.replaceChildren(
-    h('button', { type: 'button', class: mode === 'penta' ? 'on' : '', onclick: () => { mode = 'penta'; paintSeg(); paint(); env.touched(); } }, '五声：5 个音'),
-    h('button', { type: 'button', class: mode === 'all' ? 'on' : '', onclick: () => { mode = 'all'; paintSeg(); paint(); env.touched(); } }, '12 个全上'));
-  paintSeg();
+  box.addEventListener('pointermove', (e) => {
+    if (!glissOn) return;
+    if (e.pointerType === 'mouse' && !(e.buttons & 1)) { glissOn = false; return; }
+    const hit = document.elementFromPoint(e.clientX, e.clientY)?.closest('.cl-wkey');
+    const m = hit && keyMap.get(hit);
+    if (m !== undefined && m !== lastM) {
+      lastM = m;
+      triggerPenta(m, hit);
+    }
+  });
+  const seg = segmented(
+    [{ value: 'penta', label: '五声：5 个音' }, { value: 'all', label: '12 个全上' }],
+    mode,
+    (v) => { mode = v; paint(); env.touched(); },
+  );
+  seg.classList.add('cl-seg');
   paint();
   const el = h('div', { class: 'cl-toy cl-penta' }, h('div', { class: 'cl-row' }, playButton(player), seg), box, say);
   return { el, destroy: () => player.stop() };
@@ -1102,6 +1142,19 @@ function progression(spec, env) {
     head = s < 0 ? -1 : Math.floor(s / 16);
     [...tiles.children].forEach((t, i) => t.classList.toggle('now', i === head));
   });
+  const presets = segmented(
+    PROGS.map((p) => ({ value: p.keys.join('-'), label: p.keys.join('-') })),
+    PROGS[0].keys.join('-'),
+    (val) => {
+      const found = PROGS.find((p) => p.keys.join('-') === val);
+      if (found) {
+        prog = [...found.keys];
+        paint();
+        env.touched();
+      }
+    },
+  );
+  presets.classList.add('cl-seg');
   function paint() {
     tiles.replaceChildren(...prog.map((k, i) => {
       const t = h('button', { class: 'cl-ptile', type: 'button', 'data-sfx': 'none' }, h('b', {}, `键 ${k}`), h('span', {}, chordName(chordOf(k))), h('em', {}, '点一下换'));
@@ -1114,9 +1167,9 @@ function progression(spec, env) {
       return t;
     }));
     const hit = PROGS.find((p) => p.keys.join() === prog.join());
+    presets.set(hit ? hit.keys.join('-') : null);
     say.innerHTML = rich(hit ? `这一套是 **${prog.join(' → ')}**：${hit.name} 用的就是它。` : `现在是 ${prog.join(' → ')}。点上面的预设听听熟悉的那几套。`);
   }
-  const presets = h('div', { class: 'seg cl-seg' }, PROGS.map((p) => h('button', { type: 'button', onclick: () => { prog = [...p.keys]; paint(); env.touched(); } }, p.keys.join('-'))));
   paint();
   const el = h('div', { class: 'cl-toy cl-progtoy' },
     h('div', { class: 'cl-row' }, playButton(player), presets),

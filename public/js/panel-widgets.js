@@ -10,6 +10,7 @@ import { store } from './store.js';
 import { segmented } from './ui.js';
 import { sfx } from './sfx.js';
 import { confetti } from './fx.js';
+import { theme } from './theme.js';
 import { BENCH_VIEW, fitView, benchView, refitOnResize } from './bench-view.js';
 import { learn } from './learn-mode.js';
 
@@ -223,23 +224,34 @@ export function panelQuiz({ count = 10, mode = 'mixed', pass = 7, onDone, onNext
   let locked = false;
   let wrongNow = false; // 这一题已经点错了（正确的那个正被蓝圈圈着）
   let missed = [];
+  let history = [];
   let startedAt = 0;
   const need = () => Math.min(pass, questions.length);
 
   const ask = h('div', { class: 'pq-ask' });
   const scoreEl = h('div', { class: 'pq-score' });
+  const dotsEl = h('div', { class: 'pq-dots', 'aria-label': '每题正误进度' });
   const feedback = h('div', { class: 'pq-feedback' });
   const nextBtn = h('button', { class: 'btn primary', type: 'button', style: { display: 'none' }, onclick: () => advance() }, '下一题 →');
   const panel = createPanel({ onPick: (id) => pick(id) });
-  const body = h('div', {}, h('div', { class: 'pq-head' }, ask, scoreEl), panel.el, h('div', { class: 'row', style: { marginTop: '10px' } }, feedback, h('span', { class: 'spacer' }), nextBtn));
+  const body = h('div', {}, h('div', { class: 'pq-head' }, ask, scoreEl), dotsEl, panel.el, h('div', { class: 'row', style: { marginTop: '10px' } }, feedback, h('span', { class: 'spacer' }), nextBtn));
   const el = h('div', { class: 'widget' }, h('div', { class: 'label', style: { marginBottom: '12px' } }, '找按键'), body);
 
   const sameControl = (picked, target) => picked === target;
+
+  const renderDots = () => {
+    dotsEl.replaceChildren(...questions.map((_, i) => {
+      const st = history[i];
+      const glyph = st === 'right' ? '✓' : st === 'wrong' ? '✗' : String(i + 1);
+      return h('i', { class: [st, !st && i === qi && 'now'], 'aria-label': `第 ${i + 1} 题：${st === 'right' ? '答对' : st === 'wrong' ? '答错' : i === qi ? '当前题' : '未答'}` }, glyph);
+    }));
+  };
 
   function render() {
     const q = questions[qi];
     ask.replaceChildren(h('small', {}, `${q.kind} · 第 ${qi + 1} / ${questions.length} 题`), q.prompt, q.sub ? h('span', { class: 'muted', style: { fontWeight: '500', fontSize: '15px', marginLeft: '10px' } }, q.sub) : '');
     renderScore();
+    renderDots();
     feedback.className = 'pq-feedback';
     feedback.textContent = '在这张面板图上把它点出来。';
     nextBtn.style.display = 'none';
@@ -263,19 +275,25 @@ export function panelQuiz({ count = 10, mode = 'mixed', pass = 7, onDone, onNext
     locked = true;
     if (sameControl(id, q.target)) {
       score++;
-      panel.flash(id, '#34d058', 900);
+      history[qi] = 'right';
+      sfx.play('ok');
+      panel.flash(id, theme.css('--lamp-ok') || '#25c26e', 900);
       feedback.className = 'pq-feedback right';
       feedback.innerHTML = rich(`✓ 对了。${info.what.split('。')[0]}。`);
       renderScore();
+      renderDots();
       setTimeout(advance, 1300);
     } else {
       const wrong = controlInfo(id);
       wrongNow = true;
+      history[qi] = 'wrong';
       missed.push(q.target);
-      panel.flash(id, '#ff3b30', 900);
+      sfx.play('nope');
+      panel.flash(id, theme.css('--lamp-bad') || '#ff6b5e', 900);
       panel.setHighlight([q.target]);
       feedback.className = 'pq-feedback wrong';
       feedback.innerHTML = rich(`✗ 你点的是 ${wrong ? `${wrong.en}（${wrong.zh}）` : '别的地方'}。正确的在蓝圈那里：${info.what.split('。')[0]}。`);
+      renderDots();
       nextBtn.style.display = '';
     }
   }
@@ -326,6 +344,7 @@ export function panelQuiz({ count = 10, mode = 'mixed', pass = 7, onDone, onNext
     qi = 0;
     score = 0;
     missed = [];
+    history = Array(questions.length).fill(null);
     startedAt = performance.now();
     render();
   }
@@ -338,7 +357,23 @@ export function panelQuiz({ count = 10, mode = 'mixed', pass = 7, onDone, onNext
 
 export function ledLegend() {
   return {
-    el: h('div', { class: 'widget' }, h('h4', {}, '灯的颜色在说什么'), h('div', { class: 'led-legend' }, LED_LEGEND.map(([color, text]) => h('span', {}, h('i', { style: { background: color } }), text)))),
+    el: h('div', { class: 'widget' },
+      h('h4', {}, '灯的颜色在说什么 ', h('small', { class: 'led-hint' }, '点一盏灯试试')),
+      h('div', { class: 'led-legend' }, LED_LEGEND.map(([color, text], idx) => {
+        const item = h('button', {
+          type: 'button',
+          class: 'led-item',
+          'data-sfx': 'none',
+          style: { '--led': color },
+          onclick: () => {
+            sfx.penta(idx);
+            item.classList.remove('is-lit');
+            void item.offsetWidth;
+            item.classList.add('is-lit');
+          },
+        }, h('i', { style: { background: color } }), h('span', {}, text));
+        return item;
+      }))),
     destroy() {},
   };
 }
