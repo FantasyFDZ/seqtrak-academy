@@ -1,0 +1,153 @@
+/* 小课堂 · 节奏线“一心多用”第一批的玩具（public/js/classroom-rhythm2.js 自己把这个文件插进页面）。
+   规矩同 classroom.css：按 iPad 横屏做，1024 × 768 一屏放下；能点的东西至少 44 像素；颜色只用 app.css 里的变量，两套配色都跟着走。 */
+
+/* ───────── 这一小段要做什么（每个玩具顶上那一条） ───────── */
+.rh-move { flex: none; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14.5px; line-height: 1.5; color: var(--text-2); }
+.rh-move small { flex: none; padding: 2px 8px; border-radius: 6px; background: var(--c, var(--accent)); color: var(--on-bright); font: 800 12px/1.6 var(--mono); letter-spacing: .06em; white-space: nowrap; }
+.rh-move b { flex: none; font-size: 16px; color: var(--text); white-space: nowrap; }
+.rh-move > span:not(.rh-pips) { min-width: 0; flex: 1; }
+.rh-pips { flex: none; display: flex; gap: 5px; }
+.rh-pips i { width: 9px; height: 9px; border-radius: 50%; background: var(--key-lamp); }
+.rh-pips i.now { background: var(--c, var(--accent)); box-shadow: 0 0 0 3px var(--accent-ring); }
+.rh-pips i.on { background: var(--lamp-ok); }
+
+/* 结果那一行里的按钮（下一招、再来一次……）：给手指点，够 44 像素 */
+.rh-metro .cl-note .btn, .rh-accents .cl-note .btn, .rh-hands .cl-note .btn, .rh-say .cl-note .btn, .rh-sayline .btn { min-height: 44px; padding: 0 14px; vertical-align: middle; }
+
+/* ───────── R1 节拍器三招：一排拍子，哪几拍会响一眼看得见 ───────── */
+.rh-metro { gap: 12px; }
+.rh-line { position: relative; flex: none; height: 84px; display: flex; align-items: stretch; justify-content: center; gap: 12px; padding: 0 16px 0 38px; border-radius: 14px; background: var(--field); border: 1px solid var(--line-2); box-shadow: 0 1px 3px var(--shade-2) inset; overflow: hidden; }
+.rh-line::before { content: ""; position: absolute; left: 38px; right: 16px; top: 50%; height: 1px; background: var(--line-3); }
+.rh-line.long { gap: 6px; }
+.rh-bar { position: relative; flex: 0 1 136px; min-width: 0; display: flex; align-items: stretch; }
+.rh-line.long .rh-bar { flex: 1 1 0; }
+.rh-b { position: relative; flex: 1 1 0; min-width: 0; display: grid; place-items: center; }
+.rh-b em { position: relative; width: 18px; height: 18px; border-radius: 50%; box-sizing: border-box; background: var(--key-lamp); transform: translateY(var(--dy, 0)); transition: transform var(--t-show) var(--out), background var(--t-move), box-shadow var(--t-move); }
+.rh-line.long .rh-b em { width: 10px; height: 10px; }
+/* 不出声的那几拍：底下一条淡淡的带子，拍到了也看得出“这几拍是静的” */
+.rh-b.q { background: color-mix(in srgb, var(--text) 7%, transparent); }
+/* 会响的拍是实心的，不出声的拍是一圈虚线，只在缝里“嚓”的拍右边多一个小点 */
+.rh-b.t em { background: var(--text-2); }
+.rh-b.q em { background: var(--field); border: 2px dashed var(--line-3); }
+.rh-b.o em { background: var(--field); border: 2px solid var(--text-2); }
+.rh-b.o::after { content: ""; position: absolute; z-index: 1; right: -4px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--cyan); }
+.rh-b.back em { box-shadow: 0 0 0 3px var(--yellow); }
+.rh-b.now em { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-ring); }
+.rh-b.hit em { background: var(--text); border-style: solid; border-color: var(--text); }
+.rh-b.hit.good em { background: var(--lamp-ok); border-color: var(--lamp-ok); }
+.rh-b.hit.early em, .rh-b.hit.late em { background: var(--warn); border-color: var(--warn); }
+.rh-b.hit.back em { box-shadow: 0 0 0 3px var(--yellow); }
+.rh-b.miss em { background: var(--field); border: 2px solid var(--lamp-bad); }
+.rh-axis { position: absolute; left: 10px; font: 700 11px var(--mono); color: var(--muted); letter-spacing: .08em; opacity: 0; transition: opacity var(--t-show); }
+.rh-axis.up { top: 7px; }
+.rh-axis.down { bottom: 7px; }
+.rh-metro:not(.challenge) .rh-axis, .rh-line.shown .rh-axis { opacity: 1; }
+.rh-metro .cl-meter { height: 50px; }
+.rh-metro .cl-pad { max-height: 240px; }
+.rh-metro .cl-note { min-height: 70px; }
+
+/* ───────── 两只手：两块垫子（或者一块）、“只用鼠标”的开关 ───────── */
+.rh-onepad { min-height: 44px; padding: 0 12px; font-size: 13px; color: var(--text-2); }
+.rh-onepad.on { color: var(--accent-text); border-color: var(--accent); }
+.rh-padhost { flex: 1; min-height: 96px; display: flex; }
+.rh-pads { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.rh-pads.one { grid-template-columns: 1fr; }
+.rh-pads .cl-pad { max-height: none; min-height: 0; }
+.rh-pad span { display: flex; align-items: center; gap: 4px; }
+.rh-pad kbd.pc { font-size: 13px; }
+.rh-hud { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 15px; color: var(--text-2); white-space: nowrap; }
+.rh-hud b { font: 800 22px var(--mono); color: var(--accent-text); }
+
+/* ───────── R9 重音挪一挪：一排 8 格，柱子高的是重、矮的是轻 ───────── */
+.rh-accents { gap: 10px; }
+.rh-cells { flex: none; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; padding-bottom: 14px; touch-action: none; }
+.rh-cell { position: relative; height: 132px; min-width: 0; padding: 20px 0 24px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; border-radius: 12px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 3px 0 var(--key-edge); cursor: default; touch-action: none; transition: transform var(--t-press), border-color var(--t-move); }
+.rh-cell.beat { background: linear-gradient(var(--key-top-2), var(--key-bot-2)); }
+.rh-cells.editing .rh-cell { cursor: pointer; }
+.rh-cells.editing .rh-cell:active { transform: translateY(2px); }
+.rh-cell span { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font: 800 14px var(--mono); color: var(--muted); }
+.rh-cell.beat span { color: var(--text); }
+.rh-cell small { position: absolute; left: 6px; top: 4px; font: 700 11px var(--mono); color: var(--muted); }
+/* 力度的柱子 */
+.rh-vel { width: 46%; height: 26%; border-radius: 6px 6px 3px 3px; background: color-mix(in srgb, var(--t-HAT1) 38%, var(--key-lamp)); transition: height var(--t-move) var(--pop), background var(--t-move), opacity var(--t-move); }
+.rh-cell.loud .rh-vel { height: 100%; background: var(--t-HAT1); box-shadow: 0 0 10px color-mix(in srgb, var(--t-HAT1) 45%, transparent); }
+.rh-cell.lift .rh-vel { opacity: .45; transform: translateY(-6px); }
+.rh-cells.blind .rh-vel, .rh-cells.blind .rh-cell.loud .rh-vel { height: 26%; background: var(--key-lamp); box-shadow: none; }
+/* 要把重音放到哪：格子顶上一个小三角 */
+.rh-aim { position: absolute; top: 5px; left: 50%; width: 0; height: 0; margin-left: -7px; border: 7px solid transparent; border-top: 9px solid var(--accent); border-bottom: 0; opacity: 0; }
+.rh-cell.aim .rh-aim { opacity: 1; animation: rh-bob 900ms ease-in-out infinite alternate; }
+.rh-cell.aim.loud .rh-aim { border-top-color: var(--lamp-ok); animation: none; }
+@keyframes rh-bob { to { transform: translateY(3px); } }
+/* 自动的底鼓：正拍那几格下面一个小点 */
+.rh-cell.beat::after { content: ""; position: absolute; left: 50%; bottom: -11px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--t-KICK); }
+.rh-cell.now { border-color: var(--text); box-shadow: 0 3px 0 var(--key-edge), 0 0 0 2px var(--text); }
+/* 判定：在格子右上角闪一下 */
+.rh-cell u { position: absolute; right: 5px; top: 4px; min-width: 18px; height: 18px; padding: 0 3px; border-radius: 9px; display: none; place-items: center; font: 800 11px/18px var(--mono); text-decoration: none; text-align: center; color: var(--on-bright); }
+.rh-cell[data-r] u { display: block; }
+.rh-cell[data-r="ok"] u { background: var(--lamp-ok); }
+.rh-cell[data-r="ok"] u::before { content: "✓"; }
+.rh-cell[data-r="swap"] u { background: var(--warn); }
+.rh-cell[data-r="swap"] u::before { content: "反了"; }
+.rh-cell[data-r="miss"] u { background: var(--lamp-bad); }
+.rh-cell[data-r="miss"] u::before { content: "漏"; }
+.rh-accents .rh-L b { font-size: 24px; font-weight: 700; color: var(--text-2); }
+.rh-accents .rh-R b { font-size: 34px; }
+.rh-accents .cl-note { min-height: 52px; }
+
+/* ───────── R7 两只手（热身）：上排左手不变，下排右手在挪 ───────── */
+.rh-hands { gap: 10px; }
+.rh-grid2 { flex: none; display: flex; flex-direction: column; gap: 6px; }
+.rh-row { display: grid; grid-template-columns: 104px minmax(0, 1fr); align-items: center; gap: 10px; }
+.rh-rowname { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; font-size: 12px; line-height: 1.35; color: var(--muted); }
+.rh-rowname b { font-size: 14.5px; color: var(--text); }
+.rh-sqs { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.rh-sq { position: relative; height: 46px; border-radius: 9px; background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 2px 0 var(--key-edge); }
+.rh-sq.beat { background: linear-gradient(var(--key-top-2), var(--key-bot-2)); }
+.rh-sq::after { content: ""; position: absolute; left: 24%; right: 24%; top: 36%; height: 28%; border-radius: 4px; background: var(--key-lamp); transition: background var(--t-move), box-shadow var(--t-move); }
+.rh-rowL .rh-sq.on::after { background: var(--t-KICK); box-shadow: 0 0 10px color-mix(in srgb, var(--t-KICK) 50%, transparent); }
+.rh-rowR .rh-sq.on::after { background: var(--t-SNARE); box-shadow: 0 0 10px color-mix(in srgb, var(--t-SNARE) 50%, transparent); }
+.rh-sq.now { outline: 2px solid var(--text); outline-offset: 1px; }
+.rh-sq u { position: absolute; right: 3px; top: 3px; width: 12px; height: 12px; border-radius: 50%; display: none; }
+.rh-sq[data-r] u { display: block; }
+.rh-sq[data-r="ok"] u { background: var(--lamp-ok); }
+.rh-sq[data-r="miss"] u { background: var(--lamp-bad); }
+.rh-names .rh-sqs b { text-align: center; font: 800 13px var(--mono); color: var(--muted); }
+.rh-names .rh-sqs b.beat { color: var(--text); }
+.rh-hands .cl-note { min-height: 52px; }
+
+/* ───────── R2 “只念开头”的读法：上面每个音一条（占几格有几格长），下面是“1 e & a” ───────── */
+.rh-say { gap: 12px; }
+.rh-readhost { flex: none; display: flex; flex-direction: column; }
+.rh-read { display: flex; flex-direction: column; gap: 14px; width: 100%; }
+.rh-readrow { display: grid; gap: 6px 5px; }
+.rh-n { grid-row: 1; height: 28px; min-width: 0; border-radius: 14px; background: color-mix(in srgb, var(--c, var(--accent)) 26%, var(--panel-3)); border: 1px solid color-mix(in srgb, var(--c, var(--accent)) 45%, transparent); transition: background 60ms, box-shadow 60ms; }
+.rh-n.cont { border-radius: 0 14px 14px 0; border-left: 0; }
+.rh-n.on { background: var(--c, var(--accent)); box-shadow: 0 0 12px var(--accent-ring); }
+.rh-w { grid-row: 2; min-width: 0; height: 46px; display: grid; place-items: center; border-radius: 10px; font: 800 18px var(--mono); font-style: normal; color: var(--muted); background: var(--panel-2); transition: background 60ms, color 60ms, transform 60ms, opacity var(--t-move); }
+.rh-w.beat { color: var(--text); }
+.rh-w.on { background: var(--accent); color: var(--accent-ink); transform: scale(1.08); }
+.rh-read.m-full .rh-w.mute { opacity: .3; }
+.rh-read.m-said .rh-w.mute { visibility: hidden; }
+.rh-read.m-none .rh-w { display: none; }
+button.rh-w { height: 52px; padding: 0; color: var(--text); cursor: pointer; background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 3px 0 var(--key-edge); }
+button.rh-w:active { transform: translateY(3px); box-shadow: 0 0 0 var(--key-edge); }
+button.rh-w.picked { background: var(--lamp-ok); border-color: var(--lamp-ok); color: var(--on-bright); }
+button.rh-w.wrong { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); animation: cl-shake 280ms var(--out); }
+/* 折成两行（热身、点字）：大一点 */
+.rh-read.w8 .rh-n { height: 34px; border-radius: 17px; }
+.rh-read.w8 .rh-w { height: 58px; font-size: 21px; }
+/* 一条到底（音游下面那一条）：矮一点 */
+.rh-read.w16 .rh-readrow { gap: 4px 3px; }
+.rh-read.w16 .rh-n { height: 12px; border-radius: 6px; }
+.rh-read.w16 .rh-w { height: 26px; font-size: 13.5px; border-radius: 6px; }
+/* 只有一拍（“你来点”）：放大，摆在中间 */
+.rh-read.w4 { max-width: 380px; align-self: center; }
+.rh-read.w4 .rh-readrow { gap: 10px 8px; }
+.rh-read.w4 .rh-n { height: 40px; border-radius: 20px; }
+.rh-read.w4 button.rh-w { height: 72px; font-size: 26px; border-radius: 14px; }
+.rh-sayline { flex: none; display: flex; align-items: center; gap: 14px; min-height: 46px; font-size: 16px; color: var(--text-2); }
+.rh-sayline strong { font: 800 21px var(--mono); letter-spacing: .04em; color: var(--text); }
+.rh-say .cl-note { min-height: 56px; }
+.rh-say .cl-cap { flex: 1; min-width: 0; }
+/* 音游下面的读法条 */
+.cl-rhythm .rh-read { flex: none; padding: 0 10px; box-sizing: border-box; }

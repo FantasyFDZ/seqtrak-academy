@@ -11,6 +11,9 @@ import { store } from './store.js';
 import { segmented } from './ui.js';
 import { byTier, keys16, playButton, tapPad, tapTime, pad16 } from './classroom-kit.js';
 import { audio } from './audio.js';
+import { RHYTHM2_TOYS, ONE_PAD_GOLD, onePad, onePadSwitch, readStrip, shotLater } from './classroom-rhythm2.js';
+
+let shotSkipped = false;
 
 const TIER_RULE = [
   { speed: 0.85, assist: 'guide', pass: 0.6, say: '85% 速度，示范音陪着你。准确率到 60% 就过。' },
@@ -18,48 +21,106 @@ const TIER_RULE = [
   { speed: 1, assist: 'solo', pass: 0.85, say: '原速，只剩节拍器。准确率到 85% 才过。' },
 ];
 
-/** spec.chart：谱面（写法同 content/charts.js）。spec.rules：想改三档的规矩时写（[铜, 银, 金]，只写要改的） */
+/**
+ * spec.chart：谱面（写法同 content/charts.js）。spec.rules：想改三档的规矩时写（[铜, 银, 金]，只写要改的）。
+ * 2026-11-17 加的两样（“一心多用”第一批）：
+ *   spec.fixed  'KICK'：这条轨道是“不动的那只手”。金那一档不画它的下落音符（它得自己走）；
+ *               只有鼠标的人可以换成一块垫子版：这只手交给机器当伴奏，只打在挪的那一只（金那一档最多给到银牌）
+ *   spec.words  true：舞台下面摆一条读法条（“只念开头”的读法）。铜 16 个字都在、不念的是淡的；银只显示要念的；金不显示字
+ */
 function rhythm(spec, env) {
-  const rule = { ...byTier(env.tier, TIER_RULE), ...(spec.rules ? byTier(env.tier, spec.rules) : {}) };
-  const chart = normalizeChart({ id: `classroom-${spec.chart.id || 'chart'}`, loops: 4, title: spec.title || '', ...spec.chart });
+  const tier = Math.max(1, env.tier || 1);
+  const rule = { ...byTier(tier, TIER_RULE), ...(spec.rules ? byTier(tier, spec.rules) : {}) };
   const host = h('div', { class: 'cl-rhythm-host' });
-  const note = h('div', { class: 'cl-note', html: rich(`**${['铜', '银', '金'][(env.tier || 1) - 1]}**：${rule.say}`) });
-  const el = h('div', { class: 'cl-toy cl-rhythm' }, host, note);
-  const game = new RhythmGame(chart, {
-    assist: rule.assist,
-    speed: rule.speed,
-    metronome: true,
-    inputOffsetMs: store.settings.inputOffsetMs,
-    passAccuracy: rule.pass,
-    countInBeats: 4,
-    showKeyHints: !midi.connected,
-  });
-  game.mount(host).attachKeyboard();
-  if (midi.connected) game.attachMidi();
-  game.elStage.classList.add('compact');
-  const keys = chart.lanes.map((l) => `${l.key === ' ' ? '空格' : (l.key || '').toUpperCase()} = ${l.label}`).join('，');
-  game.showCard(h('div', { class: 'game-card' },
-    h('h3', { style: { marginTop: '0' } }, spec.title || '跟着落下来的音符打'),
-    h('p', { html: rich(spec.how || '音符落到线上的那一刻，点那条轨道底下的键帽。') }),
-    h('p', { class: 'small muted' }, midi.connected ? '直接在 SEQTRAK 上打也行。' : `电脑上也可以按键盘：${keys}。`),
-    h('div', { class: 'game-actions' }, h('button', { class: 'btn primary lg', type: 'button', onclick: () => game.start() }, '开始'))));
-  game.on('start', () => env.touched());
-  game.on('done', (r) => {
-    if (r.demo) return;
-    const pct = Math.round(r.accuracy * 100);
-    if (r.passed) {
-      // 表现：准确率越高星越多（金那一档还要求准确率本身够高，页面会再看一眼）
-      env.done(r.accuracy >= 0.92 ? 3 : r.accuracy >= rule.pass + 0.08 ? 2 : 1);
-      note.innerHTML = rich(`准确率 **${pct}%**，最高连击 **${r.maxCombo}**：过了。`);
-    } else {
-      note.innerHTML = rich(`准确率 ${pct}%，这一档要 ${Math.round(rule.pass * 100)}%。点「再来一次」。${env.tier > 1 ? '先拿下低一档也行。' : ''}`);
+  const readHost = spec.words ? h('div', { class: 'rh-readhost' }) : null;
+  const note = h('div', { class: 'cl-note' });
+  const el = h('div', { class: 'cl-toy cl-rhythm' }, host, readHost, note);
+  let game = null;
+  let raf = 0;
+  let one = !!spec.fixed && onePad.get();
+  const tierNote = () => `**${['铜', '银', '金'][tier - 1]}**：${rule.say}${!spec.fixed ? '' : one ? ` 一块垫子版：不动的那只手机器替你打。${tier >= 3 ? '这一版在金这一档最多拿银牌。' : ''}` : tier >= 3 ? ' 不动的那只手不再画出来：它得自己走。' : ''}`;
+
+  function build() {
+    game?.destroy();
+    cancelAnimationFrame(raf);
+    const def = { ...spec.chart };
+    if (one && def.lanes?.[spec.fixed]) {
+      // 一块垫子版：不动的那只手变成伴奏
+      def.backing = { ...def.backing, [spec.fixed]: def.lanes[spec.fixed] };
+      def.lanes = Object.fromEntries(Object.entries(def.lanes).filter(([k]) => k !== spec.fixed));
     }
-  });
-  game.on('continue', () => game.showCard(null));
+    const chart = normalizeChart({ id: `classroom-${def.id || 'chart'}`, loops: 4, title: spec.title || '', ...def });
+    const fixedLane = spec.fixed ? chart.lanes.findIndex((l) => l.id === spec.fixed) : -1;
+    const g = new RhythmGame(chart, {
+      assist: rule.assist,
+      speed: rule.speed,
+      metronome: true,
+      inputOffsetMs: store.settings.inputOffsetMs,
+      passAccuracy: rule.pass,
+      countInBeats: 4,
+      showKeyHints: !midi.connected,
+      hideLanes: tier >= 3 && fixedLane >= 0 ? [fixedLane] : null,
+    });
+    game = g;
+    g.mount(host).attachKeyboard();
+    if (midi.connected) g.attachMidi();
+    g.elStage.classList.add('compact');
+    const keys = chart.lanes.map((l) => `${l.key === ' ' ? '空格' : (l.key || '').toUpperCase()} = ${l.label}`).join('，');
+    g.showCard(h('div', { class: 'game-card' },
+      h('h3', { style: { marginTop: '0' } }, spec.title || '跟着落下来的音符打'),
+      h('p', { html: rich((one && spec.oneHow) || spec.how || '音符落到线上的那一刻，点那条轨道底下的键帽。') }),
+      h('p', { class: 'small muted' }, midi.connected ? '直接在 SEQTRAK 上打也行。' : `电脑上也可以按键盘：${keys}。`),
+      h('div', { class: 'game-actions' },
+        spec.fixed && !midi.connected ? onePadSwitch((v) => {
+          one = v;
+          build();
+        }) : null,
+        h('button', { class: 'btn primary lg', type: 'button', onclick: () => g.start() }, '开始'))));
+    g.on('start', () => env.touched());
+    g.on('done', (r) => {
+      if (r.demo) return;
+      const pct = Math.round(r.accuracy * 100);
+      if (r.passed) {
+        // 表现：准确率越高星越多（金那一档还要求准确率本身够高，页面会再看一眼）
+        const stars = r.accuracy >= 0.92 ? 3 : r.accuracy >= rule.pass + 0.08 ? 2 : 1;
+        if (one && tier >= 3) env.done(Math.min(stars, 1), ONE_PAD_GOLD);
+        else env.done(stars);
+        note.innerHTML = rich(`准确率 **${pct}%**，最高连击 **${r.maxCombo}**：过了。${one && tier >= 3 ? '一块垫子版只打了一半的活，这一档先给银牌。' : ''}`);
+      } else {
+        note.innerHTML = rich(`准确率 ${pct}%，这一档要 ${Math.round(rule.pass * 100)}%。点「再来一次」。${tier > 1 ? '先拿下低一档也行。' : ''}`);
+      }
+    });
+    g.on('continue', () => g.showCard(null));
+    note.innerHTML = rich(tierNote());
+    if (readHost) {
+      // 读法条：跟着舞台走，正在响的那个音和它的字亮着
+      const strip = readStrip(Object.values(def.lanes || {})[0] || '', { mode: byTier(tier, ['full', 'said', 'none']), rowLen: 16 });
+      readHost.replaceChildren(strip.el);
+      const tick = () => {
+        const b = g.state === 'playing' && g.clock ? g.clock.nowBeat() : g.state === 'frozen' ? g.frozenBeat : -1;
+        strip.setHead(b >= 0 && b < chart.totalBeats ? Math.floor((b % chart.beatsPerLoop) * 4) : -1);
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+    }
+    // 开发用（截图）：?rhshot=…-stage 摆出打到一半的舞台；…-skip 这一段算过了、进接力的下一段（只跳一次）
+    shotLater((words) => {
+      if (words.includes('skip') && !shotSkipped) {
+        shotSkipped = true;
+        env.done(3);
+        return setTimeout(() => document.querySelector('.cl-relay-bar .btn.primary')?.click(), 60);
+      }
+      if (words.includes('stage')) g.preview('stage', 6);
+    });
+  }
+  build();
   return {
     el,
-    game,
+    get game() {
+      return game;
+    },
     destroy() {
+      cancelAnimationFrame(raf);
       game.destroy();
     },
   };
@@ -256,4 +317,5 @@ function twohands(spec, env) {
   };
 }
 
-export const RHYTHM_TOYS = { rhythm, countalong, nudge, twohands };
+// 2026-11-17：“一心多用”第一批的几样（节拍器三招、重音挪一挪、一只手不动一只手挪、只念开头）在 classroom-rhythm2.js
+export const RHYTHM_TOYS = { rhythm, countalong, nudge, twohands, ...RHYTHM2_TOYS };

@@ -1508,6 +1508,7 @@ function relay(spec, env, level) {
   let i = 0;
   let got = [];
   let cur = null;
+  let extra = ''; // 某一段过关时带的补充的话（见 views/classroom.js 的 award）
   const chips = h('ol', { class: 'cl-relay-chips' });
   const host = h('div', { class: 'cl-relay-host' });
   const bar = h('div', { class: 'cl-relay-bar' });
@@ -1521,8 +1522,9 @@ function relay(spec, env, level) {
     cur = createToy(sp, {
       ...env,
       touched: env.touched,
-      done(stars) {
+      done(stars, note) {
         got[i] = Math.max(got[i] || 0, stars);
+        if (note) extra = note;
         paint();
         if (i < stages.length - 1) {
           const go = h('button', { class: 'btn primary', type: 'button' }, `下一段：${stages[i + 1].title || ''} →`);
@@ -1532,7 +1534,7 @@ function relay(spec, env, level) {
           });
           bar.replaceChildren(h('span', { class: 'cl-pass' }, `第 ${i + 1} 段过了。`), go);
         } else {
-          env.done(Math.min(...got));
+          env.done(Math.min(...got), extra);
           bar.replaceChildren(h('span', { class: 'cl-pass' }, '全部过关！'));
         }
       },

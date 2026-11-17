@@ -563,7 +563,7 @@ function lessonPage(view, level) {
       } else {
         medal = Math.max(medal, got);
         if (medal >= 3) quizPerfect(); // 金牌：啾啾唱一段
-        nameBox.innerHTML = `<span class="cl-medal m${medal}">${starText(medal)}</span> 拿到${MEDAL[medal]}牌！${got < t ? '金牌要几乎不出错：再来一次就是金。' : medal < 3 ? `想要${MEDAL[medal + 1]}牌？点上面的「${MEDAL[medal + 1]}」。` : '金牌到手，啾！'}${note}`;
+        nameBox.innerHTML = `<span class="cl-medal m${medal}">${starText(medal)}</span> 拿到${MEDAL[medal]}牌！${got < t ? (note ? '' : '金牌要几乎不出错：再来一次就是金。') : medal < 3 ? `想要${MEDAL[medal + 1]}牌？点上面的「${MEDAL[medal + 1]}」。` : '金牌到手，啾！'}${note}`;
       }
       nameBox.hidden = false;
       pop(nameBox);
@@ -590,7 +590,7 @@ function lessonPage(view, level) {
         page.bench = bench;
         toy = bench;
       } else {
-        toy = createToy(tierSpec(spec, t), { live: mirror.available, tier: t, touched() {}, done: (perf) => award(t, perf) }, level);
+        toy = createToy(tierSpec(spec, t), { live: mirror.available, tier: t, touched() {}, done: (perf, note) => award(t, perf, note) }, level); // note：玩具想补一句话时带上（比如“一块垫子版最多拿银牌”）
         host.append(toy.el);
       }
       page.toy = toy; // 给走查脚本用

@@ -150,6 +150,7 @@ export class RhythmGame extends Emitter {
    *   assist  'demo' 看示范 | 'guide' 有示范音跟打 | 'solo' 只有节拍器
    *   speed   速度倍率（0.7 = 七成速）
    *   metronome, hitSound, inputOffsetMs, countInBeats, passAccuracy
+   *   hideLanes  [第几条轨道, …]：这几条轨道的音符不画出来（照样要打、照样判）。小课堂 R7 的金那一档用：不动的那只手得自己走
    */
   constructor(chart, opts = {}) {
     super();
@@ -768,6 +769,7 @@ export class RhythmGame extends Emitter {
       if (t.beat - nowBeat > this.lookahead + 0.3) break;
       const missed = t.result?.grade === 'miss';
       if (t.result && !missed) continue;
+      if (this.opts.hideLanes?.includes(t.lane)) continue;
       const color = pal.lanes[t.lane];
       const y = yOf(t.beat);
       const cx = x0 + t.lane * laneW + laneW / 2;

@@ -74,6 +74,13 @@ function strip(node, v, keep = false) {
 
 async function play() {
   const stage = $('.cl-stage');
+  const toy = $('.cl-lesson').toy;
+  if (toy?.__autoPlay) {
+    // “玩一玩”里分了几小段、要一段一段做到的玩具（2026-11-17 节奏线第一批，classroom-rhythm2.js）：它们自己会做
+    const segs = await toy.__autoPlay();
+    await sleep(300);
+    return { touched: $('.cl-side-foot .btn.lg').classList.contains('primary'), named: !$('.cl-name').hidden, segs };
+  }
   $('.cl-play, .fx-play', stage)?.click();
   await sleep(500);
   const strips = $$('.fx-strip-track', stage);
