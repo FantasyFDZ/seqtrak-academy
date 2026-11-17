@@ -15,7 +15,7 @@ import { coachFace } from '../coach-face.js';
 import { quizPerfect } from '../jiu-eggs.js';
 import { sfx } from '../sfx.js';
 import { confetti, pop, typeOut } from '../fx.js';
-import { LINES, LEVELS, OPEN_LEVELS, KINDS, ROUTE, levelById, isOpen, nextOpen, stepsOf, routeNext, stopOf, lineOf } from '../content/classroom.js';
+import { LINES, LEVELS, OPEN_LEVELS, KINDS, ROUTE, UNITS, levelById, isOpen, nextOpen, stepsOf, routeNext, stopOf, lineOf } from '../content/classroom.js';
 import { findLesson } from '../content/curriculum.js';
 import { chartById } from '../content/charts.js';
 import { SONGS } from '../content/songs.js';
@@ -23,6 +23,7 @@ import { arrangementFor } from '../content/song-arrangements.js';
 import { createToy, tierSpec } from '../classroom-toys.js';
 import { createBench } from '../classroom-bench.js';
 import { askQuiz } from '../classroom-ear.js';
+import { createGuide } from '../theory-guide.js';
 import { firstReview, afterReview, dailyPlan, dailyDone, dailyCount } from '../classroom-review.js';
 import { streaks } from '../levels.js';
 
@@ -133,13 +134,21 @@ function listPage(view) {
   const column = (line) => {
     const levels = LEVELS.filter((l) => l.line === line.id);
     const got = levels.filter((l) => done[l.id]?.done).length;
-    const nodes = levels.map((l) => {
+    const nodes = [];
+    let unit = null;
+    for (const l of levels) {
+      // 乐理线按单元分组（关上写 unit）：换了单元先摆一行小标题
+      if (l.unit && l.unit !== unit) {
+        unit = l.unit;
+        const u = UNITS.find((x) => x.id === unit);
+        if (u) nodes.push(h('div', { class: 'cl-unit' }, u.name, u.sub && h('small', {}, u.sub)));
+      }
       const rec = done[l.id];
-      return h('a', { class: ['cl-node', rec?.done && 'done', l.kind === 'boss' && 'boss'], href: `#/classroom/${l.id}`, 'data-sfx': 'press' },
+      nodes.push(h('a', { class: ['cl-node', `kind-${l.kind}`, rec?.done && 'done', l.kind === 'boss' && 'boss'], href: `#/classroom/${l.id}`, 'data-sfx': 'press' },
         h('span', { class: 'no' }, l.id),
         h('div', { class: 'words' }, h('b', {}, l.title), h('span', {}, `${KINDS[l.kind].label} · ${l.about}`)),
-        rec?.done ? medalDot(rec.stars || 0) : h('span', { class: 'go' }, `${l.minutes || 3}′`));
-    });
+        rec?.done ? medalDot(rec.stars || 0) : h('span', { class: 'go' }, `${l.minutes || 3}′`)));
+    }
     return h('section', { class: 'cl-line', style: { '--c': `var(--${line.color})` } },
       h('header', {},
         h('div', { class: 'cl-line-name' }, h('h2', {}, line.name), h('span', { class: 'count' }, `${got} / ${levels.length}`)),
@@ -469,8 +478,9 @@ function lessonPage(view, level) {
     prev.style.visibility = step === 1 ? 'hidden' : '';
     ctx.set(`小课堂 · ${line.name}线 ${level.id}「${level.title}」（${kind.label}）· ${STEPS[step][1]}`, `这一关的一句话：${level.say.replace(/\*\*/g, '')}\n教学要点：${level.coach}\n带走的话：${level.takeaway.replace(/\*\*/g, '')}`);
     nameBox.hidden = true;
-    skip.hidden = step === 1 && key !== 'quiz';
-    if (key === 'play') showPlay();
+    skip.hidden = key === 'play';
+    if (key === 'guide') showGuide();
+    else if (key === 'play') showPlay();
     else if (key === 'quiz') showQuiz();
     else showMachine();
   }
@@ -502,6 +512,22 @@ function lessonPage(view, level) {
     stage.append(toy.el);
     page.toy = toy; // 给走查脚本用
     cleanup.push(() => toy.destroy());
+  }
+
+  /** 跟啾啾学（乐理线重做之后的关）：5–8 个小步，都在乐理台上做；啾啾每一步说一句（theory-guide.js） */
+  function showGuide() {
+    doLabel.textContent = '跟啾啾学';
+    doText.innerHTML = rich(level.say);
+    setNext(`${STEPS[step + 1][1]} →`, false);
+    const guide = createGuide(level, {
+      say: (text, mood) => speak(text, mood),
+      progress: (i, n) => (doLabel.textContent = `跟啾啾学 · 第 ${i + 1} / ${n} 小步`),
+      done: () => setNext(`${STEPS[step + 1][1]} →`, true),
+      next: () => go(step + 1),
+    });
+    stage.append(guide.el);
+    page.guide = guide; // 给走查脚本用
+    cleanup.push(() => guide.destroy());
   }
 
   /** 挑战：上面一排铜 / 银 / 金，下面是这一档的玩具（动手关是一台机器） */
@@ -629,15 +655,19 @@ function lessonPage(view, level) {
     }, 250 + i * 260));
   }
 
-  // 一句话：一进来教练就说了
-  const plain = level.say.replace(/\*\*/g, '');
-  face.set('talk');
-  const stopTyping = typeOut(sayText, plain, {
-    onDone: () => {
-      sayText.innerHTML = rich(level.say);
-      face.set('idle');
-    },
-  });
+  // 啾啾在右边说一句（一个字一个字打出来）。一进来说的是这一关的那句话；“跟啾啾学”里每个小步换一句
+  let stopTyping = () => {};
+  function speak(text, mood = 'talk') {
+    stopTyping();
+    face.set(mood);
+    stopTyping = typeOut(sayText, text.split('**').join(''), {
+      onDone: () => {
+        sayText.innerHTML = rich(text);
+        face.set('idle');
+      },
+    });
+  }
+  speak(level.say);
   // 开发用：地址里带 ?clstep=quiz / machine / done 时直接从那一步开始（给截图和走查用），?cltier=1/2/3 挑一档。
   // done 会把这一关记成学完，只在测试数据上用
   const jump = DEV.get('clstep');

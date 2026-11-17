@@ -342,6 +342,7 @@ async function solveTimed(toy, root, kind) {
 async function solve(toy, root, tier) {
   hook();
   await sleep(300);
+  if (toy?.__auto) return { theory: await toy.__auto() }; // 乐理台上的新挑战（theory-toys.js）：它们自己会答
   if (toy?.game) return { rhythm: await solveRhythm(toy) };
   if ($('.cl-relay', root)) {
     const out = [];
@@ -479,7 +480,12 @@ export async function run(id, { tier = 1, machineStep = true } = {}) {
     await sleep(250);
     location.hash = `#/classroom/${id}`;
     await until(() => $('.cl-lesson .cl-stage > *'), 3000);
-    if (level.play) {
+    if (level.guide) {
+      // 跟啾啾学（theory-guide.js）：把每个小步做掉
+      out.guide = await $('.cl-lesson').guide.auto();
+      $('.cl-side-foot .btn.lg').click();
+      await sleep(500);
+    } else if (level.play) {
       out.play = await play();
       $('.cl-side-foot .btn.lg').click();
       await sleep(500);

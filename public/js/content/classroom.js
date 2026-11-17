@@ -6,6 +6,8 @@
 //     ear     听辨关    一句话 → 玩一玩 → 听辨（排顺序 / 找不同 / 记忆配对 / 格子听写 / 啾啾唱你弹回来 / 选一个）→ 用在机器上
 //     hands   动手关    一句话 → 看一看 → 动手（在模拟机或真机上做一遍，自动判对错；有的动手关是混音台、对拍台）
 //     boss    关底大关  一句话 → 大关（几段接力），每条线一个
+//     learn   带着学    一句话 → 跟啾啾学（5–8 个小步，都在乐理台上）→ 挑战 → 用在机器上（2026-11-17 乐理线重做，见 cl-theory-units.js）
+//     make    小作品    一句话 → 跟啾啾学 → 写一写（写出一点东西，收进小本子）
 //   挑战那一步分铜、银、金三档（views/classroom.js 的 TIERS）：过了哪一档就拿哪一块牌，铜 1 星、银 2 星、金 3 星。
 //   金牌 = 啾啾窝里一根羽毛（jiu-eggs.js），也是卡册里的一张金卡。
 // 四条线的关分在四个文件里：cl-theory.js、cl-rhythm.js、cl-fx.js、cl-dj.js；“用在机器上”的常用句子在 classroom-bits.js。
@@ -23,7 +25,7 @@
 //   ask        快问快答：[{ q, a: [对的, 错的…], why }]（每日五分钟、卡册里“考考我”用）
 // 写法上的规矩：短句、口语；先玩出感觉，再给它起名字；不出现五线谱，不先下定义；啾啾的话里可以带“啾”。
 
-import { THEORY } from './cl-theory.js';
+import { THEORY, THEORY_UNITS } from './cl-theory.js';
 import { RHYTHM } from './cl-rhythm.js';
 import { FX } from './cl-fx.js';
 import { DJ } from './cl-dj.js';
@@ -42,7 +44,12 @@ export const KINDS = {
   ear: { label: '听辨', quiz: '听辨', play: '玩一玩' },
   hands: { label: '动手', quiz: '动手', play: '看一看' },
   boss: { label: '关底大关', quiz: '大关', play: '' },
+  learn: { label: '带着学', quiz: '挑战', play: '' },
+  make: { label: '小作品', quiz: '写一写', play: '' },
 };
+
+/** 乐理线的单元（列表上分组用）：关上写 unit */
+export const UNITS = THEORY_UNITS;
 
 export const LEVELS = [...THEORY, ...RHYTHM, ...FX, ...DJ];
 
@@ -59,7 +66,8 @@ export const isBoss = (level) => level?.kind === 'boss';
 export function stepsOf(level) {
   const k = KINDS[level.kind] || KINDS.explain;
   const out = [['say', '一句话']];
-  if (level.play) out.push(['play', k.play || '玩一玩']);
+  if (level.guide) out.push(['guide', '跟啾啾学']);
+  else if (level.play) out.push(['play', k.play || '玩一玩']);
   out.push(['quiz', k.quiz]);
   if (level.machine && level.quiz?.toy !== 'hands') out.push(['machine', '用在机器上']);
   return out;
@@ -77,7 +85,7 @@ export function nextOpen(id) {
 export const ROUTE = [
   { id: 'beat', name: '先认拍子', with: '配第 0–1 章', lesson: '1-1', ids: ['T1', 'R1', 'T2', 'R2', 'F1'] },
   { id: 'drums', name: '鼓怎么摆', with: '配第 1 章', lesson: '1-2', ids: ['R3', 'R7', 'R4', 'R5', 'R6', 'R8', 'RB'] },
-  { id: 'pitch', name: '音的高低', with: '配第 2 章', lesson: '2-1', ids: ['T5', 'T6', 'T7', 'T8', 'T12'] },
+  { id: 'pitch', name: '音的高低', with: '配第 2 章', lesson: '2-1', ids: ['T5', 'T6', 'T14', 'T15', 'T7', 'T16', 'T8', 'T12', 'T17'] },
   { id: 'stack', name: '叠起来', with: '配第 3 章', lesson: '3-1', ids: ['T9', 'T10', 'T11', 'TB'] },
   { id: 'shape', name: '捏声音', with: '配第 4 章', lesson: '4-2', ids: ['F2', 'F3', 'F4', 'F7'] },
   { id: 'space', name: '空间和现场', with: '配第 7 章', lesson: '7-1', ids: ['F5', 'F6', 'F8', 'F10', 'F9', 'F11', 'FB'] },

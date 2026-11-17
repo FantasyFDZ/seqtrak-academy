@@ -169,8 +169,8 @@ for id in $(node -e "import('./public/js/content/arrangement-lessons.js').then((
   walk "?fake&walk=$id" 400000
 done
 
-# 小课堂（乐理、节奏、效果、DJ 四条线的小关）：2026-11-15 起列表上 39 关全部开放（open=39 soon=0）；每关各打开一次，看能玩的东西摆出来没有。
-# 另有推荐路线（7 站、39 个关的小牌子）、卡册（39 张卡）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
+# 小课堂（乐理、节奏、效果、DJ 四条线的小关）：2026-11-15 起列表上 43 关全部开放（open=43 soon=0）；每关各打开一次，看能玩的东西摆出来没有。
+# 另有推荐路线（7 站、43 个关的小牌子）、卡册（43 张卡）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
 # 再看“试一试”和“用在机器上”那两屏：?clstep=quiz / machine 是开发用的参数，直接从那一步开始（public/js/views/classroom.js）。
 # “用在机器上”有三种样子：模拟机、效果关用的效果模拟机、接着假真机时的真机镜像（class 里带 live）。窗口按最小的平板 1024 × 768 开。
 # 把每一关真的从头走到尾（要点、要拍、要等声音）在无界面的浏览器里做不了：那是 public/js/dev/walk-classroom.js，在开着的浏览器里跑。
@@ -181,11 +181,11 @@ classroom '#/classroom'
 echo "classroom -> levels=$(count 'class="cl-node[ "]') open=$(count '<a class="cl-node') soon=$(count 'class="cl-node soon"') errors=$(count '这一页出错了')"
 playable=0
 broken=''
-for id in T1 T2 T5 T6 T7 T8 T9 T10 T11 T12 TB R1 R2 R3 R4 R5 R6 R7 R8 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
+for id in T1 T2 T5 T6 T14 T15 T7 T16 T8 T12 T17 T9 T10 T11 TB R1 R2 R3 R4 R5 R6 R7 R8 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
   classroom "#/classroom/$id"
   if [[ $(count 'class="cl-toy') -ge 1 && $(count 'class="cl-say"') -eq 1 && $(count '这一页出错了') -eq 0 ]]; then playable=$((playable + 1)); else broken="$broken $id"; fi
 done
-echo "classroom levels -> playable=$playable/39 broken=[${broken# }]"
+echo "classroom levels -> playable=$playable/43 broken=[${broken# }]"
 classroom '#/classroom/route'
 echo "classroom route -> stops=$(count 'class="cl-stop[ "]') chips=$(count 'class="cl-chip[ "]') next=$(count 'class="cl-next"') errors=$(count '这一页出错了')"
 classroom '#/classroom/cards'

@@ -1,0 +1,134 @@
+/* 乐理台（theory-bench.js）、啾啾带着走（theory-guide.js）、乐理线的新挑战（theory-toys.js）。
+   颜色只用 app.css 里的变量：两套配色都跟着走。--c 是这条线的颜色（乐理 = 紫），桔红（--accent）留给“家”。 */
+
+/* ───────── 乐理台 ───────── */
+.tb { display: flex; flex-direction: column; gap: 8px; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+.tb-cap { font: 700 11px var(--mono); letter-spacing: .04em; color: var(--muted); }
+.tb-trail { position: relative; height: clamp(72px, 17cqh, 120px); padding: 0; border-radius: 12px; background: var(--bg); box-shadow: 0 0 0 1px var(--line) inset; overflow: hidden; }
+.tb-trail .tb-cap { position: absolute; left: 10px; top: 6px; }
+.tb-trail svg { display: block; width: 100%; height: 100%; }
+.tb.no-trail .tb-trail { display: none; }
+.tb-homeline { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 5; opacity: .7; vector-effect: non-scaling-stroke; }
+.tb-line { fill: none; stroke: var(--c, var(--violet)); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.tb-line.ghost { stroke: var(--muted); stroke-width: 2; stroke-dasharray: 2 5; opacity: .7; }
+.tb-dot { fill: var(--c, var(--violet)); }
+.tb-dot.ghost { fill: var(--muted); opacity: .6; }
+.tb-dot.home { fill: var(--accent); }
+.tb-dot.good { fill: var(--ok); }
+.tb-dot.bad { fill: var(--lamp-bad); }
+
+/* 钢琴键自己的几种颜色：白键永远是浅的、黑键永远是深的（课里一直在说“黑键、白键”，不能跟着配色反过来） */
+.tb { --tb-white: var(--panel); --tb-white-top: var(--panel-3); --tb-black: var(--text); --tb-ink: var(--text); --tb-ink-soft: var(--muted); --tb-edge: var(--key-edge); --tb-line: var(--line-2); --tb-on-black: var(--panel); }
+[data-skin="neon"] .tb { --tb-white: #dcdee6; --tb-white-top: #f3f4f8; --tb-black: #0c0d11; --tb-ink: #14151a; --tb-ink-soft: #5b5f6b; --tb-edge: #8c90a0; --tb-line: #b4b7c4; --tb-on-black: #f3f4f8; }
+.tb-piano { position: relative; display: flex; height: clamp(120px, 31cqh, 210px); padding: 0 0 5px; }
+.tb-key { position: relative; margin: 0; padding: 0; border: 0; font: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; transition: background .08s, transform .06s, box-shadow .08s; }
+.tb-key.w { flex: 1; min-width: 0; margin-right: 2px; padding-bottom: 6px; border-radius: 0 0 8px 8px; color: var(--tb-ink-soft); background: linear-gradient(var(--tb-white-top), var(--tb-white) 30%); box-shadow: 0 4px 0 var(--tb-edge), 0 0 0 1px var(--tb-line) inset; }
+.tb-key.w:last-of-type { margin-right: 0; }
+.tb-key.b { position: absolute; top: 0; z-index: 2; width: calc(100% / 15 * .62); height: 60%; margin-left: calc(100% / 15 * -.31 - 1px); padding-bottom: 4px; border-radius: 0 0 6px 6px; color: var(--tb-on-black); background: var(--tb-black); box-shadow: 0 3px 0 rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .08) inset; }
+.tb-nm { font: 700 11px var(--mono); opacity: 0; transition: opacity .15s; }
+.tb.show-names .tb-key.w .tb-nm, .tb-key.lit .tb-nm, .tb-key.target .tb-nm, .tb-key.good .tb-nm, .tb-key.ref .tb-nm { opacity: 1; }
+.tb-key.b .tb-nm { font-size: 9px; }
+.tb-deg { display: none; place-items: center; width: 20px; height: 20px; border-radius: 50%; font: 800 12px/1 var(--mono); font-style: normal; color: #fff; background: var(--c, var(--violet)); }
+.tb.show-degrees .tb-key.lit .tb-deg:not(:empty) { display: grid; }
+.tb-key.b .tb-deg { width: 17px; height: 17px; font-size: 10.5px; }
+/* 梯子：亮着的键 */
+.tb-key.w.lit { color: var(--tb-ink); background: linear-gradient(color-mix(in srgb, var(--c, var(--violet)) 16%, var(--tb-white)), color-mix(in srgb, var(--c, var(--violet)) 36%, var(--tb-white))); box-shadow: 0 4px 0 color-mix(in srgb, var(--c, var(--violet)) 55%, var(--tb-edge)), 0 0 0 1.5px var(--c, var(--violet)) inset; }
+.tb-key.b.lit { background: var(--c, var(--violet)); color: #fff; box-shadow: 0 3px 0 color-mix(in srgb, var(--c, var(--violet)) 60%, #000), 0 0 0 1px rgba(0, 0, 0, .25) inset; }
+.tb-key.b.lit .tb-deg { background: #fff; color: var(--c, var(--violet)); }
+/* 家 */
+.tb-key.w.home { background: linear-gradient(color-mix(in srgb, var(--accent) 24%, var(--tb-white)), color-mix(in srgb, var(--accent) 50%, var(--tb-white))); box-shadow: 0 4px 0 color-mix(in srgb, var(--accent) 60%, var(--tb-edge)), 0 0 0 1.5px var(--accent) inset; }
+.tb-key.b.home { background: var(--accent); }
+.tb-key.home .tb-deg { background: var(--accent); color: #fff; }
+.tb-key.b.home .tb-deg { background: #fff; color: var(--accent); }
+/* 记号：起点、要找的、对了、错了 */
+.tb-key.ref { outline: 3px solid var(--c, var(--violet)); outline-offset: -3px; }
+.tb-key.w.ref { background: color-mix(in srgb, var(--c, var(--violet)) 32%, var(--tb-white)); color: var(--tb-ink); }
+.tb-key.b.ref { background: var(--c, var(--violet)); color: #fff; }
+.tb-key.target, .tb-skey.target { outline: 3px solid var(--blue, #3b82f6); outline-offset: -3px; animation: tb-ring 1s ease-in-out infinite; }
+@keyframes tb-ring { 50% { outline-color: transparent; } }
+.tb-key.good { outline: 3px solid var(--ok); outline-offset: -3px; }
+.tb-key.w.good { background: color-mix(in srgb, var(--ok) 30%, var(--tb-white)); color: var(--tb-ink); }
+.tb-key.b.good { background: var(--ok); }
+.tb-key.bad { animation: tb-bad .5s var(--out); }
+@keyframes tb-bad { 0%, 100% { transform: none; } 20% { transform: translateX(-3px); } 60% { transform: translateX(3px); } }
+.tb-key.w.bad { background: color-mix(in srgb, var(--lamp-bad) 34%, var(--tb-white)); }
+.tb-key.b.bad { background: var(--lamp-bad); }
+/* 按下去 / 正在响 */
+.tb-key.w.down { transform: translateY(3px); box-shadow: 0 1px 0 var(--tb-edge), 0 0 0 2px var(--tb-ink) inset; background: color-mix(in srgb, #f5c518 52%, var(--tb-white)); color: var(--tb-ink); }
+.tb-key.b.down { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, .5); background: color-mix(in srgb, #f5c518 78%, var(--tb-black)); }
+
+.tb-skeys { display: flex; flex-direction: column; gap: 4px; }
+.tb.no-keys .tb-skeys { display: none; }
+.tb-skeys-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.tb-skey { min-height: 48px; padding: 4px 0 6px; border: 0; border-radius: 10px; font: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; color: var(--text); background: var(--panel-3); box-shadow: 0 4px 0 var(--key-edge), 0 0 0 1px var(--line-2) inset; transition: transform .06s, box-shadow .08s, background .08s; }
+.tb-skey b { font-size: 14px; }
+.tb-skey span { font: 700 11px var(--mono); color: var(--muted); }
+.tb-skey.home { background: color-mix(in srgb, var(--accent) 22%, var(--panel-3)); box-shadow: 0 4px 0 color-mix(in srgb, var(--accent) 55%, var(--key-edge)), 0 0 0 1.5px var(--accent) inset; }
+.tb-skey.down { transform: translateY(3px); box-shadow: 0 1px 0 var(--key-edge), 0 0 0 2px var(--text) inset; background: color-mix(in srgb, var(--yellow, #f5c518) 46%, var(--panel-3)); }
+
+/* ───────── 啾啾带着走 ───────── */
+.tg { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; container-type: size; }
+.tg-top { display: flex; align-items: center; }
+.tg-dots { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; flex-wrap: wrap; }
+.tg-dots li { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font: 800 12px var(--mono); color: var(--muted); background: var(--panel-3); box-shadow: 0 1px 2px var(--shade-2) inset; }
+.tg-dots li.done { color: var(--on-bright); background: var(--ok); cursor: pointer; }
+.tg-dots li.now { color: var(--on-bright); background: var(--c, var(--violet)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c, var(--violet)) 24%, transparent); }
+.tg-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--bg); box-shadow: 0 0 0 1px var(--line) inset; overflow-y: auto; }
+.tg-head { display: flex; align-items: flex-start; gap: 10px; }
+.tg-kind { flex: none; margin-top: 2px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; color: var(--on-bright); background: var(--c, var(--violet)); white-space: nowrap; }
+.tg-kind.k-do { background: var(--accent); }
+.tg-kind.k-name { background: var(--ok); }
+.tg-kind:empty { display: none; }
+.tg-goal { font-size: 16.5px; line-height: 1.5; font-weight: 650; color: var(--text); }
+.tg-goal:empty { display: none; }
+.tg-ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tg-ctl:empty { display: none; }
+.tg-ctl .btn.lg { height: 50px; }
+.tg-ab { display: inline-flex; align-items: center; gap: 8px; }
+.tg-ab small { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; font: 800 12px var(--mono); color: var(--on-bright); background: var(--muted); }
+.tg-ab.heard small { background: var(--ok); }
+.tg-ab.on { box-shadow: 0 0 0 2px var(--c, var(--violet)) inset, 0 3px 0 var(--key-edge); }
+.tg-opts { display: flex; gap: 10px; flex-wrap: wrap; }
+.tg-opt.right { background: color-mix(in srgb, var(--ok) 24%, var(--panel)); box-shadow: 0 0 0 2px var(--ok) inset; }
+.tg-opt.wrong { opacity: .55; text-decoration: line-through; }
+.tg-term { display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; border-radius: 12px; background: color-mix(in srgb, var(--ok) 14%, var(--panel)); box-shadow: 0 0 0 1.5px var(--ok) inset; animation: tg-term .45s var(--out); }
+@keyframes tg-term { from { opacity: 0; transform: scale(.94); } }
+.tg-term b { font-size: 24px; letter-spacing: .02em; color: var(--text); }
+.tg-term p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--text-2); }
+.tg-steps { display: flex; gap: 5px; flex-wrap: wrap; }
+.tg-steps span { padding: 5px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 700; color: var(--text-2); background: var(--panel-3); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.tg-steps span.s1 { border-bottom: 3px solid var(--accent); }
+.tg-steps span.s2 { border-bottom: 3px solid var(--c, var(--violet)); }
+.tg-steps span.done { opacity: .45; }
+.tg-steps span.now { color: var(--text); background: var(--panel); box-shadow: 0 0 0 2px var(--text) inset; }
+.tg-key-read { min-width: 86px; text-align: center; font-size: 18px; }
+.tg-keybtn { min-width: 96px; font-family: var(--mono); }
+.tg-note { min-height: 24px; font-size: 15px; line-height: 1.55; color: var(--text-2); }
+.tg-note.ok { color: var(--ok); font-weight: 700; }
+.tg-note.bad { color: var(--text); }
+.tg-note:empty { display: none; }
+.tg-foot { display: flex; justify-content: space-between; gap: 10px; }
+.tg-foot .btn { height: 46px; }
+.tg-foot .btn[disabled] { opacity: .45; }
+
+/* ───────── 新的挑战（theory-toys.js）───────── */
+.tq { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; container-type: size; }
+.tq-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tq-top .cl-lamps { margin-left: auto; }
+.tq-ask { font-size: 16.5px; font-weight: 650; line-height: 1.5; color: var(--text); }
+.tq-note { min-height: 46px; font-size: 15px; line-height: 1.55; color: var(--text-2); }
+.tq-note.bad { color: var(--text); }
+.tq-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tq-row .btn { height: 46px; }
+.tq-slots { display: flex; gap: 6px; flex-wrap: wrap; }
+.tq-slots i { display: grid; place-items: center; min-width: 38px; height: 38px; padding: 0 6px; border-radius: 9px; font: 800 13px var(--mono); font-style: normal; color: var(--text-2); background: var(--panel-3); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.tq-slots i.given { color: var(--on-bright); background: var(--muted); }
+.tq-slots i.mine { color: var(--on-bright); background: var(--c, var(--violet)); }
+.tq-slots i.home { background: var(--accent); }
+.tq-slots i.empty { border: 1.5px dashed var(--line-2); background: transparent; box-shadow: none; color: var(--muted); }
+
+/* 列表上乐理线的单元小标题 */
+.cl-unit { flex: none; display: flex; align-items: baseline; gap: 8px; margin: 8px 2px 0; font-size: 13px; font-weight: 800; color: var(--text-2); }
+.cl-unit:first-child { margin-top: 0; }
+.cl-unit small { font-weight: 600; color: var(--muted); }
+.cl-node.kind-make .no { border: 2px dashed var(--c); background: transparent; }

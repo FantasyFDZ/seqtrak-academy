@@ -1,9 +1,13 @@
 // 小课堂 · 乐理线（11 关）。写法见 content/classroom.js 开头。
 // 2026-11-15：原来的 T3「不踩在拍子上」并进了节奏线的 R4、R5（反拍、切分），T4「摇一摇」并进了 R6（晃起来），
 // T13「一首歌的形状」并进了 DJ 线的 D4（能量曲线）。新开 T2、T6、T8、T9、T11、T12 和关底大关 TB。
+// 2026-11-17 乐理线重做第一期：T5、T6、T7、T8、T12 的“学”和“挑战”换了新的，又加了 T14–T17，排成单元的顺序——
+// 都在 cl-theory-units.js 里（它的 redo() 拿这里的原文当底子）。这个文件里这几关的 play / quiz 已经不用了，
+// “用在机器上”、带走的话、快问快答还在用。T9、T10、T11、TB 还是老样子，等下一期。
 import { PLAY, STOP, PICK, STEPS } from './classroom-bits.js';
+import { redo, THEORY_UNITS } from './cl-theory-units.js';
 
-export const THEORY = [
+const OLD = [
   {
     id: 'T1', line: 'theory', kind: 'explain', title: '四个一组', about: '拍子和小节', minutes: 3,
     say: '走路是“左、右、左、右”。音乐是“**1**、2、3、4”：四下一组，第一下最重。啾！',
@@ -299,3 +303,6 @@ export const THEORY = [
     ],
   },
 ];
+
+export const THEORY = redo(OLD);
+export { THEORY_UNITS };

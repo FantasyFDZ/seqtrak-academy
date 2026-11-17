@@ -94,7 +94,7 @@ function classroomLink(b) {
   const level = levelById(b.classroom);
   if (!level) return null;
   const done = store.data.classroom?.[b.classroom]?.done;
-  const open = !!level.play;
+  const open = !!level.quiz; // 开没开放看有没有“挑战”（和 content/classroom.js 的 isOpen 一样）：乐理线重做之后的关没有“玩一玩”，关底大关也没有
   const card = h(open ? 'a' : 'div', { class: ['callout', 'classroom-link'], href: open ? `#/classroom/${b.classroom}` : null },
     h('b', { class: 'label' }, `小课堂 · ${b.classroom} ${level.name || level.title || ''}${done ? ' · 学过了' : open ? '' : ' · 还没开放'}`),
     h('span', { html: rich(b.text || '') }),

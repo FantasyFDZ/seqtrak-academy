@@ -19,6 +19,7 @@ import {
 import { orderQuiz, oddQuiz, memoryQuiz, dictateQuiz, echoQuiz, askQuiz, randomPhrase } from './classroom-ear.js';
 import { RHYTHM_TOYS } from './classroom-rhythm.js';
 import { DJ_TOYS } from './classroom-dj.js';
+import { THEORY_TOYS } from './theory-toys.js';
 
 // 公用的小零件（按钮、垫子、16 个格子、放音、“听一听选一个”的骨架）在 classroom-kit.js
 
@@ -1566,6 +1567,7 @@ const TOYS = {
   ask: (s, e) => askQuiz(s, e),
   ...RHYTHM_TOYS,
   ...DJ_TOYS,
+  ...THEORY_TOYS, // 乐理线重做之后的挑战：都在乐理台上做（theory-toys.js）
 };
 
 // 三档的默认规矩：铜 / 银 / 金。新的几种题自己会看 env.tier；老的几种在这里换参数。关里写了 quiz.tiers 的以它为准
