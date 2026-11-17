@@ -84,7 +84,7 @@ export function nextOpen(id) {
 
 export const ROUTE = [
   { id: 'beat', name: '先认拍子', with: '配第 0–1 章', lesson: '1-1', ids: ['T1', 'R1', 'T2', 'R2', 'F1'] },
-  { id: 'drums', name: '鼓怎么摆', with: '配第 1 章', lesson: '1-2', ids: ['R3', 'R7', 'R4', 'R5', 'R6', 'R8', 'RB'] },
+  { id: 'drums', name: '鼓怎么摆', with: '配第 1 章', lesson: '1-2', ids: ['R3', 'R7', 'R4', 'R5', 'R9', 'R6', 'R8', 'RB'] }, // R9（重音挪一挪）接在反拍、切分后面：它的“挪进缝里”用得上那两关
   { id: 'pitch', name: '音的高低', with: '配第 2 章', lesson: '2-1', ids: ['T5', 'T6', 'T14', 'T15', 'T7', 'T16', 'T8', 'T12', 'T17'] },
   { id: 'stack', name: '叠起来', with: '配第 3 章', lesson: '3-1', ids: ['T9', 'T10', 'T11', 'TB'] },
   { id: 'shape', name: '捏声音', with: '配第 4 章', lesson: '4-2', ids: ['F2', 'F3', 'F4', 'F7'] },

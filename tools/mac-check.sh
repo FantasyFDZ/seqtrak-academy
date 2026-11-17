@@ -169,8 +169,8 @@ for id in $(node -e "import('./public/js/content/arrangement-lessons.js').then((
   walk "?fake&walk=$id" 400000
 done
 
-# 小课堂（乐理、节奏、效果、DJ 四条线的小关）：2026-11-15 起列表上 43 关全部开放（open=43 soon=0）；每关各打开一次，看能玩的东西摆出来没有。
-# 另有推荐路线（7 站、43 个关的小牌子）、卡册（43 张卡）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
+# 小课堂（乐理、节奏、效果、DJ 四条线的小关）：2026-11-15 起列表上的关全部开放（2026-11-17 节奏线加了 R9，一共 44 关：open=44 soon=0）；每关各打开一次，看能玩的东西摆出来没有。
+# 另有推荐路线（7 站、44 个关的小牌子）、卡册（44 张卡）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
 # 再看“试一试”和“用在机器上”那两屏：?clstep=quiz / machine 是开发用的参数，直接从那一步开始（public/js/views/classroom.js）。
 # “用在机器上”有三种样子：模拟机、效果关用的效果模拟机、接着假真机时的真机镜像（class 里带 live）。窗口按最小的平板 1024 × 768 开。
 # 把每一关真的从头走到尾（要点、要拍、要等声音）在无界面的浏览器里做不了：那是 public/js/dev/walk-classroom.js，在开着的浏览器里跑。
@@ -181,19 +181,39 @@ classroom '#/classroom'
 echo "classroom -> levels=$(count 'class="cl-node[ "]') open=$(count '<a class="cl-node') soon=$(count 'class="cl-node soon"') errors=$(count '这一页出错了')"
 playable=0
 broken=''
-for id in T1 T2 T5 T6 T14 T15 T7 T16 T8 T12 T17 T9 T10 T11 TB R1 R2 R3 R4 R5 R6 R7 R8 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
+for id in T1 T2 T5 T6 T14 T15 T7 T16 T8 T12 T17 T9 T10 T11 TB R1 R2 R3 R4 R5 R6 R7 R8 R9 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
   classroom "#/classroom/$id"
   if [[ $(count 'class="cl-toy') -ge 1 && $(count 'class="cl-say"') -eq 1 && $(count '这一页出错了') -eq 0 ]]; then playable=$((playable + 1)); else broken="$broken $id"; fi
 done
-echo "classroom levels -> playable=$playable/43 broken=[${broken# }]"
+echo "classroom levels -> playable=$playable/44 broken=[${broken# }]"
 classroom '#/classroom/route'
 echo "classroom route -> stops=$(count 'class="cl-stop[ "]') chips=$(count 'class="cl-chip[ "]') next=$(count 'class="cl-next"') errors=$(count '这一页出错了')"
 classroom '#/classroom/cards'
 echo "classroom cards -> cards=$(count 'class="cl-kcard[ "]') locked=$(count 'cl-kcard locked') errors=$(count '这一页出错了')"
 classroom '#/classroom/daily'
 echo "classroom daily -> dots=$(count '<i class="[^"]*">[A-Z][0-9B]*</i>') toy=$(count 'class="cl-toy') errors=$(count '这一页出错了')"
-classroom '?clstep=quiz#/classroom/R2'
+classroom '?clstep=quiz#/classroom/R4'
 echo "classroom rhythm -> tiers=$(count 'class="cl-tier[ "]') game=$(count 'game-canvas') errors=$(count '这一页出错了')"
+# 节奏线“一心多用”第一批（2026-11-17，public/js/classroom-rhythm2.js）：R1 节拍器三招的一排拍子（热身那一招 8 拍）、
+# R9 的 8 格镲和两块垫子、R7 热身的两排格子（2 × 8）和挑战的两段接力（第一段是音游）、R2 的读法条（热身 16 个字；挑战第一段 16 个能点的字，
+# 用 ?rhshot=next-stage 进到第二段：音游下面一条 16 个字）
+classroom '#/classroom/R1'
+r1="beats=$(count 'class="rh-b[ "]')"
+classroom '?clstep=quiz&cltier=3#/classroom/R1'
+r1="$r1 gold-beats=$(count 'class="rh-b[ "]')"
+classroom '?clstep=quiz#/classroom/R9'
+r9="cells=$(count 'class="rh-cell[ "]') pads=$(count 'class="cl-pad rh-pad') aims=$(count 'class="rh-cell[^"]* aim')"
+classroom '#/classroom/R7'
+r7="squares=$(count 'class="rh-sq[ "]') pads=$(count 'class="cl-pad rh-pad')"
+classroom '?clstep=quiz#/classroom/R7'
+r7="$r7 relay=$(count 'class="cl-relay-chips"') game=$(count 'game-canvas')"
+classroom '#/classroom/R2'
+r2="words=$(count 'class="rh-w[ "]') notes=$(count 'class="rh-n[ "]')"
+classroom '?clstep=quiz#/classroom/R2'
+r2="$r2 pick=$(count '<button class="rh-w')"
+classroom '?clstep=quiz&rhshot=next-stage#/classroom/R2'
+r2="$r2 stage-game=$(count 'game-canvas') stage-words=$(count 'class="rh-w[ "]')"
+echo "classroom rhythm2 -> R1 $r1 | R9 $r9 | R7 $r7 | R2 $r2 errors=$(count '这一页出错了')"
 classroom '?clstep=quiz#/classroom/R3'
 echo "classroom quiz -> options=$(count 'class="cl-opt[ "]') pattern-keys=$(count 'class="cl-key[ "]') errors=$(count '这一页出错了')"
 classroom '?clstep=machine#/classroom/T10'
