@@ -181,11 +181,14 @@ classroom '#/classroom'
 echo "classroom -> levels=$(count 'class="cl-node[ "]') open=$(count '<a class="cl-node') soon=$(count 'class="cl-node soon"') errors=$(count '这一页出错了')"
 playable=0
 broken=''
-for id in T1 T2 T5 T6 T14 T15 T7 T16 T8 T12 T17 T9 T10 T11 TB R1 R2 R3 R4 R5 R6 R7 R8 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
+# 2026-11-17 乐理线重做第二期：多了 T18–T27 这 10 关（单元 3「旋律」、单元 4「和声」），一共 53 关；推荐路线多一站（8 站），多一页小本子。
+for id in T1 T2 T5 T6 T14 T15 T7 T16 T8 T12 T17 T18 T19 T20 T21 T22 T9 T10 T23 T24 T25 T11 T26 T27 TB R1 R2 R3 R4 R5 R6 R7 R8 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
   classroom "#/classroom/$id"
   if [[ $(count 'class="cl-toy') -ge 1 && $(count 'class="cl-say"') -eq 1 && $(count '这一页出错了') -eq 0 ]]; then playable=$((playable + 1)); else broken="$broken $id"; fi
 done
-echo "classroom levels -> playable=$playable/43 broken=[${broken# }]"
+echo "classroom levels -> playable=$playable/53 broken=[${broken# }]"
+classroom '#/classroom/works'
+echo "classroom works -> page=$(count 'tw-page') empty=$(count 'class="tw-empty"') tabs=$(count 'class="cl-tab[ "]') errors=$(count '这一页出错了')"
 classroom '#/classroom/route'
 echo "classroom route -> stops=$(count 'class="cl-stop[ "]') chips=$(count 'class="cl-chip[ "]') next=$(count 'class="cl-next"') errors=$(count '这一页出错了')"
 classroom '#/classroom/cards'

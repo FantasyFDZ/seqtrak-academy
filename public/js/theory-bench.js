@@ -4,8 +4,15 @@
 //   钢琴键盘   两个八度（C–C–C，25 个键，黑白都有）。梯子（音阶）= 亮着的键，家 = 桔红；要找的、对的、错的各有记号。
 //   机器的键   7 个 Synth keys，和上面亮着的键一一对应（键 1 = 家）。电脑键盘的 1–7 也能弹它们。
 // 这个文件只管“摆出来、亮起来、响起来、告诉你按了哪个”；一小步一小步怎么教在 theory-guide.js，挑战在 theory-toys.js。
+// 第二期（单元 3「旋律」、4「和声」）加的几样，都还在这同一块台子上：
+//   格子     最上面那一层可以换成格子（theory-roll.js）：一格 = 十六分，和弦是色带、贝斯是一条线、旋律是能拉长的小块。set({ top: 'roll' })
+//   回家圈   7 个级数排成一圈，箭头一站一站指向家（每一步地基都跳一大步）。set({ top: 'ring' })，格子里有东西时并排摆
+//   和弦     键盘上叠起来的色块（青）：最底下那层是地基。chord([键号…])
+//   三盏灯   句号圆不圆看三样：和弦到家、贝斯站稳、旋律到家。lamps([…])
+//   亮暗牌   机器的 7 个键上各挂一块小牌：从这一级叠起来的和弦是亮、暗，还是挤。moods(true)
 import { h } from './util.js';
 import { audio } from './audio.js';
+import { createRoll } from './theory-roll.js';
 
 // 样式是自己带来的（public/css/theory.css），不用改 index.html
 if (typeof document !== 'undefined' && !document.querySelector('link[data-theory]')) {
@@ -24,6 +31,10 @@ const isBlack = (m) => BLACK.includes(((m % 12) + 12) % 12);
 export const nameOf = (m) => NAMES[((m % 12) + 12) % 12];
 const WHITES = [];
 for (let m = LO; m <= HI; m++) if (!isBlack(m)) WHITES.push(m);
+/** 回家圈上 7 个站的先后（顺时针，最上面是家）：顺着箭头走，每一步地基都往下跳一大步 */
+export const RING = [1, 4, 7, 3, 6, 2, 5];
+const LAYER = ['基', '中', '上', '四'];
+export const MOOD_WORD = { major: '亮', minor: '暗', dim: '挤' };
 const SVG = 'http://www.w3.org/2000/svg';
 const s = (tag, attrs = {}) => {
   const el = document.createElementNS(SVG, tag);
@@ -39,10 +50,12 @@ const s = (tag, attrs = {}) => {
  *   names    键上写不写音名          degrees  亮着的键上标不标第几级
  *   keys     下面那排机器的键摆不摆   trail    上面的轨迹摆不摆
  *   machine  机器的 7 个键发什么音：{ root, offsets }；不写就是梯子的前 7 级
+ *   top      最上面那一层摆什么：'trail'（音高轨迹，默认）/ 'roll'（格子）/ 'ring'（回家圈；格子里有东西时并排摆）
+ *   chordKeys 机器的键一个键弹几个音：0（一个音，默认）/ 3 / 4（CHORD 弹法：从这一级起隔一个拿一个）
  * onKey(midi, from, degree)：学生按了一个键。from = 'piano' / 'synth'（机器的键，degree = 第几个）。
  */
 export function createTheoryBench(init = {}) {
-  const st = { ladder: null, home: false, names: false, degrees: false, keys: false, trail: true, machine: null, ...init };
+  const st = { ladder: null, home: false, names: false, degrees: false, keys: false, trail: true, machine: null, top: 'trail', chordKeys: 0, ...init };
   let timers = [];
   let points = []; // 轨迹上的点：{ m, cls }
   let ghost = []; // 淡淡的另一条线（要对上的那一句）
@@ -55,7 +68,7 @@ export function createTheoryBench(init = {}) {
   const ww = 100 / WHITES.length;
   for (let m = LO; m <= HI; m++) {
     const black = isBlack(m);
-    const el = h('button', { class: ['tb-key', black ? 'b' : 'w'], type: 'button', 'data-sfx': 'none', 'data-m': String(m), 'aria-label': nameOf(m) }, h('i', { class: 'tb-deg' }), h('span', { class: 'tb-nm' }, nameOf(m)));
+    const el = h('button', { class: ['tb-key', black ? 'b' : 'w'], type: 'button', 'data-sfx': 'none', 'data-m': String(m), 'aria-label': nameOf(m) }, h('i', { class: 'tb-deg' }), h('span', { class: 'tb-nm' }, nameOf(m)), h('em', { class: 'tb-blk' }));
     if (black) el.style.left = `${WHITES.filter((x) => x < m).length * ww}%`;
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
@@ -68,7 +81,7 @@ export function createTheoryBench(init = {}) {
 
   // ── 机器的 7 个键 ──
   const synthEls = [1, 2, 3, 4, 5, 6, 7].map((d) => {
-    const el = h('button', { class: 'tb-skey', type: 'button', 'data-sfx': 'none', 'data-key': String(d) }, h('b', {}, `键 ${d}`), h('span', {}));
+    const el = h('button', { class: 'tb-skey', type: 'button', 'data-sfx': 'none', 'data-key': String(d) }, h('b', {}, `键 ${d}`), h('span', {}), h('em', { class: 'tb-mood' }));
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       press(machineNote(d), 'synth', d);
@@ -84,7 +97,58 @@ export function createTheoryBench(init = {}) {
   const trailBox = h('div', { class: 'tb-trail' }, h('span', { class: 'tb-cap' }, '音高轨迹'), svg);
   const y = (m) => H - 8 - ((m - (LO - 2)) / (HI + 2 - (LO - 2))) * (H - 16);
 
-  const el = h('div', { class: 'tb' }, trailBox, piano, synthRow);
+  // ── 格子（theory-roll.js）──
+  const roll = createRoll({
+    onTone: (m) => !api.silent && tone(m),
+    onEdit: (mel, what) => api.onRoll?.(mel, what),
+    onPick: (i, fixed) => api.onPick?.(i, fixed),
+  });
+  const rollBox = h('div', { class: 'tb-roll' }, roll.el);
+
+  // ── 回家圈 ──
+  const RW = 200;
+  const ringSvg = s('svg', { viewBox: `0 0 ${RW} ${RW}`, class: 'tb-ring-svg' });
+  const ringBox = h('div', { class: 'tb-ring' }, ringSvg);
+  const polar = (deg, r = 72) => [RW / 2 + r * Math.cos((deg * Math.PI) / 180), RW / 2 + r * Math.sin((deg * Math.PI) / 180)];
+  const stationEls = new Map();
+  const arrowEls = new Map(); // '6>2' → 那一段箭头
+  const defs = s('defs');
+  const tip = s('marker', { id: 'tb-arrow', viewBox: '0 0 8 8', refX: 6, refY: 4, markerWidth: 5, markerHeight: 5, orient: 'auto' });
+  tip.append(s('path', { d: 'M0,0 L8,4 L0,8 z', class: 'tb-ring-tip' }));
+  defs.append(tip);
+  ringSvg.append(defs);
+  RING.forEach((d, k) => {
+    const to = RING[(k + 1) % 7];
+    const [x0, y0] = polar(-90 + (k * 360) / 7 + 17);
+    const [x1, y1] = polar(-90 + ((k + 1) * 360) / 7 - 19);
+    const arc = s('path', { d: `M${x0.toFixed(1)},${y0.toFixed(1)} A72,72 0 0 1 ${x1.toFixed(1)},${y1.toFixed(1)}`, class: `tb-ring-arc${to === 1 ? ' home' : ''}${d === 1 ? ' out' : ''}`, 'marker-end': 'url(#tb-arrow)' });
+    arrowEls.set(`${d}>${to}`, arc);
+    ringSvg.append(arc);
+  });
+  RING.forEach((d, k) => {
+    const [cx, cy] = polar(-90 + (k * 360) / 7);
+    const g = s('g', { class: 'tb-st', 'data-deg': d, tabindex: 0, role: 'button', 'aria-label': `第 ${d} 级的和弦` });
+    g.append(s('circle', { cx: cx.toFixed(1), cy: cy.toFixed(1), r: 17 }));
+    const t = s('text', { x: cx.toFixed(1), y: (cy + 5.5).toFixed(1), 'text-anchor': 'middle' });
+    t.textContent = String(d);
+    g.append(t);
+    g.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (!api.locked) api.onRing?.(d);
+    });
+    stationEls.set(d, g);
+    ringSvg.append(g);
+  });
+  const ringCap = s('text', { x: RW / 2, y: RW / 2 + 5, 'text-anchor': 'middle', class: 'tb-ring-cap' });
+  ringCap.textContent = '回家圈';
+  ringSvg.append(ringCap);
+
+  // ── 三盏灯 ──
+  const lampEls = ['和弦到家', '贝斯站稳', '旋律到家'].map((t) => h('span', { class: 'tb-lamp' }, h('i', {}), t));
+  const lampRow = h('div', { class: 'tb-lamps', hidden: true }, h('span', { class: 'tb-cap' }, '句号圆不圆'), lampEls);
+
+  const topBox = h('div', { class: 'tb-top' }, trailBox, ringBox, rollBox);
+  const el = h('div', { class: 'tb' }, topBox, lampRow, piano, synthRow);
 
   // ── 状态 → 画面 ──
   const ladderMidis = () => (st.ladder ? st.ladder.offsets.map((o) => st.ladder.root + o).filter((m) => m >= LO && m <= HI) : []);
@@ -106,6 +170,23 @@ export function createTheoryBench(init = {}) {
     return 0;
   }
   const isHome = (m) => !!st.ladder && (m - st.ladder.root) % 12 === 0 && m >= st.ladder.root;
+  /** 梯子的第 d 级是哪个键（8 = 高一层的家，0 = 家下面那一级；按 offsets 的先后数，不看标签） */
+  function degMidi(d) {
+    const L = st.ladder || { root: LO, offsets: MINOR };
+    const n = L.offsets.length;
+    const k = (((d - 1) % n) + n) % n;
+    return L.root + L.offsets[k] + 12 * Math.floor((d - 1) / n);
+  }
+  /** 从第 d 级起隔一个拿一个，叠 size 层：这一级的和弦 */
+  const chordOf = (d, size = 3) => Array.from({ length: size }, (_, k) => degMidi(d + 2 * k));
+  /** 这一摞是亮（major）、暗（minor）还是挤（dim） */
+  function moodOf(notes) {
+    const a = notes[1] - notes[0];
+    const b = notes[2] - notes[0];
+    return a === 4 && b === 7 ? 'major' : a === 3 && b === 7 ? 'minor' : a === 3 && b === 6 ? 'dim' : 'other';
+  }
+  let moodsOn = false;
+  let chordNow = [];
 
   function paint() {
     const lit = new Set(ladderMidis());
@@ -114,6 +195,10 @@ export function createTheoryBench(init = {}) {
     el.classList.toggle('show-degrees', !!st.degrees);
     el.classList.toggle('no-keys', !st.keys);
     el.classList.toggle('no-trail', !st.trail);
+    // 格子里还没摆东西的时候先摆着轨迹，别亮出一块空格子
+    const filled = roll.state.rows.length > 0;
+    el.dataset.top = !st.trail ? 'none' : st.top === 'roll' && !filled ? 'trail' : st.top;
+    el.classList.toggle('has-roll', filled && (st.top === 'roll' || st.top === 'ring'));
     for (const [m, k] of keyEls) {
       const on = lit.has(m);
       k.classList.toggle('lit', on);
@@ -122,9 +207,17 @@ export function createTheoryBench(init = {}) {
     }
     synthEls.forEach((b, i) => {
       const m = machineNote(i + 1);
-      b.lastChild.textContent = nameOf(m);
+      b.children[1].textContent = nameOf(m);
       b.classList.toggle('home', !!st.home && !!machine() && i === 0);
+      const show = Array.isArray(moodsOn) ? moodsOn.includes(i + 1) : moodsOn;
+      const mood = show && st.ladder && st.ladder.offsets.length >= 7 ? moodOf(chordOf(i + 1)) : '';
+      b.dataset.mood = mood;
+      b.lastChild.textContent = MOOD_WORD[mood] || '';
     });
+    for (const [d, g] of stationEls) {
+      g.dataset.mood = st.ladder && st.ladder.offsets.length >= 7 ? moodOf(chordOf(d)) : '';
+      g.classList.toggle('home', d === 1);
+    }
     paintTrail();
   }
 
@@ -180,9 +273,23 @@ export function createTheoryBench(init = {}) {
     paintTrail();
   }
 
+  /** 几个音一起响，键盘上叠成色块（地基在最下面）。bass：再垫一个低一层的地基 */
+  function playChord(notes, { len = 1.1, vel = 0.6, at = 0, bass = false, show = true, voice = 'keys' } = {}) {
+    audio.init().then((ok) => {
+      if (!ok) return;
+      const t = audio.now() + 0.03 + at;
+      notes.forEach((m) => audio.note(m, t, len, { voice, vel }));
+      if (bass) audio.note(notes[0] - 12, t, len, { voice: 'bass', vel: 0.7 });
+    });
+    if (!show) return;
+    if (at) timers.push(setTimeout(() => api.chord(notes), at * 1000));
+    else api.chord(notes); // 马上摆：后面紧跟着换下一摞的话，不会被这一摞盖回去
+  }
+
   function press(m, from, degree = 0) {
     if (api.locked) return;
-    if (!api.silent) tone(m);
+    if (from === 'synth' && st.chordKeys && !api.silent) playChord(chordOf(degree, st.chordKeys));
+    else if (!api.silent) tone(m);
     flash(m);
     if (api.autoTrail !== false) addPoint(m);
     api.onKey?.(m, from, degree);
@@ -220,11 +327,193 @@ export function createTheoryBench(init = {}) {
     ladderMidis,
     machineNote,
     degreeOf,
-    /** 梯子的第 d 级是哪个键（8 = 高一层的家；按 offsets 的先后数，不看标签） */
-    degMidi(d) {
-      const L = st.ladder || { root: LO, offsets: MINOR };
-      const n = L.offsets.length;
-      return L.root + L.offsets[(d - 1) % n] + 12 * Math.floor((d - 1) / n);
+    degMidi,
+    chordOf,
+    moodOf,
+    playChord,
+    roll,
+    /** 键盘上叠一摞色块（null = 收起来）。第一个是地基 */
+    chord(notes) {
+      for (const m of chordNow) keyEls.get(m)?.classList.remove('ch', 'ch1');
+      chordNow = notes ? [...notes] : [];
+      chordNow.forEach((m, k) => {
+        const key = keyEls.get(m);
+        if (!key) return;
+        key.classList.add('ch');
+        key.classList.toggle('ch1', k === 0);
+        key.lastChild.textContent = LAYER[k] || '';
+      });
+    },
+    /** 三盏灯：[和弦到家, 贝斯站稳, 旋律到家]；null = 收起来 */
+    lamps(list) {
+      lampRow.hidden = !list;
+      lampEls.forEach((x, i) => x.classList.toggle('on', !!list?.[i]));
+      lampRow.classList.toggle('all', !!list && list.every(Boolean));
+    },
+    /** 一句话（score）的最后：和弦是不是家、贝斯是不是站在这个和弦的地基上、旋律是不是落在家上 */
+    lampsOf(score) {
+      const last = (list) => [...(list || [])].sort((a, b) => a.s + a.l - (b.s + b.l)).pop();
+      const c = last(score.chords);
+      const b = last(score.bass);
+      const n = last(score.mel);
+      const root = st.ladder?.root ?? LO;
+      const same = (x, y) => x !== undefined && y !== undefined && (x - y) % 12 === 0;
+      return [!!c && same(c.notes[0], root), !!c && !!b && same(b.m, c.notes[0]), !!n && same(n.m, root)];
+    },
+    /**
+     * 把用“第几级”写的一段换成键号的 score（关里的内容都用级数写，换了梯子、搬了家照样对）：
+     *   chords [[第几格起, 占几格, 第几级, 叠几层 = 3]]   bass 'root'（每个和弦底下垫它的地基）或 [[起, 长, 第几级]]（低一层）
+     *   mel [[起, 长, 第几级, 记号?]]（0 = 家下面那一级，8 = 高一层的家）
+     */
+    score(spec = {}) {
+      const chords = (spec.chords || []).map(([sx, l, d, size = 3]) => ({ s: sx, l, deg: d, notes: chordOf(d, size) }));
+      const bass = spec.bass === 'root' ? chords.map((c) => ({ s: c.s, l: c.l, m: c.notes[0] - 12, deg: c.deg })) : (spec.bass || []).map(([sx, l, d]) => ({ s: sx, l, m: degMidi(d) - 12, deg: d }));
+      const mel = (spec.mel || []).map(([sx, l, d, cls]) => ({ s: sx, l, m: degMidi(d), ...(cls ? { cls } : {}) }));
+      return { steps: spec.steps || 16, bpm: spec.bpm || 96, chords, bass, mel };
+    },
+    /** 梯子上从 lo 到 hi 的键，从高到低（extra：不在梯子上也要摆出来的） */
+    ladderRows(lo, hi, extra = []) {
+      const L = st.ladder;
+      const on = (m) => !L || L.offsets.some((o) => (m - L.root - o) % 12 === 0);
+      const rows = [];
+      for (let m = hi; m >= lo; m--) if (on(m) || extra.includes(m)) rows.push(m);
+      return rows;
+    },
+    /**
+     * 把一段 score 摆到格子上。rows 不写就照里面的音自己定（上下各留一行）；别的原样交给格子（mode、unit、snap、tone、ghost）。
+     * 行首标的是梯子上的第几级，家那一行是桔红的。
+     */
+    rollShow(score, { rows, range, fit = [], ...rest } = {}) {
+      // fit：现在还没有、等会儿要放进来的音（比如还没配上的贝斯），先给它们留好行
+      const all = [...(score.chords || []).flatMap((c) => c.notes), ...(score.bass || []).map((b) => b.m), ...(score.mel || []).map((n) => n.m), ...(rest.ghost || []).map((n) => n.m), ...fit];
+      const L = st.ladder;
+      const lo = range ? range[0] : Math.min(...all, L ? L.root : LO) - 2;
+      const hi = range ? range[1] : Math.max(...all, L ? L.root + 7 : LO + 7) + 2;
+      const list = rows || api.ladderRows(lo, hi, all);
+      const labels = {};
+      if (L) {
+        for (const m of list) {
+          const k = L.offsets.findIndex((o) => (m - L.root - o) % 12 === 0);
+          if (k >= 0) labels[m] = String(L.degrees ? L.degrees[k] : k + 1);
+        }
+      }
+      roll.set({ steps: score.steps, chords: score.chords || [], bass: score.bass || [], mel: score.mel || [], ghost: [], mode: null, tone: false, unit: 2, snap: 2, rows: list, labels, homes: L && st.home ? [L.root] : [], ...rest });
+      paint();
+      return api;
+    },
+    rollClear() {
+      roll.set({ rows: [], chords: [], bass: [], mel: [], ghost: [], mode: null });
+      paint();
+    },
+    /** 这个键在梯子上排第几（0 = 家，7 = 高一层的家，-1 = 家下面那一级……）；不在梯子上是 null。数“走了几级”用它 */
+    rungOf(m) {
+      const L = st.ladder;
+      if (!L) return null;
+      const oct = Math.floor((m - L.root) / 12);
+      const k = L.offsets.indexOf(m - L.root - 12 * oct);
+      return k < 0 ? null : oct * L.offsets.length + k;
+    },
+    /** 这个键是梯子的第几级（哪一层楼的都算；不在梯子上是 0） */
+    degOf(m) {
+      const r = api.rungOf(m);
+      if (r === null) return 0;
+      const n = st.ladder.offsets.length;
+      const k = ((r % n) + n) % n;
+      return st.ladder.degrees ? st.ladder.degrees[k] : k + 1;
+    },
+    /** 一摞接一摞地放：list 里一项是一摞键号。degs（每一摞是第几级）给了的话，回家圈上跟着亮。放完 resolve（被 stop() 打断也会） */
+    playChords(list, { gap = 0.9, len = gap * 0.96, bass = false, degs = null, voice = 'keys', onStep = null, show = true } = {}) {
+      api.stop();
+      busy = true;
+      audio.init().then((ok) => {
+        if (!ok) return;
+        const t0 = audio.now() + 0.05;
+        list.forEach((notes, i) => {
+          notes.forEach((m) => audio.note(m, t0 + i * gap, len, { voice, vel: notes.length > 2 ? 0.55 : 0.7 }));
+          if (bass) audio.note(notes[0] - 12, t0 + i * gap, len, { voice: 'bass', vel: 0.72 });
+        });
+      });
+      return new Promise((resolve) => {
+        list.forEach((notes, i) => timers.push(setTimeout(() => {
+          if (show) {
+            api.chord(notes);
+            notes.forEach((m) => flash(m, Math.max(200, gap * 600)));
+          }
+          onStep?.(i);
+          if (degs) {
+            for (const g of stationEls.values()) g.classList.remove('now');
+            stationEls.get(degs[i])?.classList.add('now', 'on');
+            api.ring.path(degs.slice(0, i + 1));
+          }
+        }, 50 + i * gap * 1000)));
+        const done = () => {
+          busy = false;
+          resolve();
+        };
+        timers.push(setTimeout(done, 50 + list.length * gap * 1000 + 150));
+        api._resolve = done;
+      });
+    },
+    /** 机器的 7 个键上挂不挂亮暗牌：true / false，或者只挂其中几个（[级…]） */
+    moods(on) {
+      moodsOn = Array.isArray(on) ? on : !!on;
+      paint();
+    },
+    /** 回家圈：station(级) 那一站的节点、mark(级, 记号)、path([级…]) 把走过的几段箭头描出来、clear() */
+    ring: {
+      station: (d) => stationEls.get(d),
+      mark(d, cls = 'on') {
+        stationEls.get(d)?.classList.add(cls);
+      },
+      path(degs = []) {
+        for (const a of arrowEls.values()) a.classList.remove('on');
+        degs.forEach((d, i) => i > 0 && arrowEls.get(`${degs[i - 1]}>${d}`)?.classList.add('on'));
+      },
+      clear() {
+        for (const g of stationEls.values()) g.classList.remove('on', 'now', 'good', 'bad', 'target');
+        for (const a of arrowEls.values()) a.classList.remove('on');
+      },
+    },
+    /**
+     * 放一段格子里的东西：score = { steps, bpm?, chords, bass, mel }（键号的，见 theory-roll.js）。播放头跟着走，旋律的键跟着亮，和弦叠成色块。
+     * parts：只放其中几样（['chords', 'bass', 'mel']）；times：转几圈。放完 resolve（被 stop() 打断也会）。
+     */
+    playScore(score, { parts = ['chords', 'bass', 'mel'], times = 1, bpm = score.bpm || 96, keys = true } = {}) {
+      api.stop();
+      busy = true;
+      const sd = 60 / bpm / 4;
+      const has = (p) => parts.includes(p);
+      audio.init().then((ok) => {
+        if (!ok) return;
+        const t0 = audio.now() + 0.06;
+        for (let r = 0; r < times; r++) {
+          const base = t0 + r * score.steps * sd;
+          if (has('chords')) for (const c of score.chords || []) c.notes.forEach((m) => audio.note(m, base + c.s * sd, c.l * sd * 0.97, { voice: 'pad', vel: 0.5 }));
+          if (has('bass')) for (const b of score.bass || []) audio.note(b.m, base + b.s * sd, b.l * sd * 0.92, { voice: 'bass', vel: 0.78 });
+          if (has('mel')) for (const n of score.mel || []) audio.note(n.m, base + n.s * sd, Math.max(0.12, n.l * sd * 0.94), { voice: 'keys', vel: 0.92 });
+        }
+      });
+      return new Promise((resolve) => {
+        for (let r = 0; r < times; r++) {
+          for (let k = 0; k < score.steps; k++) {
+            timers.push(setTimeout(() => {
+              roll.head(k);
+              if (keys && has('chords')) {
+                const c = (score.chords || []).find((x) => x.s === k);
+                if (c) api.chord(c.notes);
+              }
+              if (keys && has('mel')) for (const n of score.mel || []) if (n.s === k) flash(n.m, Math.max(140, n.l * sd * 800));
+            }, 60 + (r * score.steps + k) * sd * 1000));
+          }
+        }
+        const done = () => {
+          busy = false;
+          roll.head(null);
+          resolve();
+        };
+        timers.push(setTimeout(done, 60 + times * score.steps * sd * 1000 + 160));
+        api._resolve = done;
+      });
     },
     key: (m) => keyEls.get(m),
     synthKey: (d) => synthEls[d - 1],
@@ -316,6 +605,7 @@ export function createTheoryBench(init = {}) {
       timers = [];
       for (const k of keyEls.values()) k.classList.remove('down');
       synthEls.forEach((b) => b.classList.remove('down'));
+      roll.head(null);
       const r = api._resolve;
       api._resolve = null;
       busy = false;
@@ -326,6 +616,8 @@ export function createTheoryBench(init = {}) {
       window.removeEventListener('keydown', onKeydown);
     },
   });
+  // Object.assign 只会把 get busy() 当时的值抄过来（永远是 false）：这里重新定义成真的“现在是不是正在放”
+  Object.defineProperty(api, 'busy', { get: () => busy });
   paint();
   return api;
 }

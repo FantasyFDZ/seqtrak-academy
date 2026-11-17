@@ -3,6 +3,7 @@
 //   #/classroom/route    推荐路线：跨四条线的一条路，每一站配一段主线课程
 //   #/classroom/cards    知识卡册：学完一关拿一张卡，铜 / 银 / 金三种边；金卡 = 啾啾窝里一根羽毛
 //   #/classroom/daily    每日五分钟：间隔复习（classroom-review.js），做完算当天练过
+//   #/classroom/works    小本子：乐理线的小作品，能重放、能删、能送到模拟机上（theory-works.js）
 //   #/classroom/<关>     一关：一句话 → 玩一玩 → 挑战（铜 / 银 / 金）→ 用在机器上，按关的种类换说法（content/classroom.js 的 KINDS）
 // 进度存在进度文件的 classroom 字段里：{ T1: { done, stars, at, times, box, due, last } }（stars = 拿到的最好的牌：1 铜、2 银、3 金，0 = 跳过了挑战）；
 // 每日五分钟记在 classroomDaily 字段里。经验值和徽章都是从这两个字段算的（levels.js），首页地图上每章开头的小关也看 classroom（classroom-minis.js）。
@@ -24,6 +25,7 @@ import { createToy, tierSpec } from '../classroom-toys.js';
 import { createBench } from '../classroom-bench.js';
 import { askQuiz } from '../classroom-ear.js';
 import { createGuide } from '../theory-guide.js';
+import { worksPage } from '../theory-works.js';
 import { firstReview, afterReview, dailyPlan, dailyDone, dailyCount } from '../classroom-review.js';
 import { streaks } from '../levels.js';
 
@@ -104,6 +106,7 @@ function head(now) {
       tab('lines', '#/classroom', '四条线'),
       tab('route', '#/classroom/route', '推荐路线'),
       tab('cards', '#/classroom/cards', '卡册', h('b', {}, String(lit.length))),
+      tab('works', '#/classroom/works', '小本子', (store.data.works || []).length ? h('b', {}, String(store.data.works.length)) : null),
       tab('daily', '#/classroom/daily', '每日五分钟', h('i', { class: ['cl-dot', daily && 'on'], 'aria-label': daily ? '今天做过了' : '今天还没做' }))),
     h('div', { class: 'cl-total' }, h('b', {}, String(lit.length)), ` / ${OPEN_LEVELS.length} 关`, h('span', { class: 'stars' }, `★ ${stars}`), gold ? h('span', { class: 'cl-gold' }, `金 ${gold}`) : null));
 }
@@ -697,6 +700,7 @@ export function classroomView(view, id) {
   if (id === 'route') return wrap(routePage(view));
   if (id === 'cards') return wrap(cardsPage(view));
   if (id === 'daily') return wrap(dailyPage(view));
+  if (id === 'works') return wrap(worksPage(view, head('works'))); // 小本子：乐理线的小作品（theory-works.js）
   const level = levelById(id.toUpperCase());
   if (!level || !isOpen(level)) {
     leave();

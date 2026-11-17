@@ -42,7 +42,8 @@ export function dailyPlan(classroom = {}, today, n = DAILY_SIZE) {
     const lv = levelById(id);
     if (!lv || used.has(id) || lv.kind === 'boss' || out.length >= n) return;
     used.add(id);
-    out.push({ id, why, mode: lv.kind === 'rhythm' || lv.kind === 'hands' ? 'ask' : 'sound' });
+    // 小作品（make）复习时只做快问快答：不然每复习一次，小本子里就多一件
+    out.push({ id, why, mode: lv.kind === 'rhythm' || lv.kind === 'hands' || lv.kind === 'make' ? 'ask' : 'sound' });
   };
   for (const id of dueLevels(classroom, today)) add(id, 'due');
   const done = Object.entries(classroom).filter(([id, s]) => s?.done && levelById(id)?.id === id);

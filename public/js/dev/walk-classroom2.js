@@ -529,6 +529,42 @@ export function start(ids = OPEN_LEVELS.map((l) => l.id), opts = {}) {
   return ids;
 }
 
+/** 走一遍小本子（2026-11-17 乐理线第二期）：打开最新的一件、放、送到模拟机上按 [PLAY]、再删掉它（点两下才真删） */
+export async function works() {
+  if (location.port === '4747') return { refused: '这是正式的服务（真实进度），不在这里跑。' };
+  const errAt = w.errors.length;
+  location.hash = '#/classroom';
+  await sleep(250);
+  location.hash = '#/classroom/works';
+  await until(() => $('.tw-page'), 3000);
+  const before = (store.data.works || []).length;
+  const out = { before, cards: $$('.tw-card').length };
+  if (!before) return { ...out, empty: !$('.tw-empty').hidden, errors: w.errors.slice(errAt) };
+  $('.tw-card').click();
+  await sleep(300);
+  out.title = $('.tw-title b')?.textContent;
+  out.notes = $$('.tw-stage .tr-n').length;
+  $('.tw-stage header .btn.primary').click();
+  await sleep(500);
+  out.playing = $('.tw-page').works.bench.busy;
+  $$('.tw-stage header .btn')[1].click();
+  await sleep(500);
+  out.sim = !!$('.tw-sim .sim');
+  out.simSteps = { SYNTH1: simulator.stepsOf('SYNTH1').length, SYNTH2: simulator.stepsOf('SYNTH2').length, DX: simulator.stepsOf('DX').length };
+  await w.tap('PLAY');
+  await sleep(900);
+  out.simPlaying = simulator.playing;
+  await w.tap('PLAY');
+  $('.tw-card .btn').click();
+  await sleep(120);
+  out.armed = $('.tw-card .btn').textContent;
+  $('.tw-card .btn').click();
+  await sleep(250);
+  out.after = (store.data.works || []).length;
+  out.errors = w.errors.slice(errAt);
+  return out;
+}
+
 /** 走一遍每日五分钟 */
 export async function daily() {
   const errAt = w.errors.length;
