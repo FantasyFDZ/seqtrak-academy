@@ -383,7 +383,7 @@ async function solve(toy, root, tier) {
 
 // ───────────── 机器（模拟机、效果模拟机、假真机） ─────────────
 
-async function drive(d) {
+async function drive(d, task) {
   if (!d) return;
   const sim = $('.cl-bench .sim');
   const node = (id) => $(`.sim [data-id="${id}"]`);
@@ -395,6 +395,11 @@ async function drive(d) {
       return w.tap(d.track || 'HAT1');
     case 'note':
     case 'chord':
+      if (d.kind === 'chord' && simulator.polyOf?.(d.track) !== 2) {
+        // POLY 弹法下自己叠一摞（乐理线选学的 T35、T36）：一秒之内把这一步圈着的几个键连着点一遍
+        for (const id of (task?.panel || ['SK1', 'SK3', 'SK5']).slice(0, d.min || 3)) await w.tap(id);
+        return;
+      }
       for (let i = 0; i < (d.count || 1); i++) {
         await w.tap(`SK${(i % 7) + 1}`);
         await sleep(200);
@@ -423,7 +428,9 @@ async function drive(d) {
       for (let i = 0; i < 40 && (simulator.proj.tempo < d.min || simulator.proj.tempo > d.max); i++) await w.tap(simulator.proj.tempo < d.min ? 'BPM+' : 'BPM-');
       return;
     case 'polymode':
-      return w.turn('SD2', 1, 2);
+      // 转到要的那一种弹法（0 MONO / 1 POLY / 2 CHORD）：一格一格转，转到为止
+      for (let i = 0; i < 6 && simulator.polyOf(d.track) !== d.mode; i++) await w.turn('SD2', simulator.polyOf(d.track) < d.mode ? 1 : -1, 1);
+      return;
     case 'metronome':
       await w.hold('ALL');
       return w.tap('BPM+');
@@ -459,7 +466,7 @@ async function bench(b) {
     let note;
     if (b.current === i) {
       try {
-        await drive(d);
+        await drive(d, level.machine.tasks[i]);
       } catch (e) {
         note = String(e.message || e);
       }

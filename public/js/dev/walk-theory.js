@@ -8,6 +8,9 @@
 //   w.start(['T5', 'T6']);       // 不等它，一关一关走；走完 window.__thWalkDone = true，结果在 window.__thWalk
 // 结果里每个小步：ok = 做完了；miss = 故意按错的那一下有没有出提示（没有“按错”这回事的小步不写）；said = 按错时啾啾说的头几个字。
 import { levelById } from '../content/classroom.js';
+import { benchSong } from '../theory-songs.js';
+import { posOf } from '../theory-staff.js';
+import { unroll } from '../theory-quiz3.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const $ = (s, r = document) => r.querySelector(s);
@@ -333,6 +336,205 @@ export async function run(id) {
             await sleep(80);
             if (d === 1) break;
           }
+        } else if (t.type === 'tryhome' || t.type === 'third') {
+          // 第三期 · 拆歌：试停找家（先停在第 5 级上，要被说“还悬着”），认梯子（先点另一个第 3 级，要被说“打架”）
+          const song = benchSong(t.tune);
+          const off3 = song.ladder === 'minor' ? [3, 4] : [4, 3]; // [对的, 另一个]
+          if (t.type === 'tryhome') {
+            key(song.root + 7);
+            await sleep(200);
+            await idle();
+            r.miss = bad();
+            r.said = said();
+            key(song.root + 1); // 不在梯子上的：要被说“打架”
+            await sleep(200);
+            await idle();
+            r.miss2 = bad();
+            key(song.root);
+            await sleep(200);
+            await idle();
+          }
+          if (t.type === 'third' || t.third) {
+            key(song.root + off3[1]);
+            await sleep(200);
+            await idle();
+            r.miss3 = bad();
+            r.said3 = said();
+            key(song.root + off3[0]);
+          }
+        } else if (t.type === 'rootfill') {
+          const song = benchSong(t.tune);
+          key(B.degMidi(wrap7(song.prog[0] + 1)));
+          await sleep(200);
+          await idle();
+          r.miss = bad();
+          r.said = said();
+          for (const d of song.prog) {
+            key(B.degMidi(d));
+            await sleep(150);
+            await idle();
+          }
+          r.filled = $$('.tp-slot:not(.empty)').length;
+        } else if (t.type === 'usedkeys') {
+          const want = [...new Set(R.mel.map((n) => B.degOf(n.m)))];
+          const no = [1, 2, 3, 4, 5, 6, 7].find((d) => !want.includes(d));
+          if (no) {
+            key(B.degMidi(no));
+            r.miss = bad();
+            r.said = said();
+          }
+          for (const d of want) {
+            key(B.degMidi(d));
+            await sleep(60);
+          }
+        } else if (t.type === 'marknote') {
+          const tap = (i) => {
+            const n = R.mel[i];
+            cell('pointerdown', n.s, n.m);
+            cell('pointerup', n.s, n.m);
+          };
+          if (t.accept) {
+            tap(R.mel.findIndex((_, i) => !t.accept.includes(i)));
+            r.miss = bad();
+            r.said = said();
+            await sleep(100);
+            tap(t.accept[0]);
+          } else {
+            tap(R.mel.findIndex((_, i) => !t.ends.includes(i)));
+            r.miss = bad();
+            await sleep(100);
+            const home = (i) => B.degOf(R.mel[i].m) === 1;
+            tap(t.ends.find((i) => home(i) !== (t.want === 'home')));
+            r.miss2 = bad();
+            r.said = said();
+            await sleep(100);
+            tap(t.ends.find((i) => home(i) === (t.want === 'home')));
+          }
+        } else if (t.type === 'staffkey') {
+          // 第三期 · 选学：谱子上的题。谱面上能点的地方是一块块透明的方块（.ts-hot），按下去和真的手指一样
+          key(t.notes[0] + (t.notes[0] % 12 === 4 || t.notes[0] % 12 === 11 ? 1 : 2));
+          r.miss = bad();
+          r.said = said();
+          for (const m of t.notes) {
+            key(m);
+            await sleep(80);
+          }
+        } else if (t.type === 'keystaff') {
+          ctlBtn('放这儿').click();
+          r.miss = bad();
+          r.said = said();
+          const want = posOf(t.m);
+          const p = B.staff.pointOf(1, want);
+          ptr('pointerdown', B.staff.hot('[data-spot]'), p.x, p.y); // 直接点谱面上那个位置
+          await sleep(80);
+          r.spot = B.staff.state.spot.pos === want;
+          if (!r.spot) for (let n = 0; n < 14 && B.staff.state.spot.pos !== want; n++) ctlBtn(B.staff.state.spot.pos < want ? '高一级' : '低一级').click();
+          ctlBtn('放这儿').click();
+        } else if (t.type === 'onsets') {
+          const hit = (k) => $$('.tn-pad .cl-key')[k].click(); // 两排 16 个方键
+          const want = t.notes.filter((n) => n[2] !== 'r').map((n) => n[0]);
+          const wrong = [1, 2, 3, 5].find((k) => !want.includes(k));
+          hit(wrong);
+          ctlBtn('对一下').click();
+          r.miss = bad();
+          r.said = said();
+          hit(wrong); // 再点一下：拿掉
+          want.forEach(hit);
+          ctlBtn('对一下').click();
+        } else if (t.type === 'spell' || t.type === 'fillbar') {
+          const card = (l, rest) => $(`.tn-card[data-len="${l}"][data-rest="${rest ? '1' : ''}"]`).click();
+          if (t.type === 'fillbar') {
+            const gap = (t.bar || 16) - Math.max(...t.notes.map((n) => n[0] + n[1]));
+            card(gap === 8 ? 4 : 8, false);
+            r.miss = bad();
+            r.said = said();
+            card(gap, false);
+          } else {
+            const first = t.notes[0];
+            card(first[1] === 4 ? 2 : 4, first[2] === 'r');
+            r.miss = bad();
+            r.said = said();
+            for (const n of t.notes) {
+              card(n[1], n[2] === 'r');
+              await sleep(60);
+            }
+          }
+        } else if (t.type === 'barlines') {
+          ctlBtn('对一下').click();
+          r.miss = bad();
+          r.said = said();
+          for (let at = t.bar; at < t.steps; at += t.bar) ptr('pointerdown', B.staff.hot(`[data-line="${at}"]`));
+          ctlBtn('对一下').click();
+        } else if (t.type === 'dynamics') {
+          ctlBtn('对一下').click();
+          r.miss = bad();
+          r.said = said();
+          const DYN = { p: 1, mf: 2, f: 3 };
+          let mark = 'mf';
+          const want = t.notes.map((_, i) => DYN[(mark = t.marks?.[i] || mark)]);
+          if (t.hairpin) for (let i = t.hairpin[0]; i <= t.hairpin[1]; i++) want[i] = Math.min(3, 1 + i - t.hairpin[0]);
+          for (let i = 0; i < want.length; i++) {
+            for (let n = 0; n < (want[i] - 2 + 3) % 3; n++) {
+              ptr('pointerdown', B.staff.hot(`[data-note="${i}"]`));
+              await sleep(40);
+            }
+          }
+          ctlBtn('对一下').click();
+        } else if (t.type === 'roadmap') {
+          const route = unroll(t.bars, t.repeats, t.voltas);
+          const tap = (b) => ptr('pointerdown', B.staff.hot(`[data-bar="${b}"]`));
+          tap(route[0] === 0 ? 1 : 0);
+          r.miss = bad();
+          // 走到反复记号那儿故意接着往右：要被说“跳回去”
+          for (let n = 0; n < route.length; n++) {
+            if (n > 0 && route[n] <= route[n - 1] && !r.miss2) {
+              tap(Math.min(t.bars - 1, route[n - 1] + 1));
+              r.miss2 = bad();
+              r.said = said();
+            }
+            tap(route[n]);
+            await sleep(120);
+          }
+        } else if (t.type === 'invert') {
+          const now = () => $$('.tb-key.ch').map((x) => Number(x.dataset.m)).sort((a, b) => a - b);
+          key(now()[1]);
+          r.miss = bad();
+          r.said = said();
+          for (let n = 0; n < 4 && !$('.tg-note.ok'); n++) {
+            key(now()[0]);
+            await sleep(120);
+          }
+        } else if (t.type === 'nearest') {
+          ctlBtn('对一下').click();
+          r.miss = bad();
+          const target = B.chordOf(t.to);
+          const far = target.map((m) => (m + 12 <= 84 ? m + 12 : m)); // 高一层的原样：音对了，可挪得远
+          far.forEach(key);
+          ctlBtn('对一下').click();
+          r.miss2 = bad();
+          r.said = said();
+          ctlBtn('清掉重选').click();
+          const up = (list) => [...list].sort((a, b) => a - b);
+          const cost = (a, b) => up(a).reduce((sum, x, j) => sum + Math.abs(x - up(b)[j]), 0);
+          const where = (pc) => Array.from({ length: 25 }, (_, j) => 60 + j).filter((m) => m % 12 === pc % 12);
+          let best = null;
+          for (const a of where(target[0])) for (const b2 of where(target[1])) for (const c of where(target[2])) if (!best || cost(t.from, [a, b2, c]) < cost(t.from, best)) best = [a, b2, c];
+          best.forEach(key);
+          ctlBtn('对一下').click();
+        } else if (t.type === 'suspend') {
+          const d = t.deg || 1;
+          const spot = { mid: B.chordOf(d)[1], up: B.degMidi(d + 3), down: B.degMidi(d + 1) };
+          key(B.chordOf(d)[0]);
+          r.miss = bad();
+          r.said = said();
+          key(spot[t.want === 'back' ? 'mid' : t.want]);
+        } else if (t.type === 'addtone') {
+          const d = t.deg || 1;
+          key(B.degMidi(d + 6));
+          r.miss = bad();
+          r.said = said();
+          await sleep(100);
+          key(B.degMidi(d + 8));
         } else if (t.type === 'note') {
           const cur = R.mel[t.idx];
           const c = R.state.chords.find((x) => x.s <= cur.s && cur.s < x.s + x.l);
@@ -374,4 +576,63 @@ export function start(ids) {
     window.__thWalkDone = true;
   })();
   return ids;
+}
+
+/**
+ * 量版式（2026-11-18 第三期）：把一关的每个小步、挑战的三档挨个摆出来，量有没有要滚的、出框的、小于 44 像素的按钮。
+ * 浏览器面板藏着的时候截图不可信，尺寸照样量得准。窗口先调成要量的大小（比如 1024 × 768）。
+ *   const w = await import('/js/dev/walk-theory.js'); await w.measure(['T28', 'T31']);   // 返回有问题的那几屏；一屏都没有就是 []
+ * 钢琴键和格子里的小块本来就窄（前两期就这样），不报。
+ */
+export async function measure(ids) {
+  const out = [];
+  for (const id of ids) {
+    location.hash = '#/classroom';
+    await sleep(200);
+    location.hash = `#/classroom/${id}`;
+    await until(() => $('.cl-lesson .cl-stage > *'), 3000);
+    const level = levelById(id);
+    const check = (where) => {
+      const stage = $('.cl-stage');
+      const sr = stage.getBoundingClientRect();
+      const probs = [];
+      const scrolls = (el, name) => {
+        if (!el) return;
+        if (el.scrollHeight > el.clientHeight + 1) probs.push(`${name}要滚 ${el.scrollHeight - el.clientHeight}`);
+        if (el.scrollWidth > el.clientWidth + 1) probs.push(`${name}横着溢出 ${el.scrollWidth - el.clientWidth}`);
+      };
+      scrolls(document.documentElement, '整页');
+      scrolls(stage, '舞台');
+      scrolls($('.tg-panel'), '小步那一块');
+      scrolls($('.cl-side'), '右边栏');
+      for (const el of $$('.cl-stage .tb, .cl-stage .tg-panel, .cl-stage .tg-foot, .cl-stage .tq-row, .cl-stage .tq-note, .cl-stage .cl-relay-bar')) {
+        const r = el.getBoundingClientRect();
+        if (r.height && (r.bottom > sr.bottom + 1 || r.right > sr.right + 1)) probs.push(`${el.className.split(' ')[0]} 出框 ${Math.round(Math.max(r.bottom - sr.bottom, r.right - sr.right))}`);
+      }
+      for (const b of $$('.cl-stage button, .cl-stage .ts-hot, .cl-side button')) {
+        const r = b.getBoundingClientRect();
+        if (!r.width || !r.height || b.closest('[hidden]') || b.classList.contains('tb-key')) continue;
+        if (r.height < 43.5 || r.width < 43.5) probs.push(`${(b.textContent || [...b.classList].join('.') || b.tagName).trim().slice(0, 8)} ${Math.round(r.width)}×${Math.round(r.height)}`);
+      }
+      if (probs.length) out.push({ id, where, probs: [...new Set(probs)] });
+    };
+    if (level.guide) {
+      const g = $('.cl-lesson').guide;
+      for (let k = 0; k < level.guide.beats.length; k++) {
+        g.go(k);
+        await sleep(250);
+        check(`小步 ${k + 1}`);
+      }
+      $('.cl-side-foot .btn.lg').click();
+      await sleep(400);
+    }
+    for (const tier of [1, 2, 3]) {
+      const pill = $(`.cl-tier.t${tier}`);
+      if (!pill) break;
+      pill.click();
+      await sleep(500);
+      check(`挑战 ${['铜', '银', '金'][tier - 1]}`);
+    }
+  }
+  return out;
 }

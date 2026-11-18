@@ -13,6 +13,7 @@
 import { h } from './util.js';
 import { audio } from './audio.js';
 import { createRoll } from './theory-roll.js';
+import { createStaff } from './theory-staff.js';
 
 // 样式是自己带来的（public/css/theory.css），不用改 index.html
 if (typeof document !== 'undefined' && !document.querySelector('link[data-theory]')) {
@@ -52,10 +53,14 @@ const s = (tag, attrs = {}) => {
  *   machine  机器的 7 个键发什么音：{ root, offsets }；不写就是梯子的前 7 级
  *   top      最上面那一层摆什么：'trail'（音高轨迹，默认）/ 'roll'（格子）/ 'ring'（回家圈；格子里有东西时并排摆）
  *   chordKeys 机器的键一个键弹几个音：0（一个音，默认）/ 3 / 4（CHORD 弹法：从这一级起隔一个拿一个）
+ *   dark     梯子在（第几级照样数得出），可键盘上不亮：拆歌的时候还没找到家、还不知道它用哪 7 个键（第三期）
+ *   piano    键盘摆不摆（默认摆；选学“看懂谱子”里只对着谱子和格子的那几步收起来）
+ *   big      格子加高、键盘压矮（拆歌：一首歌的贝斯、和弦、旋律摞在一张格子里，行多）。这时格子里贝斯那一层只留它踩过的几行
+ *   top 还可以是 'staff'：五线谱（theory-staff.js），下面带一条机器的格子
  * onKey(midi, from, degree)：学生按了一个键。from = 'piano' / 'synth'（机器的键，degree = 第几个）。
  */
 export function createTheoryBench(init = {}) {
-  const st = { ladder: null, home: false, names: false, degrees: false, keys: false, trail: true, machine: null, top: 'trail', chordKeys: 0, ...init };
+  const st = { ladder: null, home: false, names: false, degrees: false, keys: false, trail: true, machine: null, top: 'trail', chordKeys: 0, dark: false, piano: true, big: false, ...init };
   let timers = [];
   let points = []; // 轨迹上的点：{ m, cls }
   let ghost = []; // 淡淡的另一条线（要对上的那一句）
@@ -105,6 +110,11 @@ export function createTheoryBench(init = {}) {
   });
   const rollBox = h('div', { class: 'tb-roll' }, roll.el);
 
+  // ── 谱子（theory-staff.js；选学“看懂谱子”）──
+  const staffHit = (kind) => (v) => !api.locked && api.onStaff?.(kind, v);
+  const staff = createStaff({ onNote: staffHit('note'), onSpot: staffHit('spot'), onCell: staffHit('cell'), onLine: staffHit('line'), onBar: staffHit('bar') });
+  const staffBox = h('div', { class: 'tb-staff' }, staff.el);
+
   // ── 回家圈 ──
   const RW = 200;
   const ringSvg = s('svg', { viewBox: `0 0 ${RW} ${RW}`, class: 'tb-ring-svg' });
@@ -147,7 +157,7 @@ export function createTheoryBench(init = {}) {
   const lampEls = ['和弦到家', '贝斯站稳', '旋律到家'].map((t) => h('span', { class: 'tb-lamp' }, h('i', {}), t));
   const lampRow = h('div', { class: 'tb-lamps', hidden: true }, h('span', { class: 'tb-cap' }, '句号圆不圆'), lampEls);
 
-  const topBox = h('div', { class: 'tb-top' }, trailBox, ringBox, rollBox);
+  const topBox = h('div', { class: 'tb-top' }, trailBox, ringBox, rollBox, staffBox);
   const el = h('div', { class: 'tb' }, topBox, lampRow, piano, synthRow);
 
   // ── 状态 → 画面 ──
@@ -189,12 +199,14 @@ export function createTheoryBench(init = {}) {
   let chordNow = [];
 
   function paint() {
-    const lit = new Set(ladderMidis());
-    if (st.ladder && !st.ladder.noTop && st.ladder.root + 12 <= HI) lit.add(st.ladder.root + 12); // 梯子顶上那一级：高一层的家（noTop：还在搭，先不亮）
+    const lit = new Set(st.dark ? [] : ladderMidis());
+    if (!st.dark && st.ladder && !st.ladder.noTop && st.ladder.root + 12 <= HI) lit.add(st.ladder.root + 12); // 梯子顶上那一级：高一层的家（noTop：还在搭，先不亮）
     el.classList.toggle('show-names', !!st.names);
     el.classList.toggle('show-degrees', !!st.degrees);
     el.classList.toggle('no-keys', !st.keys);
     el.classList.toggle('no-trail', !st.trail);
+    el.classList.toggle('no-piano', st.piano === false);
+    el.classList.toggle('big-roll', !!st.big);
     // 格子里还没摆东西的时候先摆着轨迹，别亮出一块空格子
     const filled = roll.state.rows.length > 0;
     el.dataset.top = !st.trail ? 'none' : st.top === 'roll' && !filled ? 'trail' : st.top;
@@ -332,8 +344,37 @@ export function createTheoryBench(init = {}) {
     moodOf,
     playChord,
     roll,
-    /** 键盘上叠一摞色块（null = 收起来）。第一个是地基 */
-    chord(notes) {
+    staff,
+    /**
+     * 放谱子上的音（notes = [{ s, l, m, vel? }]，没有 m 的是休止；vel：1 轻 / 2 中 / 3 重）：谱上正在响的那个音符变色，键跟着亮。
+     * from + steps：只放从第 from 格起的 steps 格（一小节一小节放的时候用）。放完 resolve（被 stop() 打断也会）。
+     */
+    playStaff(notes, { bpm = 92, steps = staff.state.steps, voice = 'keys', keys = true, from = 0 } = {}) {
+      api.stop();
+      busy = true;
+      const sd = 60 / bpm / 4;
+      const sounding = notes.map((n, i) => ({ ...n, i })).filter((n) => n.m !== undefined && n.m !== null && n.s >= from && n.s < from + steps);
+      audio.init().then((ok) => {
+        if (!ok) return;
+        const t0 = audio.now() + 0.06;
+        for (const n of sounding) audio.note(n.m, t0 + (n.s - from) * sd, Math.max(0.12, n.l * sd * 0.92), { voice, vel: n.vel ? [0, 0.36, 0.68, 1][n.vel] : 0.85 });
+      });
+      return new Promise((resolve) => {
+        for (const n of sounding) timers.push(setTimeout(() => {
+          staff.now(n.i);
+          if (keys) flash(n.m, Math.max(140, n.l * sd * 800));
+        }, 60 + (n.s - from) * sd * 1000));
+        const done = () => {
+          busy = false;
+          staff.now(-1);
+          resolve();
+        };
+        timers.push(setTimeout(done, 60 + steps * sd * 1000 + 160));
+        api._resolve = done;
+      });
+    },
+    /** 键盘上叠一摞色块（null = 收起来）。第一个是地基。labels：每一块上写什么（默认 基 / 中 / 上 / 四） */
+    chord(notes, labels) {
       for (const m of chordNow) keyEls.get(m)?.classList.remove('ch', 'ch1');
       chordNow = notes ? [...notes] : [];
       chordNow.forEach((m, k) => {
@@ -341,7 +382,8 @@ export function createTheoryBench(init = {}) {
         if (!key) return;
         key.classList.add('ch');
         key.classList.toggle('ch1', k === 0);
-        key.lastChild.textContent = LAYER[k] || '';
+        // 第四个音离地基不是 10、11 格（不是“第四层”）：它是顶上另加的，写“加”
+        key.lastChild.textContent = (labels || (k === 3 && ![10, 11].includes(notes[3] - notes[0]) ? ['', '', '', '加'] : LAYER))[k] || '';
       });
     },
     /** 三盏灯：[和弦到家, 贝斯站稳, 旋律到家]；null = 收起来 */
@@ -381,15 +423,22 @@ export function createTheoryBench(init = {}) {
     },
     /**
      * 把一段 score 摆到格子上。rows 不写就照里面的音自己定（上下各留一行）；别的原样交给格子（mode、unit、snap、tone、ghost）。
-     * 行首标的是梯子上的第几级，家那一行是桔红的。
+     * 行首标的是梯子上的第几级，家那一行是桔红的。anon：行首不标、家也不标（还没找到家的时候）；
+     * hide：['chords' / 'bass' / 'mel'] 这几样不画（照样给它们留着行：声音里有，只是不给看）。
      */
-    rollShow(score, { rows, range, fit = [], ...rest } = {}) {
+    rollShow(score, { rows, range, fit = [], anon = false, hide = [], ...rest } = {}) {
       // fit：现在还没有、等会儿要放进来的音（比如还没配上的贝斯），先给它们留好行
       const all = [...(score.chords || []).flatMap((c) => c.notes), ...(score.bass || []).map((b) => b.m), ...(score.mel || []).map((n) => n.m), ...(rest.ghost || []).map((n) => n.m), ...fit];
       const L = st.ladder;
       const lo = range ? range[0] : Math.min(...all, L ? L.root : LO) - 2;
       const hi = range ? range[1] : Math.max(...all, L ? L.root + 7 : LO + 7) + 2;
-      const list = rows || api.ladderRows(lo, hi, all);
+      let list = rows || api.ladderRows(lo, hi, all);
+      if (!rows && !range && st.big && L) {
+        // 拆歌：上面（和弦、旋律）照梯子一行一级摆全；贝斯在低一层，只留它踩过的那几行，省地方
+        const low = all.filter((m) => m < L.root - 4);
+        const high = all.filter((m) => m >= L.root - 4);
+        list = [...api.ladderRows(Math.min(...high, L.root) - 1, Math.max(...high, L.root + 7) + 1, high), ...[...new Set(low)].sort((a, b) => b - a)];
+      }
       const labels = {};
       if (L) {
         for (const m of list) {
@@ -397,7 +446,8 @@ export function createTheoryBench(init = {}) {
           if (k >= 0) labels[m] = String(L.degrees ? L.degrees[k] : k + 1);
         }
       }
-      roll.set({ steps: score.steps, chords: score.chords || [], bass: score.bass || [], mel: score.mel || [], ghost: [], mode: null, tone: false, unit: 2, snap: 2, rows: list, labels, homes: L && st.home ? [L.root] : [], ...rest });
+      const part = (k) => (hide.includes(k) ? [] : score[k] || []);
+      roll.set({ steps: score.steps, chords: part('chords'), bass: part('bass'), mel: part('mel'), ghost: [], mode: null, tone: false, unit: 2, snap: 2, pickCol: false, rows: list, labels: anon ? {} : labels, homes: L && st.home && !anon ? [L.root] : [], ...rest });
       paint();
       return api;
     },
@@ -476,9 +526,10 @@ export function createTheoryBench(init = {}) {
     },
     /**
      * 放一段格子里的东西：score = { steps, bpm?, chords, bass, mel }（键号的，见 theory-roll.js）。播放头跟着走，旋律的键跟着亮，和弦叠成色块。
-     * parts：只放其中几样（['chords', 'bass', 'mel']）；times：转几圈。放完 resolve（被 stop() 打断也会）。
+     * parts：只放其中几样（['chords', 'bass', 'mel']）；times：转几圈；keys: false 键盘上不跟着亮（只听）；
+     * offset：放的是切出来的一段时，播放头从第几格走起。放完 resolve（被 stop() 打断也会）。
      */
-    playScore(score, { parts = ['chords', 'bass', 'mel'], times = 1, bpm = score.bpm || 96, keys = true } = {}) {
+    playScore(score, { parts = ['chords', 'bass', 'mel'], times = 1, bpm = score.bpm || 96, keys = true, offset = 0 } = {}) {
       api.stop();
       busy = true;
       const sd = 60 / bpm / 4;
@@ -497,7 +548,7 @@ export function createTheoryBench(init = {}) {
         for (let r = 0; r < times; r++) {
           for (let k = 0; k < score.steps; k++) {
             timers.push(setTimeout(() => {
-              roll.head(k);
+              roll.head(k + offset);
               if (keys && has('chords')) {
                 const c = (score.chords || []).find((x) => x.s === k);
                 if (c) api.chord(c.notes);
@@ -606,6 +657,7 @@ export function createTheoryBench(init = {}) {
       for (const k of keyEls.values()) k.classList.remove('down');
       synthEls.forEach((b) => b.classList.remove('down'));
       roll.head(null);
+      staff.now(-1);
       const r = api._resolve;
       api._resolve = null;
       busy = false;

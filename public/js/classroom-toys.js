@@ -20,6 +20,7 @@ import { orderQuiz, oddQuiz, memoryQuiz, dictateQuiz, echoQuiz, askQuiz, randomP
 import { RHYTHM_TOYS } from './classroom-rhythm.js';
 import { DJ_TOYS } from './classroom-dj.js';
 import { THEORY_TOYS } from './theory-toys.js';
+import { THEORY_TOYS3 } from './theory-toys3.js';
 
 // 公用的小零件（按钮、垫子、16 个格子、放音、“听一听选一个”的骨架）在 classroom-kit.js
 
@@ -1505,7 +1506,7 @@ function buildup(spec, env) {
 /** spec.stages = [{ toy, title, ... }, …]：一段过了才能进下一段；全过了，星星按最差的那一段给 */
 function relay(spec, env, level) {
   const stages = spec.stages || [];
-  let i = 0;
+  let i = Math.max(0, Math.min(stages.length - 1, (Number(new URLSearchParams(location.search).get('clstage')) || 1) - 1)); // 开发用（截图）：?clstage=3 直接从第 3 段开始
   let got = [];
   let cur = null;
   let extra = ''; // 某一段过关时带的补充的话（见 views/classroom.js 的 award）
@@ -1570,6 +1571,7 @@ const TOYS = {
   ...RHYTHM_TOYS,
   ...DJ_TOYS,
   ...THEORY_TOYS, // 乐理线重做之后的挑战：都在乐理台上做（theory-toys.js）
+  ...THEORY_TOYS3, // 第三期：拆歌、大关的四段、选学的两个单元（theory-toys3.js）
 };
 
 // 三档的默认规矩：铜 / 银 / 金。新的几种题自己会看 env.tier；老的几种在这里换参数。关里写了 quiz.tiers 的以它为准

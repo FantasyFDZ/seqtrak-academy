@@ -169,8 +169,9 @@ for id in $(node -e "import('./public/js/content/arrangement-lessons.js').then((
   walk "?fake&walk=$id" 400000
 done
 
-# 小课堂（乐理、节奏、效果、DJ 四条线的小关）：2026-11-15 起列表上的关全部开放（2026-11-17 节奏线加了 R9、乐理线加了 T18–T27，一共 54 关：open=54 soon=0）；每关各打开一次，看能玩的东西摆出来没有。
-# 另有推荐路线（8 站、54 个关的小牌子）、卡册（54 张卡）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
+# 小课堂（乐理、节奏、效果、DJ 四条线的小关）：2026-11-15 起列表上的关全部开放（2026-11-17 节奏线加了 R9、乐理线加了 T18–T27；
+# 2026-11-18 乐理线第三期又加了 T28–T36，一共 63 关：open=63 soon=0，其中 6 关是选学 optional=6）；每关各打开一次，看能玩的东西摆出来没有。
+# 另有推荐路线（9 站、57 个关的小牌子，最下面 2 段选学的岔路上另有 6 个，一共 chips=63）、卡册（63 张卡，6 张带“选学”的角标）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
 # 再看“试一试”和“用在机器上”那两屏：?clstep=quiz / machine 是开发用的参数，直接从那一步开始（public/js/views/classroom.js）。
 # “用在机器上”有三种样子：模拟机、效果关用的效果模拟机、接着假真机时的真机镜像（class 里带 live）。窗口按最小的平板 1024 × 768 开。
 # 把每一关真的从头走到尾（要点、要拍、要等声音）在无界面的浏览器里做不了：那是 public/js/dev/walk-classroom.js，在开着的浏览器里跑。
@@ -178,25 +179,46 @@ classroom() {
   "$CHROME" --headless=new --disable-gpu --no-first-run --user-data-dir=$D/profile --window-size=1024,768 --virtual-time-budget=${2:-5000} --dump-dom "$BASE/$1" 2>/dev/null > $D/dom.html
 }
 classroom '#/classroom'
-echo "classroom -> levels=$(count 'class="cl-node[ "]') open=$(count '<a class="cl-node') soon=$(count 'class="cl-node soon"') errors=$(count '这一页出错了')"
+echo "classroom -> levels=$(count 'class="cl-node[ "]') open=$(count '<a class="cl-node') soon=$(count 'class="cl-node soon"') optional=$(count 'class="cl-node [^"]*optional') errors=$(count '这一页出错了')"
 playable=0
 broken=''
 # 2026-11-17 乐理线重做第二期：多了 T18–T27 这 10 关（单元 3「旋律」、单元 4「和声」）；推荐路线多一站（8 站），多一页小本子。
-for id in T1 T2 T5 T6 T14 T15 T7 T16 T8 T12 T17 T18 T19 T20 T21 T22 T9 T10 T23 T24 T25 T11 T26 T27 TB R1 R2 R3 R4 R5 R6 R7 R8 R9 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
+# 2026-11-18 第三期：多了 T28–T30（单元 5「拆歌」，大关 TB 排在它后面）和选学的 T31–T36；推荐路线又多一站（9 站）。
+for id in T1 T2 T5 T6 T14 T15 T7 T16 T8 T12 T17 T18 T19 T20 T21 T22 T9 T10 T23 T24 T25 T11 T26 T27 T28 T29 T30 TB T31 T32 T33 T34 T35 T36 R1 R2 R3 R4 R5 R6 R7 R8 R9 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
   classroom "#/classroom/$id"
   if [[ $(count 'class="cl-toy') -ge 1 && $(count 'class="cl-say"') -eq 1 && $(count '这一页出错了') -eq 0 ]]; then playable=$((playable + 1)); else broken="$broken $id"; fi
 done
-echo "classroom levels -> playable=$playable/54 broken=[${broken# }]"
+echo "classroom levels -> playable=$playable/63 broken=[${broken# }]"
 classroom '#/classroom/works'
 echo "classroom works -> page=$(count 'tw-page') empty=$(count 'class="tw-empty"') tabs=$(count 'class="cl-tab[ "]') errors=$(count '这一页出错了')"
 classroom '#/classroom/route'
-echo "classroom route -> stops=$(count 'class="cl-stop[ "]') chips=$(count 'class="cl-chip[ "]') next=$(count 'class="cl-next"') errors=$(count '这一页出错了')"
+echo "classroom route -> stops=$(count 'class="cl-stop[ "]') side=$(count 'class="cl-side-stop') chips=$(count 'class="cl-chip[ "]') next=$(count 'class="cl-next"') errors=$(count '这一页出错了')"
 classroom '#/classroom/cards'
-echo "classroom cards -> cards=$(count 'class="cl-kcard[ "]') locked=$(count 'cl-kcard locked') errors=$(count '这一页出错了')"
+echo "classroom cards -> cards=$(count 'class="cl-kcard[ "]') locked=$(count 'cl-kcard locked') optional=$(count 'class="cl-opt-tag"') errors=$(count '这一页出错了')"
 classroom '#/classroom/daily'
 echo "classroom daily -> dots=$(count '<i class="[^"]*">[A-Z][0-9B]*</i>') toy=$(count 'class="cl-toy') errors=$(count '这一页出错了')"
 classroom '?clstep=quiz#/classroom/R4'
 echo "classroom rhythm -> tiers=$(count 'class="cl-tier[ "]') game=$(count 'game-canvas') errors=$(count '这一页出错了')"
+# 乐理线第三期（2026-11-18）。开发用的参数：?tgbeat=3 “跟啾啾学”直接到第 3 小步（public/js/theory-guide.js），?clstage=3 大关直接从第 3 段开始。
+# T28 第 1 小步：格子摆着《Faded》的一圈（16 个旋律小块），还没找到家，所以键盘上一个键都不亮（lit=0）、格子行首不标级（labels=0）；
+# T29 第 3 小步：四格和弦的空槽（slots=4）；大关四段接力（stages=4），第 3 段是找和弦（slots=4）；
+# T31 第 2 小步：最上面是谱子（staff=1），5 条线、5 个音符；T32 铜档挑战：谱子下面一条 16 格的格子（cells=16）、两排 16 个能点的方键（pad=16）；
+# T34 第 5 小步：四小节的谱，带一对反复记号（repeat=1），小节上面写着 A–D（bars=4）；T35 第 2 小步：键盘上叠着一摞（chord=3）。
+classroom '?tgbeat=1#/classroom/T28'
+t28="notes=$(count 'class="tr-n[ "]') lit=$(count 'class="tb-key [wb] lit') labels=$(grep -o '<div class="tr-gutter"[^>]*>.*' $D/dom.html | sed 's|</div>.*||' | grep -o '<span class="[a-z]*">[0-9]' | wc -l | tr -d ' ')"
+classroom '?tgbeat=3#/classroom/T29'
+t29="slots=$(count 'class="tp-slot[ "]')"
+classroom '?clstep=quiz&clstage=3#/classroom/TB'
+tb="stages=$(grep -o '<ol class="cl-relay-chips">.*' $D/dom.html | sed 's|</ol>.*||' | grep -o '<li' | wc -l | tr -d ' ') slots=$(count 'class="tp-slot[ "]')"
+classroom '?tgbeat=2#/classroom/T31'
+t31="staff=$(count 'data-top="staff"') lines=$(count 'class="ts-line"') notes=$(count 'class="ts-n[ "]')"
+classroom '?clstep=quiz&cltier=1#/classroom/T32'
+t32="cells=$(count 'class="ts-cell[ "]') pad=$(count '<button class="cl-key')"
+classroom '?tgbeat=5#/classroom/T34'
+t34="repeat=$(count 'class="ts-repeat"') bars=$(count 'class="ts-barname"')"
+classroom '?tgbeat=2#/classroom/T35'
+t35="chord=$(count 'class="tb-key [wb][^"]* ch[ "]')"
+echo "classroom theory3 -> T28 $t28 | T29 $t29 | TB $tb | T31 $t31 | T32 $t32 | T34 $t34 | T35 $t35 errors=$(count '这一页出错了')"
 # 节奏线“一心多用”第一批（2026-11-17，public/js/classroom-rhythm2.js）：R1 节拍器三招的一排拍子（热身那一招 8 拍）、
 # R9 的 8 格镲和两块垫子、R7 热身的两排格子（2 × 8）和挑战的两段接力（第一段是音游）、R2 的读法条（热身 16 个字；挑战第一段 16 个能点的字，
 # 用 ?rhshot=next-stage 进到第二段：音游下面一条 16 个字）
@@ -229,7 +251,7 @@ echo "classroom machine (mirror) -> bench-live=$(count 'class="cl-bench live"') 
 # 首页（闯关地图）、两套配色、经验值和徽章。
 # 先放进一份“改版之前的旧进度”（没有 game 那一段，设置里也没有配色）：页面要按机身配色打开，并把经验值和徽章回算出来、写回去。
 # 这份进度应该算出：573 经验 = Lv 3 节拍手，15 个徽章里拿到 3 个（第一声、连练 3 天、通关一章）；
-# 地图上 49 个点（map-nodes）= 35 节课 + 章开头挂着的 14 个小课堂的小关（minis：第 1 章前 T1 R1，第 2 章前 T5 T7，第 3 章前 T10 T11，
+# 地图上 49 个点（map-nodes）= 35 节课 + 章开头挂着的 14 个小课堂的小关（minis：第 1 章前 R1 R9，第 2 章前 T5 T15，第 3 章前 T9 T28（2026-11-18 按乐理线的单元重新挂的；之前是 T1 R1、T5 T7、T10 T11），
 # 第 4 章前 F2 F4，第 6 章前 D1 D4，第 7 章前 F5 F6，第 8 章前 D3 D5；这份进度里一个都没学，minis-done=0）；
 # done / now / locked 只数课：3 关已通过，现在这一关是 1.1，锁着 31 关（2026-11-15 小课堂丰富版之后实测的数）；
 # 左边的导航栏上亮着的入口是路由表里有页面的那几个（小课堂接上之后是 7 个，之前是 6 个）。窗口按平板横屏 1180 × 820 开。
@@ -254,11 +276,12 @@ ls -l tools/out/home-neon.png | awk '{print "screenshot -> " $NF " " $5 " bytes"
 # 小课堂接进经验值、徽章和地图。规则在 public/js/levels.js：学完一关 1 星 20 / 2 星 25 / 3 星 30，是从进度的 classroom 字段算出来的
 # （不另外记账），所以再学一遍不会重复给，旧进度里学过的关自动补上。还是用上面那份旧进度（573 经验）。
 # ?clstep=done 是开发用的参数：直接把这一关记成学完（跳过了挑战，没有牌：存的是 stars:0，经验按 1 星算）。应该看到：
-#   学完 T1：完成卡上写“+40 经验”（这一关 20 + 今天第一次练习 20），573 → 613；首页地图上 5 个小关亮了 1 个；
+#   学完 T1：完成卡上写“+40 经验”（这一关 20 + 今天第一次练习 20），573 → 613；首页地图上的小关一个没亮（minis-done=0：2026-11-18 起 T1 不挂在地图上了，之前这里是 1）；
 #   再学一遍 T1：完成卡上没有那一行（gain 是空的），还是 613，times 变成 2；
-#   再学完 R1、F1：653；乐理、节奏、效果三条线都有了，多一个徽章“三线齐亮”（got 从 3 变成 4）；
-#   旧进度里本来就带着学过的关（T1 三星、R1 两星，没有 game 那一段）：一打开就是 573 + 30 + 25 = 628，小关亮 2 个；
-#   “清空学习进度”（设置页的按钮调的是 store.resetProgress()；无界面的浏览器里点不了按钮，所以在 Node 里直接调）：classroom 没了，经验回到 0。
+#   再学完 R1、F1：653；乐理、节奏、效果三条线都有了，多一个徽章“三线齐亮”（got 从 3 变成 4）；地图上的小关亮 1 个（R1；之前是 2）；
+#   旧进度里本来就带着学过的关（T1 三星、R1 两星，没有 game 那一段）：一打开就是 573 + 30 + 25 = 628，小关亮 1 个（R1；之前是 2）；
+#   “清空学习进度”（设置页的按钮调的是 store.resetProgress()；无界面的浏览器里点不了按钮，所以在 Node 里直接调）：classroom 没了，经验回到 0；
+#   小本子里的作品（works）也跟着清掉（2026-11-18 起）。
 BODY='"settings":{"inputOffsetMs":0,"metronome":true,"speak":false,"unlockAll":false,"engine":"fast"}'
 xp() { node tools/xp-check.mjs $D/data | grep -E '^(小课堂|经验)' | tr '\n' ' '; }
 gain() { grep -o '<p class="cl-gain">[^/]*/b>[^<]*' $D/dom.html | sed 's/<[^>]*>//g'; }
@@ -278,10 +301,10 @@ home rooms-old ''
 echo "classroom xp: old progress -> $(xp)"
 node --input-type=module -e '
   import { store } from "./public/js/store.js";
-  store.update((d) => { d.classroom = { T1: { done: true, stars: 3 }, R1: { done: true, stars: 1 } }; });
+  store.update((d) => { d.classroom = { T1: { done: true, stars: 3 }, R1: { done: true, stars: 1 } }; d.works = [{ at: "2026-11-18T10:00:00.000Z", level: "T17", root: 60, scale: "penta", notes: [60, 63, 60] }]; });
   const before = store.progress().xp;
   store.resetProgress();
-  console.log(`classroom reset -> before=${before} after=${store.progress().xp} classroom=${JSON.stringify(store.data.classroom ?? null)}`);
+  console.log(`classroom reset -> before=${before} after=${store.progress().xp} classroom=${JSON.stringify(store.data.classroom ?? null)} works=${JSON.stringify(store.data.works ?? null)}`);
 ' 2>/dev/null
 
 kill $SERVER 2>/dev/null

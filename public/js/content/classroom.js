@@ -23,6 +23,7 @@
 //   coach      给啾啾（AI 教练）看的教学要点
 //   links      相关的：{ lessons: 课程 id, charts: 音游谱面 id, songs: 曲目 id（分轨页）, full: 曲目 id（完整版页）}
 //   ask        快问快答：[{ q, a: [对的, 错的…], why }]（每日五分钟、卡册里“考考我”用）
+//   optional   true = 选学（乐理线的“看懂谱子”“和弦进阶”）：不在推荐路线上，列表、卡册上带“选学”的小标签
 // 写法上的规矩：短句、口语；先玩出感觉，再给它起名字；不出现五线谱，不先下定义；啾啾的话里可以带“啾”。
 
 import { THEORY, THEORY_UNITS } from './cl-theory.js';
@@ -87,10 +88,19 @@ export const ROUTE = [
   { id: 'drums', name: '鼓怎么摆', with: '配第 1 章', lesson: '1-2', ids: ['R3', 'R7', 'R4', 'R5', 'R9', 'R6', 'R8', 'RB'] }, // R9（重音挪一挪）接在反拍、切分后面：它的“挪进缝里”用得上那两关
   { id: 'pitch', name: '音的高低', with: '配第 2 章', lesson: '2-1', ids: ['T5', 'T6', 'T14', 'T15', 'T7', 'T16', 'T8', 'T12', 'T17'] },
   { id: 'melody', name: '写一句旋律', with: '配第 2 章', lesson: '2-3', ids: ['T18', 'T19', 'T20', 'T21', 'T22'] },
-  { id: 'stack', name: '叠起来', with: '配第 3 章', lesson: '3-1', ids: ['T9', 'T10', 'T23', 'T24', 'T25', 'T11', 'T26', 'T27', 'TB'] },
+  { id: 'stack', name: '叠起来', with: '配第 3 章', lesson: '3-1', ids: ['T9', 'T10', 'T23', 'T24', 'T25', 'T11', 'T26', 'T27'] },
+  { id: 'songs', name: '把歌拆开', with: '配第 3 章', lesson: '3-4', ids: ['T28', 'T29', 'T30', 'TB'] }, // 乐理线单元 5（2026-11-18 第三期）：拆曲目库里的歌，大关是它的最后一关
   { id: 'shape', name: '捏声音', with: '配第 4 章', lesson: '4-2', ids: ['F2', 'F3', 'F4', 'F7'] },
   { id: 'space', name: '空间和现场', with: '配第 7 章', lesson: '7-1', ids: ['F5', 'F6', 'F8', 'F10', 'F9', 'F11', 'FB'] },
   { id: 'dj', name: '上台打碟', with: '配第 6、8 章', lesson: '6-4', ids: ['D1', 'D4', 'D2', 'D5', 'D3', 'D6', 'DB'] },
+];
+/**
+ * 选学的关（关上写着 optional: true）：不在这条路上。路线页把它们单独摆在最下面当“岔路”；“按路线，下一关”永远不会指到它们，
+ * 每日五分钟也不拿它们“尝鲜”（学过了才会来复习），关底大关不考。
+ */
+export const ROUTE_SIDE = [
+  { id: 'read', name: '看懂谱子', with: '想读五线谱再来', ids: ['T31', 'T32', 'T33', 'T34'] },
+  { id: 'voice', name: '和弦进阶', with: '自己按和弦时用得上', ids: ['T35', 'T36'] },
 ];
 export const ROUTE_ORDER = ROUTE.flatMap((s) => s.ids);
 export const stopOf = (id) => ROUTE.find((s) => s.ids.includes(id)) || null;

@@ -24,8 +24,8 @@ const M = (degs, unit = 2, at = 0) => {
 /** 一串和弦（第几级）排进格子：每个占 len 格 */
 const C = (degs, len = 4, at = 0) => degs.map((d, i) => [at + i * len, len, d]);
 
-const NOTE = (keys, text, goal, wait, count = keys.length) => ({ text, goal, panel: keys.map((k) => `SK${k}`), detect: { kind: 'note', track: 'SYNTH1', count }, wait });
-const TO_CHORD = {
+export const NOTE = (keys, text, goal, wait, count = keys.length) => ({ text, goal, panel: keys.map((k) => `SK${k}`), detect: { kind: 'note', track: 'SYNTH1', count }, wait });
+export const TO_CHORD = {
   text: '找到右边桔红色那块里**竖着的 4 个旋钮**，慢慢转**从上往下数第 2 个**，转到左边那列文字里的 “CHORD” 亮。',
   simText: '找到右边桔红色那块里**竖着的 4 个旋钮**，按住**从上往下数第 2 个**往上拖，拖到左边那列文字里的 “CHORD” 亮。',
   goal: '让 SYNTH 2 一个键弹出一个和弦。',

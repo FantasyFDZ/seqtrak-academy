@@ -277,6 +277,7 @@ class Store extends Emitter {
       delete d.panelQuiz;
       delete d.classroom; // 小课堂学过的关（views/classroom.js 写的）
       delete d.classroomDaily; // 小课堂的每日五分钟（做过哪几天）
+      delete d.works; // 小本子里的小作品（theory-toys.js 写的）：2026-11-18 起跟着一起清
       d.game = blankGame();
       d.game.seen.intro = true;
     });

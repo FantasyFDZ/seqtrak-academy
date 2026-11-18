@@ -290,7 +290,7 @@ export async function settingsView(view) {
       fastCard,
       deepCard));
   const resetFold = h('details', { class: 'fold', open: unfold },
-    h('summary', {}, h('span', {}, '清空学习进度'), h('small', {}, '想从头再来的时候用；清了找不回来')),
+    h('summary', {}, h('span', {}, '清空学习进度'), h('small', {}, '想从头再来的时候用；小本子里的作品也一起清，清了找不回来')),
     h('div', { class: 'fold-body' },
       progSummary,
       h('p', { class: 'muted small', style: { margin: '0' } }, '课程、音游成绩、小课堂、经验值和徽章都会清掉，上面这些设置留着。'),

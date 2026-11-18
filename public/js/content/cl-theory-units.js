@@ -5,9 +5,11 @@
 // 新关：T14 机器的 7 个键、T15 搭一把梯子、T16 家、T17 小作品。
 // 写法上的规矩照旧：短句、口语；先做出来，再给它起名字；主路上不出现五线谱；啾啾的话里可以带“啾”。
 // 键号：60 是最左边的 C，每格加 1（61 = C#、62 = D……72 = 高一层的 C）。deg 是梯子上的第几级，8 = 高一层的家。
-// 第二期（单元 3「旋律」、单元 4「和声」）在 cl-theory-units2.js；这个文件最后的 redo() 把两期排到一起。
+// 第二期（单元 3「旋律」、单元 4「和声」）在 cl-theory-units2.js，第三期（单元 5「拆歌」、重做的大关、两个选学单元）在 cl-theory-units3.js；
+// 这个文件最后的 redo() 把三期排到一起。
 import { PICK } from './classroom-bits.js';
 import { UNITS_PHASE2 } from './cl-theory-units2.js';
+import { UNITS_PHASE3 } from './cl-theory-units3.js';
 
 export const THEORY_UNITS = [
   { id: 'u0', name: '拍子', sub: '以后并进节奏线' },
@@ -15,7 +17,10 @@ export const THEORY_UNITS = [
   { id: 'u2', name: '单元 2 · 梯子', sub: '音阶、亮暗、家' },
   { id: 'u3', name: '单元 3 · 旋律', sub: '走跳、问答、重复、长短' },
   { id: 'u4', name: '单元 4 · 和声', sub: '距离、和弦、贝斯、转圈' },
-  { id: 'u9', name: '大关', sub: '下一期重做' },
+  { id: 'u5', name: '单元 5 · 拆歌', sub: '找家、找和弦、看旋律' },
+  // 选学：不在主路上（推荐路线不经过，每日五分钟不拿它们“尝鲜”，大关也不考）。关上写着 optional: true
+  { id: 'x1', name: '选学 · 看懂谱子', sub: '想读五线谱再来', optional: true },
+  { id: 'x2', name: '选学 · 和弦进阶', sub: '换站法、加颜色', optional: true },
 ];
 
 const CHROMA = [60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72];
@@ -226,6 +231,8 @@ const T8 = {
       { kind: 'do', say: '啾啾问一句，你答一句。想把话说完，就落在家上。', goal: '点「听啾啾问」，然后用亮着的键**答 4 个音**。', show: { ladder: 'penta' }, task: { type: 'answer', ask: [1, 2, 3, 4], count: 4 } },
     ],
   },
+  // 2026-11-18 第三期：挑战从一排 6 个键（pentaecho）搬到了乐理台上（theory-toys3.js 的 pentaback），玩法没变
+  quiz: { toy: 'pentaback', ask: '啾啾唱一句，你在安全区的键上照着弹回来。铜：2 个音，看得见啾啾那条线；银：3 个音，只亮第一个；金：4 个音，只能听。' },
 };
 
 const LINE = [1, 3, 5, 4, 3, 2, 1];
@@ -284,12 +291,14 @@ export function redo(old) {
     return { ...rest, ...patch };
   };
   const P = UNITS_PHASE2;
+  const Q = UNITS_PHASE3;
   return [
     { ...by.T1, unit: 'u0' }, { ...by.T2, unit: 'u0' },
     swap('T5', T5), swap('T6', T6), T14,
     T15, swap('T7', T7), T16, swap('T8', T8), swap('T12', T12), T17,
     P.T18, P.T19, P.T20, P.T21, P.T22,
     swap('T9', P.T9), swap('T10', P.T10), P.T23, P.T24, P.T25, swap('T11', P.T11), P.T26, P.T27,
-    { ...by.TB, unit: 'u9' },
+    Q.T28, Q.T29, Q.T30, swap('TB', Q.TB), // 大关沿用老的关号：旧进度和卡不丢
+    ...['T31', 'T32', 'T33', 'T34', 'T35', 'T36'].map((id) => Q[id]).filter(Boolean),
   ];
 }

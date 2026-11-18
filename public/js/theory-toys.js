@@ -30,7 +30,7 @@ const degOf = (root, offsets, d) => root + offsets[(d - 1) % offsets.length] + 1
  * start(make)：make() → 一轮 { ask, hint?, start(), replay?(), onKey?(m, from, d), solve() }。
  * 轮里用 f.good(话) / f.bad(话, 键) 报对错；答对 need 轮过关，星星看一共错了几次。
  */
-function frame(env, need, { listenLabel = '▶ 再听' } = {}) {
+export function frame(env, need, { listenLabel = '▶ 再听' } = {}) {
   const bench = createTheoryBench();
   const lamps = lampRow(need);
   const ask = h('div', { class: 'tq-ask' });
@@ -127,7 +127,7 @@ function frame(env, need, { listenLabel = '▶ 再听' } = {}) {
 }
 
 /** 不亮键、只出声地放几个音（挑战里“听了再找”的时候用：亮了就等于告诉答案） */
-function blind(bench, midis, gap = 0.6) {
+export function blind(bench, midis, gap = 0.6) {
   midis.forEach((m, i) => m !== null && bench.tone(m, { at: i * gap, len: gap * 1.1 }));
 }
 
@@ -557,9 +557,9 @@ const rungIn = (root, offsets, m) => {
   return k < 0 ? null : oct * offsets.length + k;
 };
 const names = (notes) => notes.map(nameOf).join(' ');
-const btn = (label, fn, cls = '') => h('button', { class: `btn ${cls}`, type: 'button', 'data-sfx': 'none', onclick: fn }, label);
+export const btn = (label, fn, cls = '') => h('button', { class: `btn ${cls}`, type: 'button', 'data-sfx': 'none', onclick: fn }, label);
 /** 放的时候按键没反应 */
-async function locked(bench, fn) {
+export async function locked(bench, fn) {
   bench.locked = true;
   try {
     await fn();

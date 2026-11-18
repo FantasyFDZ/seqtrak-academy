@@ -16,7 +16,7 @@ import { coachFace } from '../coach-face.js';
 import { quizPerfect } from '../jiu-eggs.js';
 import { sfx } from '../sfx.js';
 import { confetti, pop, typeOut } from '../fx.js';
-import { LINES, LEVELS, OPEN_LEVELS, KINDS, ROUTE, UNITS, levelById, isOpen, nextOpen, stepsOf, routeNext, stopOf, lineOf } from '../content/classroom.js';
+import { LINES, LEVELS, OPEN_LEVELS, KINDS, ROUTE, ROUTE_SIDE, UNITS, levelById, isOpen, nextOpen, stepsOf, routeNext, stopOf, lineOf } from '../content/classroom.js';
 import { findLesson } from '../content/curriculum.js';
 import { chartById } from '../content/charts.js';
 import { SONGS } from '../content/songs.js';
@@ -144,12 +144,12 @@ function listPage(view) {
       if (l.unit && l.unit !== unit) {
         unit = l.unit;
         const u = UNITS.find((x) => x.id === unit);
-        if (u) nodes.push(h('div', { class: 'cl-unit' }, u.name, u.sub && h('small', {}, u.sub)));
+        if (u) nodes.push(h('div', { class: ['cl-unit', u.optional && 'optional'] }, u.name, u.sub && h('small', {}, u.sub)));
       }
       const rec = done[l.id];
-      nodes.push(h('a', { class: ['cl-node', `kind-${l.kind}`, rec?.done && 'done', l.kind === 'boss' && 'boss'], href: `#/classroom/${l.id}`, 'data-sfx': 'press' },
+      nodes.push(h('a', { class: ['cl-node', `kind-${l.kind}`, rec?.done && 'done', l.kind === 'boss' && 'boss', l.optional && 'optional'], href: `#/classroom/${l.id}`, 'data-sfx': 'press' },
         h('span', { class: 'no' }, l.id),
-        h('div', { class: 'words' }, h('b', {}, l.title), h('span', {}, `${KINDS[l.kind].label} · ${l.about}`)),
+        h('div', { class: 'words' }, h('b', {}, l.title), h('span', {}, `${l.optional ? '选学 · ' : ''}${KINDS[l.kind].label} · ${l.about}`)),
         rec?.done ? medalDot(rec.stars || 0) : h('span', { class: 'go' }, `${l.minutes || 3}′`)));
     }
     return h('section', { class: 'cl-line', style: { '--c': `var(--${line.color})` } },
@@ -187,8 +187,17 @@ function routePage(view) {
         }, h('span', { class: 'no' }, id), h('b', {}, l.title), rec?.done ? medalChip(rec.stars || 0) : nx?.id === id ? h('span', { class: 'tag' }, '下一关') : null));
       })));
   });
+  // 选学的关不在这条路上：单独摆在最下面当岔路（不编号，“下一关”不会指到它们）
+  const sides = ROUTE_SIDE.map((s) => h('section', { class: ['cl-side-stop', s.ids.every((id) => done[id]?.done) && 'done'] },
+    h('div', { class: 'cl-stop-name' }, h('span', { class: 'n' }, '选'), h('div', {}, h('b', {}, s.name), h('span', {}, `${s.with} · ${s.ids.filter((id) => done[id]?.done).length} / ${s.ids.length}`))),
+    h('ol', { class: 'cl-stop-path' }, s.ids.map((id) => {
+      const l = levelById(id);
+      const rec = done[id];
+      return h('li', {}, h('a', { class: ['cl-chip', 'optional', rec?.done && 'done'], href: `#/classroom/${id}`, 'data-sfx': 'press', style: { '--c': `var(--${lineOf(l).color})` } }, h('span', { class: 'no' }, id), h('b', {}, l.title), rec?.done ? medalChip(rec.stars || 0) : null));
+    }))));
   view.append(h('div', { class: 'cl-page cl-list cl-route' }, head('route'), nextBar(),
-    h('div', { class: 'cl-stops' }, h('p', { class: 'cl-route-tip' }, '不用照着走：想学哪关点哪关。这条路是把四条线穿起来的一种顺序，每一站和主线的一段课配着学最顺。'), stops)));
+    h('div', { class: 'cl-stops' }, h('p', { class: 'cl-route-tip' }, '不用照着走：想学哪关点哪关。这条路是把四条线穿起来的一种顺序，每一站和主线的一段课配着学最顺。'), stops,
+      h('p', { class: 'cl-route-tip cl-side-tip' }, '岔路：选学的关。不在这条路上，大关也不考；想学的时候再拐进来。'), sides)));
   return null;
 }
 
@@ -235,7 +244,7 @@ function cardsPage(view) {
     h('div', { class: 'cl-cardgrid' }, LEVELS.filter((l) => l.line === line.id).map((l) => {
       const rec = done[l.id];
       const c = h('button', {
-        class: ['cl-kcard', rec?.done ? `got m${rec.stars || 0}` : 'locked', l.kind === 'boss' && 'boss'],
+        class: ['cl-kcard', rec?.done ? `got m${rec.stars || 0}` : 'locked', l.kind === 'boss' && 'boss', l.optional && 'optional'],
         type: 'button',
         'data-sfx': rec?.done ? 'press' : 'tick',
         onpointermove: rec?.done ? (e) => {
@@ -246,6 +255,7 @@ function cardsPage(view) {
         } : null,
       },
         h('span', { class: 'no' }, l.id),
+        l.optional && h('em', { class: 'cl-opt-tag' }, '选学'),
         h('b', {}, l.title),
         h('span', { class: 'about' }, rec?.done ? l.about : '？'),
         rec?.done ? medalChip(rec.stars || 0) : h('span', { class: 'lock' }, '没拿到'),
@@ -265,7 +275,8 @@ function cardsPage(view) {
 // ───────────── 每日五分钟 ─────────────
 
 // 复习用的短版：听辨类答对 2 题、排顺序 / 配对 / 听写 / 学舌做 1 轮；铜那一档
-const SHORT = { order: 1, progorder: 1, resoorder: 1, energyorder: 1, memory: 1, intervalmem: 1, modmem: 1, griddict: 1, subdict: 1, pentaecho: 1, phrasecatch: 1, dropcatch: 1, keymatch: 1 };
+const SHORT = { order: 1, progorder: 1, resoorder: 1, energyorder: 1, memory: 1, intervalmem: 1, modmem: 1, griddict: 1, subdict: 1, pentaecho: 1, phrasecatch: 1, dropcatch: 1, keymatch: 1,
+  findhome: 1, findchords: 1, rhythmread: 1, barcount: 1, scoremarks: 1 }; // 后面五个是乐理线第三期的：一轮就是一首歌 / 一小节谱子
 function reviewSpec(level) {
   const spec = tierSpec(level.quiz, 1);
   if (spec.toy === 'steady') return { ...spec, challenge: 6 };
@@ -630,7 +641,7 @@ function lessonPage(view, level) {
     ctx.set(`小课堂 · 刚学完 ${level.id}「${level.title}」`, `这一次拿到：${MEDAL[medal] || '没拿牌（跳过了挑战）'}。带走的话：${level.takeaway.replace(/\*\*/g, '')}\n教学要点：${level.coach}`);
     stepsBar.replaceChildren(...STEPS.map(([, label]) => h('li', { class: 'done' }, h('i', {}, '✓'), label)));
     const starRow = h('div', { class: 'cl-stars' }, [0, 1, 2].map((i) => h('span', { class: i < medal ? 'on' : '' }, '★')));
-    const upNext = routeNext((id) => id === level.id || !!saved()[id]?.done, 1)[0] || nextOpen(level.id);
+    const upNext = (level.optional ? null : routeNext((id) => id === level.id || !!saved()[id]?.done, 1)[0]) || nextOpen(level.id); // 选学的关：接着学这条线上它后面那一关，不拐回路线上
     const bigFace = coachFace({ size: 84, follow: false, mood: 'cheer', act: 'flip' });
     const links = linkChips(level, { max: 5 });
     const card = h('div', { class: 'cl-done' },

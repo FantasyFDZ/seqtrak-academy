@@ -18,10 +18,11 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
  * createRoll({ onTone, onEdit, onPick }) → { el, set(patch), mel, sel, select(i), setLen(i, l), remove(i), move(i, m), head(step), pointOf(step, m), noteEl(i) }
  * set() 认的：steps（一共几格）、rows（从高到低的键号）、labels（{ 键号: 行首写什么 }）、homes（哪几行是家）、
  *   chords [{ s, l, notes }]、bass [{ s, l, m }]、mel [{ s, l, m, fixed?, cls? }]、ghost [{ s, l, m }]（淡淡的另一句：要对上的那一句）、
- *   mode、unit（新放的音占几格）、snap（落点吸到几格的整数倍上）、tone（旋律要不要分“踩上去 / 路过”）。
+ *   mode、unit（新放的音占几格）、snap（落点吸到几格的整数倍上）、tone（旋律要不要分“踩上去 / 路过”）、
+ *   pickCol（'pick' 模式下点空的地方也算：按这一列上是哪个音找。第三期“找到旋律”用）。
  */
 export function createRoll({ onTone, onEdit, onPick } = {}) {
-  const st = { steps: 16, rows: [], labels: {}, homes: [], chords: [], bass: [], mel: [], ghost: [], mode: null, unit: 2, snap: 2, tone: false };
+  const st = { steps: 16, rows: [], labels: {}, homes: [], chords: [], bass: [], mel: [], ghost: [], mode: null, unit: 2, snap: 2, tone: false, pickCol: false };
   let sel = -1;
   let drag = null; // { kind: 'len' | 'draw', i }
   const grid = h('div', { class: 'tr-grid' });
@@ -117,7 +118,15 @@ export function createRoll({ onTone, onEdit, onPick } = {}) {
       drag = { kind: 'draw', last: -1 };
       return drawAt(p);
     }
-    if (st.mode === 'pick') return i >= 0 && onPick?.(i);
+    if (st.mode === 'pick') {
+      // pickCol：没点中小块也算，按“这一格上是哪个音”找；这一格空着就找离得最近的那个（手指点不准那一小块）
+      let j = i;
+      if (j < 0 && st.pickCol && st.mel.length) {
+        j = st.mel.findIndex((n) => p.step >= n.s && p.step < n.s + n.l);
+        if (j < 0) j = st.mel.reduce((best, n, k) => (Math.abs(n.s + n.l / 2 - p.step - 0.5) < Math.abs(st.mel[best].s + st.mel[best].l / 2 - p.step - 0.5) ? k : best), 0);
+      }
+      return j >= 0 && onPick?.(j);
+    }
     if (i >= 0) {
       if (st.mel[i].fixed) return onPick?.(i, true);
       sel = i;

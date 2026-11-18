@@ -14,7 +14,9 @@
 //   chords  一摞接一摞：一项是第几级（从它起隔一个拿一个，叠三层）、[第几级, 叠几层]、或者 { degs: [第几级…] }（就这几个音一起响）；bass: true 再垫上贝斯
 //   score   格子里的一段：{ steps, chords: [[起, 长, 第几级, 层数?]], bass: 'root' | [[起, 长, 第几级]], mel: [[起, 长, 第几级]] }（一格 = 十六分），
 //           parts 只放其中几样、times 转几圈、lamps 放的时候亮三盏灯
-// 任务（task.type）有哪几种见下面的 TASKS：第一期十种，第二期（旋律、和声）又加了十五种。
+// 任务（task.type）有哪几种见下面的 TASKS：第一期十种，第二期（旋律、和声）又加了十五种；
+// 第三期（拆歌、选学的看懂谱子和和弦进阶）的任务写在 theory-tasks3.js 里，这里只留一个口子（beatDo）。
+// 开发用的地址参数（截图、走查用）：?tgbeat=3 一进来就在第 3 小步；再带 ?tgdone 把这一小步直接做掉。
 // createGuide(level, env) → { el, bench, auto(), destroy() }
 //   env.say(text, mood)   啾啾在右边说这一句        env.progress(i, n)   现在是第几小步
 //   env.done()            小步都做完了              env.next()           学生点了“去挑战”
@@ -25,6 +27,9 @@ import { pop } from './fx.js';
 import { LoopPlayer } from './looper.js';
 import { SCALES } from './scales.js';
 import { createTheoryBench, LADDERS, MAJOR, MINOR, RING, MOOD_WORD, nameOf, LO, HI } from './theory-bench.js';
+import { TASKS3, staffNotes } from './theory-tasks3.js';
+
+const DEV = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
 
 const STEP_WORD = { 1: '一格', 2: '两格', 3: '三格' };
 const KIND_WORD = { listen: '听', song: '听一首歌', compare: '比一比', do: '你来', pick: '选一个', name: '它叫什么' };
@@ -69,6 +74,7 @@ export function createGuide(level, env) {
   let cur = null; // 现在这一小步：{ auto(), destroy() }
   let alive = true;
   let curScore = null; // 格子里现在摆着的那一段（键号的）
+  let playGen = 0; // 换了小步就加一：正在一小节一小节放的那一段看到它变了就停
   const done = beats.map(() => false);
 
   const dots = h('ol', { class: 'tg-dots', 'aria-label': '这一关的小步' });
@@ -116,7 +122,7 @@ export function createGuide(level, env) {
         noTop: show.noTop,
       };
     } else if ('root' in show && st.ladder) patch.ladder = { ...st.ladder, root: show.root };
-    for (const k of ['home', 'names', 'degrees', 'keys', 'trail', 'machine', 'top', 'chordKeys']) if (k in show) patch[k] = show[k];
+    for (const k of ['home', 'names', 'degrees', 'keys', 'trail', 'machine', 'top', 'chordKeys', 'dark', 'piano', 'big']) if (k in show) patch[k] = show[k];
     bench.set(patch);
     if ('moods' in show) bench.moods(show.moods);
     if ('score' in show) {
@@ -128,16 +134,24 @@ export function createGuide(level, env) {
     }
     if ('chord' in show) bench.chord(show.chord ? bench.chordOf(...[].concat(show.chord)) : null);
     if ('lamps' in show) bench.lamps(show.lamps === true ? (curScore ? bench.lampsOf(curScore) : null) : show.lamps);
+    if ('staff' in show) showStaff(show.staff);
+  }
+  /** 把一张谱子摆到最上面那层（第三期，选学“看懂谱子”）。spec 是 theory-staff.js 的 show() 认的那些；notes 可以写成 [[第几格起, 占几格, 键号?]] */
+  function showStaff(spec) {
+    if (!spec) return bench.staff.reset();
+    bench.set({ top: 'staff' });
+    bench.staff.show({ ...spec, notes: staffNotes(spec.notes) });
   }
   /** 回到第 k 小步开始时的样子：从头把每一步的 show 摆一遍（这样往回翻也对） */
   function resetTo(k) {
     bench.stop();
-    bench.set({ ladder: null, home: false, names: false, degrees: false, keys: false, trail: true, machine: null, top: 'trail', chordKeys: 0 });
+    bench.set({ ladder: null, home: false, names: false, degrees: false, keys: false, trail: true, machine: null, top: 'trail', chordKeys: 0, dark: false, piano: true, big: false });
     bench.moods(false);
     bench.chord(null);
     bench.lamps(null);
     bench.rollClear();
     bench.ring.clear();
+    bench.staff.reset();
     curScore = null;
     applyShow(level.guide.start);
     for (let j = 0; j <= k; j++) applyShow(beats[j].show);
@@ -151,12 +165,13 @@ export function createGuide(level, env) {
     bench.onRoll = null;
     bench.onPick = null;
     bench.onRing = null;
+    bench.onStaff = null;
     if (beats[k].show?.mark) bench.mark(beats[k].show.mark, 'ref');
   }
 
   const lineOf = (spec) => (spec.line ? spec.line : (spec.deg || []).map((d) => (d === null ? null : Array.isArray(d) ? d.map((x) => bench.degMidi(x)) : bench.degMidi(d))));
   const chordSpec = (c) => (typeof c === 'number' ? bench.chordOf(c) : Array.isArray(c) ? bench.chordOf(c[0], c[1]) : c.degs.map((d) => bench.degMidi(d)));
-  const hasSound = (spec) => !!(spec.deg || spec.line || spec.score || spec.chords);
+  const hasSound = (spec) => !!(spec.deg || spec.line || spec.score || spec.chords || spec.staff);
 
   function say(text, mood) {
     env.say?.(text, mood);
@@ -205,10 +220,24 @@ export function createGuide(level, env) {
     bench.locked = true;
     if (spec.show) applyShow(spec.show);
     if (spec.slide !== undefined) await bench.slideTo(spec.slide);
-    if (spec.score) {
+    if (spec.staff) {
+      // 谱子上的一段：谱上正在响的音符变色，键盘摆着的话键也跟着亮
+      showStaff(spec.staff);
+      if (spec.route) {
+        // route：带反复记号的谱，照实际走的先后一小节一小节放（[第几小节…]），放到哪一小节哪一小节亮
+        const bar = spec.staff.bar || 16;
+        const gen = playGen;
+        for (const b of spec.route) {
+          if (gen !== playGen || !alive) break;
+          bench.staff.set({ barCls: { [b]: 'now' } });
+          await bench.playStaff(bench.staff.state.notes, { bpm: spec.bpm || 112, from: b * bar, steps: bar });
+        }
+        if (gen === playGen) bench.staff.set({ barCls: {} });
+      } else await bench.playStaff(bench.staff.state.notes, { bpm: spec.bpm || 92 });
+    } else if (spec.score) {
       const sc = showScore(spec.score, spec.roll);
       if (spec.lamps) bench.lamps(bench.lampsOf(sc));
-      await bench.playScore(sc, { parts: spec.parts, times: spec.times || 1 });
+      await bench.playScore(sc, { parts: spec.parts, times: spec.times || 1, keys: !spec.blind }); // blind：只听，键盘上不跟着亮（还没找到家的时候）
     } else if (spec.chords) {
       const degs = spec.chords.map((c) => (typeof c === 'number' ? c : Array.isArray(c) ? c[0] : null));
       const list = spec.chords.map(chordSpec);
@@ -1180,8 +1209,13 @@ export function createGuide(level, env) {
     },
   };
 
+  // 第三期的任务（theory-tasks3.js）要用的几样东西
+  const kit = {
+    bench, ctl, tell, miss, locked, btn, listenBtn, showScore, wait, progSlots, say,
+    setScore: (sc) => (curScore = sc),
+  };
   function beatDo(b) {
-    const make = TASKS[b.task.type];
+    const make = TASKS[b.task.type] || ((t, done) => TASKS3[t.type](t, done, kit));
     let finished = false;
     const ok = (extra) => {
       if (finished) return;
@@ -1196,6 +1230,7 @@ export function createGuide(level, env) {
 
   function enter(k) {
     if (!alive) return;
+    playGen++;
     cur?.destroy();
     i = Math.max(0, Math.min(beats.length - 1, k));
     const b = beats[i];
@@ -1203,6 +1238,7 @@ export function createGuide(level, env) {
     // 这一步要放的是格子里的一段：先摆出来，别让台子空着
     const first = b.score || (b.kind === 'compare' && b.a.score);
     if (first) showScore(first, b.score ? b.roll : b.a.roll);
+    if (b.staff || (b.kind === 'compare' && b.a.staff)) showStaff(b.staff || b.a.staff);
     chip.textContent = b.kind === 'song' ? `♪ ${b.song}` : KIND_WORD[b.kind] || '';
     chip.className = `tg-kind k-${b.kind}`;
     goal.innerHTML = rich(b.goal || '');
@@ -1218,7 +1254,8 @@ export function createGuide(level, env) {
     cur = KINDS[b.kind](b);
   }
 
-  enter(0);
+  enter(Math.max(0, (Number(DEV?.get('tgbeat')) || 1) - 1));
+  if (DEV?.has('tgdone')) setTimeout(() => alive && cur?.auto(), 400);
   return {
     el,
     bench,
