@@ -151,3 +151,124 @@ button.rh-w.wrong { background: var(--bad-soft); border-color: var(--bad); color
 .rh-say .cl-cap { flex: 1; min-width: 0; }
 /* 音游下面的读法条 */
 .cl-rhythm .rh-read { flex: none; padding: 0 10px; box-sizing: border-box; }
+
+/* ═════════ 第二批（2026-11-18）：玩具在 public/js/classroom-rhythm3.js，R10 的热身在 classroom-rhythm.js（rhythmsteps） ═════════ */
+.rh-auto .cl-note .btn, .rh-read3 .cl-note .btn, .rh-swing3 .cl-note .btn, .rh-steps > .cl-note .btn { min-height: 44px; padding: 0 14px; vertical-align: middle; }
+
+/* R1 并进了“四个一组”：一排拍子上，每组（一小节）第一个点大一号 */
+.rh-bar .rh-b:first-child em { width: 24px; height: 24px; }
+.rh-line.long .rh-bar .rh-b:first-child em { width: 13px; height: 13px; }
+
+/* ───────── R10 不出声的那一拍（热身）：分成几小段的音游 ───────── */
+.rh-steps { gap: 8px; }
+.rh-stephost { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.rh-steps > .cl-note { min-height: 46px; }
+
+/* ───────── R11 腾出一只手：左边是守着的那条循环（音游的舞台），右边是“右手的活” ───────── */
+.rh-auto { gap: 8px; }
+.rh-autobody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 12px; }
+.rh-autobody .cl-rhythm-host { min-width: 0; min-height: 0; }
+.rh-auto > .cl-note { min-height: 46px; }
+/* 左边的舞台只有三百来像素宽：四种判定的计数和偏差仪下面那行字放不下，这一关也不看它们（看的是漏了几下、晃多少） */
+.rh-auto .stage-tally, .rh-auto .meter-scale { display: none; }
+.rh-task { min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--line); transition: opacity var(--t-move); }
+.rh-task.off { opacity: .55; }
+.rh-task header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.rh-task header b { font-size: 15px; }
+.rh-task .cl-lamps { gap: 6px; }
+.rh-task .cl-lamps i { width: 13px; height: 13px; }
+.rh-task-body { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.rh-task-idle { margin: 0; font-size: 14px; line-height: 1.6; color: var(--muted); text-align: center; }
+.rh-task-one { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+.rh-task-one p { margin: 0; font-size: 14.5px; line-height: 1.5; text-align: center; color: var(--text-2); }
+/* 旋钮：外面一圈是刻度，亮着的那一段是要拧到的地方；里面的帽子带一根指针 */
+.rh-knob { position: relative; flex: none; width: 136px; height: 136px; border-radius: 50%; cursor: grab; touch-action: none; outline-offset: 4px;
+  background: conic-gradient(from 225deg, var(--panel-3) 0 calc(var(--t0) * 2.7deg), var(--accent) calc(var(--t0) * 2.7deg) calc(var(--t1) * 2.7deg), var(--panel-3) calc(var(--t1) * 2.7deg) 270deg, transparent 270deg); }
+.rh-knob:active { cursor: grabbing; }
+.rh-knob i { position: absolute; inset: 15px; border-radius: 50%; background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 4px 0 var(--key-edge); transform: rotate(calc(-135deg + var(--v) * 2.7deg)); }
+.rh-knob i::after { content: ""; position: absolute; left: 50%; top: 5px; width: 6px; height: 28px; margin-left: -3px; border-radius: 3px; background: var(--text); }
+.rh-knob.in i::after { background: var(--lamp-ok); }
+.rh-knob.ok { background: conic-gradient(from 225deg, var(--panel-3) 0 calc(var(--t0) * 2.7deg), var(--lamp-ok) calc(var(--t0) * 2.7deg) calc(var(--t1) * 2.7deg), var(--panel-3) calc(var(--t1) * 2.7deg) 270deg, transparent 270deg); }
+/* 方键（两排，每排 4 个）、数灯、答案 */
+.rh-tkeys { display: grid; grid-template-columns: repeat(4, 46px); gap: 6px; }
+.rh-tkey { position: relative; width: 46px; height: 46px; padding: 0; border-radius: 10px; background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 3px 0 var(--key-edge); cursor: pointer; touch-action: none; }
+.rh-tkey span { position: absolute; left: 5px; top: 3px; font: 700 11px var(--mono); color: var(--muted); }
+.rh-tkey::after { content: ""; position: absolute; left: 22%; right: 22%; top: 50%; height: 16%; border-radius: 3px; background: var(--key-lamp); }
+.rh-tkey.on::after { background: var(--lamp-ok); box-shadow: 0 0 10px var(--lamp-ok-ring); }
+.rh-tkey.flash::after, .rh-tkey.sel::after { background: var(--yellow); box-shadow: 0 0 10px var(--yellow-glow); }
+.rh-tkey.sel { border-color: var(--accent); }
+.rh-tkey.missed { outline: 2px dashed var(--accent); outline-offset: 1px; }
+.rh-tkey.wrong { border-color: var(--bad); background: var(--bad-soft); animation: cl-shake 280ms var(--out); }
+.rh-tkeys.lamps { gap: 8px 6px; }
+.rh-tlamp { width: 46px; height: 30px; display: grid; place-items: center; }
+.rh-tlamp::before { content: ""; width: 24px; height: 24px; border-radius: 50%; background: var(--key-lamp); box-shadow: 0 1px 2px var(--shade-3) inset; }
+.rh-tlamp.on::before { background: var(--yellow); box-shadow: 0 0 10px var(--yellow-glow); }
+.rh-tanswers { display: flex; gap: 8px; min-height: 46px; }
+.rh-tanswers:empty { display: none; }
+.rh-tanswers .btn { height: 46px; }
+.rh-tans { min-width: 54px; height: 46px; padding: 0; border-radius: 10px; font: 800 19px var(--mono); color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 3px 0 var(--key-edge); cursor: pointer; touch-action: none; }
+.rh-tans.on { background: var(--lamp-ok); border-color: var(--lamp-ok); color: var(--on-bright); }
+.rh-tans.wrong { border-color: var(--bad); background: var(--bad-soft); animation: cl-shake 280ms var(--out); }
+.rh-autocard { padding: 14px 16px; }
+.rh-autocard h3 { margin-bottom: 4px; }
+.rh-autocard p { margin: 3px 0; font-size: 14px; line-height: 1.5; }
+.rh-autocard .game-actions { margin-top: 10px; }
+.rh-auto .game-card .btn.rh-onepad { min-height: 46px; }
+
+/* ───────── R3 的热身：圈出重复的小块、几下一组 ───────── */
+.rh-read3 { gap: 12px; }
+.rh-rbody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+.rh-blks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.rh-blk { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 10px 8px; border-radius: 16px; border: 3px dashed var(--line-3); background: var(--panel-2); color: var(--text); cursor: pointer; transition: border-color var(--t-move), background var(--t-move); }
+.rh-blk > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+.rh-blk i { position: relative; aspect-ratio: 1; border-radius: 7px; background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); }
+.rh-blk i:first-child { background: linear-gradient(var(--key-top-2), var(--key-bot-2)); }
+.rh-blk i::after { content: ""; position: absolute; left: 22%; right: 22%; top: 40%; height: 20%; border-radius: 3px; background: var(--key-lamp); }
+.rh-blk i.on::after { background: var(--yellow); box-shadow: 0 0 8px var(--yellow-glow); }
+.rh-blk span { font: 700 12px var(--mono); letter-spacing: .06em; color: var(--muted); text-align: center; }
+.rh-blk.picked { border: 3px solid var(--lamp-ok); background: var(--ok-soft); }
+.rh-blk.wrong { border-color: var(--bad); animation: cl-shake 280ms var(--out); }
+.rh-blk.now { box-shadow: 0 0 0 2px var(--text); }
+.rh-groups { flex: none; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); padding: 10px 12px 0; border-radius: 14px; background: var(--field); border: 1px solid var(--line-2); box-shadow: 0 1px 3px var(--shade-2) inset; }
+.rh-g { position: relative; height: 96px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 14px; box-sizing: border-box; }
+.rh-g u { width: 46%; height: 30%; border-radius: 6px 6px 3px 3px; background: var(--key-lamp); text-decoration: none; transition: height var(--t-move) var(--pop), background var(--t-move); }
+.rh-g.loud u { height: 100%; background: var(--t-HAT1); }
+.rh-g.soft u { background: color-mix(in srgb, var(--t-HAT1) 38%, var(--key-lamp)); }
+.rh-g.now u { outline: 2px solid var(--text); outline-offset: 2px; }
+/* 答完了：每一组下面一条线，相邻两组换一种颜色 */
+.rh-g.ga::after, .rh-g.gb::after { content: ""; position: absolute; left: 0; right: 0; bottom: 4px; height: 5px; background: var(--accent); }
+.rh-g.gb::after { background: var(--cyan); }
+.rh-g.gs::after { left: 5px; border-radius: 3px 0 0 3px; }
+.rh-g.ge::after { right: 5px; border-radius: 0 3px 3px 0; }
+.rh-read3 .cl-opt { min-height: 60px; }
+.rh-read3 .cl-note { min-height: 52px; }
+
+/* ───────── R6 的热身：一拍画成一条，上面的点是这一拍里的几下 ───────── */
+.rh-swing3 { gap: 12px; }
+.rh-pair { position: relative; flex: none; height: 132px; margin: 6px 60px 0; }
+.rh-pair::before { content: ""; position: absolute; left: 0; right: 0; top: 47px; height: 10px; border-radius: 5px; background: var(--panel-3); box-shadow: 0 1px 2px var(--shade-2) inset; }
+.rh-tk { position: absolute; top: 20px; width: 2px; height: 64px; margin-left: -1px; background: var(--line-3); }
+.rh-tk.third { display: none; width: 0; background: none; border-left: 2px dashed var(--cyan); }
+.rh-pair.thirds .rh-tk.third { display: block; }
+.rh-pair.there .rh-tk.goal { border-left: 2px solid var(--lamp-ok); }
+.rh-pair > span { position: absolute; top: 96px; transform: translateX(-50%); font: 700 12px var(--mono); color: var(--muted); white-space: nowrap; }
+.rh-pair > span.third { display: none; color: var(--text); }
+.rh-pair.thirds > span.third { display: block; }
+.rh-hit { position: absolute; top: 52px; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; border: 0; border-radius: 50%; background: var(--text); transition: left var(--t-move) var(--out), transform 70ms, background var(--t-move); }
+.rh-hit.second { background: var(--accent); }
+.rh-hit.mid { display: none; background: var(--text-2); cursor: default; }
+.rh-pair[data-mode="triplet"] .rh-hit.mid { display: block; }
+.rh-pair.pick .rh-hit.mid { cursor: pointer; box-shadow: 0 0 0 5px var(--accent-ring); }
+.rh-hit.on { transform: scale(1.3); }
+.rh-pair.there .rh-hit.second { background: var(--lamp-ok); }
+.rh-swing3 .cl-sliderow[hidden], .rh-swing3 .cl-big[hidden] { display: none; }
+.rh-swing3 .cl-cap { min-width: 0; }
+.rh-swing3 .cl-note { min-height: 70px; }
+
+/* ───────── R8 的热身：一层一层放出来。每一行左边的名字是开关 ───────── */
+.rh-layers .cl-chart-row { grid-template-columns: 64px minmax(0, 1fr); }
+.rh-layers .cl-chart-row > div { border-radius: 8px; transition: opacity var(--t-move), box-shadow var(--t-move); }
+.rh-layers .cl-chart-row.off > div { opacity: .26; }
+.rh-layers .cl-chart-row.fresh > div { box-shadow: 0 0 0 3px var(--accent-ring), 0 0 0 1px var(--accent); }
+.rh-layer { min-height: 44px; padding: 0 4px; border-radius: 10px; font-size: 13px; font-weight: 700; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 2px 0 var(--key-edge); cursor: pointer; }
+.cl-chart-row.off .rh-layer { color: var(--muted); text-decoration: line-through; box-shadow: none; }

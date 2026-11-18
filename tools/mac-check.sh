@@ -170,7 +170,8 @@ for id in $(node -e "import('./public/js/content/arrangement-lessons.js').then((
 done
 
 # 小课堂（乐理、节奏、效果、DJ 四条线的小关）：2026-11-15 起列表上的关全部开放（2026-11-17 节奏线加了 R9、乐理线加了 T18–T27；
-# 2026-11-18 乐理线第三期又加了 T28–T36，一共 63 关：open=63 soon=0，其中 6 关是选学 optional=6）；每关各打开一次，看能玩的东西摆出来没有。
+# 2026-11-18 乐理线第三期又加了 T28–T36，节奏线第二批把乐理线的 T1、T2 并进了 R1、R2、又加了 R10、R11，一共 63 关：
+# 乐理 32（其中 6 关是选学）、节奏 12、效果 12、DJ 7；open=63 soon=0 optional=6）；每关各打开一次，看能玩的东西摆出来没有。
 # 另有推荐路线（9 站、57 个关的小牌子，最下面 2 段选学的岔路上另有 6 个，一共 chips=63）、卡册（63 张卡，6 张带“选学”的角标）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
 # 再看“试一试”和“用在机器上”那两屏：?clstep=quiz / machine 是开发用的参数，直接从那一步开始（public/js/views/classroom.js）。
 # “用在机器上”有三种样子：模拟机、效果关用的效果模拟机、接着假真机时的真机镜像（class 里带 live）。窗口按最小的平板 1024 × 768 开。
@@ -183,8 +184,8 @@ echo "classroom -> levels=$(count 'class="cl-node[ "]') open=$(count '<a class="
 playable=0
 broken=''
 # 2026-11-17 乐理线重做第二期：多了 T18–T27 这 10 关（单元 3「旋律」、单元 4「和声」）；推荐路线多一站（8 站），多一页小本子。
-# 2026-11-18 第三期：多了 T28–T30（单元 5「拆歌」，大关 TB 排在它后面）和选学的 T31–T36；推荐路线又多一站（9 站）。
-for id in T1 T2 T5 T6 T14 T15 T7 T16 T8 T12 T17 T18 T19 T20 T21 T22 T9 T10 T23 T24 T25 T11 T26 T27 T28 T29 T30 TB T31 T32 T33 T34 T35 T36 R1 R2 R3 R4 R5 R6 R7 R8 R9 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
+# 2026-11-18 第三期：多了 T28–T30（单元 5「拆歌」，大关 TB 排在它后面）和选学的 T31–T36；推荐路线又多一站（9 站）。节奏线第二批：去掉 T1、T2，多了 R10、R11。
+for id in T5 T6 T14 T15 T7 T16 T8 T12 T17 T18 T19 T20 T21 T22 T9 T10 T23 T24 T25 T11 T26 T27 T28 T29 T30 TB T31 T32 T33 T34 T35 T36 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
   classroom "#/classroom/$id"
   if [[ $(count 'class="cl-toy') -ge 1 && $(count 'class="cl-say"') -eq 1 && $(count '这一页出错了') -eq 0 ]]; then playable=$((playable + 1)); else broken="$broken $id"; fi
 done
@@ -239,6 +240,34 @@ r2="$r2 pick=$(count '<button class="rh-w')"
 classroom '?clstep=quiz&rhshot=next-stage#/classroom/R2'
 r2="$r2 stage-game=$(count 'game-canvas') stage-words=$(count 'class="rh-w[ "]')"
 echo "classroom rhythm2 -> R1 $r1 | R9 $r9 | R7 $r7 | R2 $r2 errors=$(count '这一页出错了')"
+# 节奏线“一心多用”第二批（2026-11-18，public/js/classroom-rhythm3.js 和 classroom-rhythm.js 的 rhythmsteps）：
+# R10 的热身是分小段的音游（顶上一条说明 + 一个舞台），挑战是两段接力；R11 左边一个舞台、右边一块“右手的活”，?rhshot=mid 摆出打到一半（面板上一个旋钮）；
+# R3 的热身三小步：16 个能点的格子 / 4 个小块（?rhshot=s1）/ 8 下镲（?rhshot=s2）；R6 第 4 小步（?rhshot=s3）：一拍上三个点、一根滑条；
+# R8 选了 House 以后三行，每行左边一个开关（?rhshot=mid）。最后看旧关号：#/classroom/T1、T2 要跳到并进去的 R1、R2（页头的关号）。
+classroom '#/classroom/R10'
+r10="steps-head=$(count 'class="rh-move"') game=$(count 'game-canvas')"
+classroom '?clstep=quiz#/classroom/R10'
+r10="$r10 relay=$(count 'class="cl-relay-chips"') quiz-game=$(count 'game-canvas')"
+classroom '#/classroom/R11'
+r11="game=$(count 'game-canvas') side=$(count 'class="rh-task[ "]')"
+classroom '?clstep=quiz&rhshot=mid#/classroom/R11'
+r11="$r11 knob=$(count 'class="rh-knob[ "]') lamps=$(grep -o '<div class="cl-lamps"[^>]*>.*' $D/dom.html | sed 's|</div>.*||' | grep -o '<i ' | wc -l | tr -d ' ')"
+classroom '#/classroom/R3'
+r3="keys=$(count '<button class="cl-key')"
+classroom '?rhshot=s1#/classroom/R3'
+r3="$r3 blocks=$(count 'class="rh-blk[ "]')"
+classroom '?rhshot=s2#/classroom/R3'
+r3="$r3 group-cells=$(count 'class="rh-g[ "]')"
+classroom '?rhshot=s3#/classroom/R6'
+r6="hits=$(count 'class="rh-hit ') slider=$(count 'class="cl-range"')"
+classroom '?rhshot=mid#/classroom/R8'
+r8="layers=$(count 'class="rh-layer"')"
+classroom '#/classroom/T1'
+old="T1->$(grep -o '<span class="no">[A-Z0-9]*</span><b>[^<]*' $D/dom.html | head -1 | sed 's/<[^>]*>/ /g; s/^ *//; s/  */ /g')"
+classroom '#/classroom/T2'
+old="$old | T2->$(grep -o '<span class="no">[A-Z0-9]*</span><b>[^<]*' $D/dom.html | head -1 | sed 's/<[^>]*>/ /g; s/^ *//; s/  */ /g')"
+echo "classroom rhythm3 -> R10 $r10 | R11 $r11 | R3 $r3 | R6 $r6 | R8 $r8 errors=$(count '这一页出错了')"
+echo "classroom merged -> $old"
 classroom '?clstep=quiz#/classroom/R3'
 echo "classroom quiz -> options=$(count 'class="cl-opt[ "]') pattern-keys=$(count 'class="cl-key[ "]') errors=$(count '这一页出错了')"
 classroom '?clstep=machine#/classroom/T10'
@@ -253,6 +282,7 @@ echo "classroom machine (mirror) -> bench-live=$(count 'class="cl-bench live"') 
 # 这份进度应该算出：573 经验 = Lv 3 节拍手，15 个徽章里拿到 3 个（第一声、连练 3 天、通关一章）；
 # 地图上 49 个点（map-nodes）= 35 节课 + 章开头挂着的 14 个小课堂的小关（minis：第 1 章前 R1 R9，第 2 章前 T5 T15，第 3 章前 T9 T28（2026-11-18 按乐理线的单元重新挂的；之前是 T1 R1、T5 T7、T10 T11），
 # 第 4 章前 F2 F4，第 6 章前 D1 D4，第 7 章前 F5 F6，第 8 章前 D3 D5；这份进度里一个都没学，minis-done=0）；
+# 2026-11-18：T1 并进了 R1，第 1 章前同一天换成了 R1、R9：点还是 14 个。
 # done / now / locked 只数课：3 关已通过，现在这一关是 1.1，锁着 31 关（2026-11-15 小课堂丰富版之后实测的数）；
 # 左边的导航栏上亮着的入口是路由表里有页面的那几个（小课堂接上之后是 7 个，之前是 6 个）。窗口按平板横屏 1180 × 820 开。
 put() { curl -s -X PUT -H 'Content-Type: application/json' -d "$1" $BASE/api/progress > /dev/null; }
@@ -276,32 +306,40 @@ ls -l tools/out/home-neon.png | awk '{print "screenshot -> " $NF " " $5 " bytes"
 # 小课堂接进经验值、徽章和地图。规则在 public/js/levels.js：学完一关 1 星 20 / 2 星 25 / 3 星 30，是从进度的 classroom 字段算出来的
 # （不另外记账），所以再学一遍不会重复给，旧进度里学过的关自动补上。还是用上面那份旧进度（573 经验）。
 # ?clstep=done 是开发用的参数：直接把这一关记成学完（跳过了挑战，没有牌：存的是 stars:0，经验按 1 星算）。应该看到：
-#   学完 T1：完成卡上写“+40 经验”（这一关 20 + 今天第一次练习 20），573 → 613；首页地图上的小关一个没亮（minis-done=0：2026-11-18 起 T1 不挂在地图上了，之前这里是 1）；
-#   再学一遍 T1：完成卡上没有那一行（gain 是空的），还是 613，times 变成 2；
-#   再学完 R1、F1：653；乐理、节奏、效果三条线都有了，多一个徽章“三线齐亮”（got 从 3 变成 4）；地图上的小关亮 1 个（R1；之前是 2）；
-#   旧进度里本来就带着学过的关（T1 三星、R1 两星，没有 game 那一段）：一打开就是 573 + 30 + 25 = 628，小关亮 1 个（R1；之前是 2）；
+#   学完 T5：完成卡上写“+40 经验”（这一关 20 + 今天第一次练习 20），573 → 613；首页地图上的小关亮了 1 个（第 2 章前的 T5）；
+#   再学一遍 T5：完成卡上没有那一行（gain 是空的），还是 613，times 变成 2；
+#   再学完 R1、F1：653；乐理、节奏、效果三条线都有了，多一个徽章“三线齐亮”（got 从 3 变成 4）；小关亮 2 个（T5，和第 1 章前的 R1）；
+#   旧进度里本来就带着学过的关（T5 三星、R1 两星，没有 game 那一段）：一打开就是 573 + 30 + 25 = 628，小关亮 2 个；
+#   并关之前的旧进度（T1 三星、T2 两星、R1 两星）：T1、T2 已经不在清单里，照并关的老规矩不算经验、不出卡——573 + 25 = 598，
+#   卡册 63 张里拿到 1 张（R1）；记录本身留在进度文件里不删；
 #   “清空学习进度”（设置页的按钮调的是 store.resetProgress()；无界面的浏览器里点不了按钮，所以在 Node 里直接调）：classroom 没了，经验回到 0；
 #   小本子里的作品（works）也跟着清掉（2026-11-18 起）。
+# 2026-11-18 以前这一段是拿 T1 测的。T1 并进了 R1 以后换成 T5（乐理线现在的第一关）：经验的数没变（613 / 653 / 628），
+# 多出来“并关之前的旧进度”那一行；首页地图同一天按乐理线的单元重新挂过（第 1 章前 R1、R9，第 2 章前 T5、T15，第 3 章前 T9、T28）。
 BODY='"settings":{"inputOffsetMs":0,"metronome":true,"speak":false,"unlockAll":false,"engine":"fast"}'
 xp() { node tools/xp-check.mjs $D/data | grep -E '^(小课堂|经验)' | tr '\n' ' '; }
 gain() { grep -o '<p class="cl-gain">[^/]*/b>[^<]*' $D/dom.html | sed 's/<[^>]*>//g'; }
 room() { curl -s $BASE/api/progress | tr -d ' \n' | grep -o "\"$1\":{\"done\":[a-z]*,\"stars\":[0-9]*,\"at\":\"[^\"]*\",\"times\":[0-9]*" | sed 's/,"at":"[^"]*"//; s/"//g; s/$/}/'; }
 put "{$OLD,$BODY}"
-classroom '?clstep=done#/classroom/T1'
-echo "classroom xp: T1 -> card=$(count 'class="cl-done"') gain=\"$(gain)\" saved=$(room T1) $(xp)"
+classroom '?clstep=done#/classroom/T5'
+echo "classroom xp: T5 -> card=$(count 'class="cl-done"') gain=\"$(gain)\" saved=$(room T5) $(xp)"
 home rooms ''
-classroom '?clstep=done#/classroom/T1'
-echo "classroom xp: T1 again -> card=$(count 'class="cl-done"') gain=\"$(gain)\" saved=$(room T1) $(xp)"
+classroom '?clstep=done#/classroom/T5'
+echo "classroom xp: T5 again -> card=$(count 'class="cl-done"') gain=\"$(gain)\" saved=$(room T5) $(xp)"
 classroom '?clstep=done#/classroom/R1'
 classroom '?clstep=done#/classroom/F1'
 echo "classroom xp: +R1 +F1 -> gain=\"$(gain)\" badge=$(curl -s $BASE/api/progress | tr -d ' \n' | grep -o '"three-lines":"[^"]*"' | wc -l | tr -d ' ') $(xp)"
 home rooms ''
-put "{$OLD,\"classroom\":{\"T1\":{\"done\":true,\"stars\":3,\"at\":\"2026-11-08T10:00:00.000Z\",\"times\":1},\"R1\":{\"done\":true,\"stars\":2,\"at\":\"2026-11-09T10:00:00.000Z\",\"times\":2}},$BODY}"
+put "{$OLD,\"classroom\":{\"T5\":{\"done\":true,\"stars\":3,\"at\":\"2026-11-08T10:00:00.000Z\",\"times\":1},\"R1\":{\"done\":true,\"stars\":2,\"at\":\"2026-11-09T10:00:00.000Z\",\"times\":2}},$BODY}"
 home rooms-old ''
 echo "classroom xp: old progress -> $(xp)"
+# 并关之前的旧进度：学过 T1（三星）、T2（两星）、R1（两星）
+put "{$OLD,\"classroom\":{\"T1\":{\"done\":true,\"stars\":3,\"at\":\"2026-11-08T10:00:00.000Z\",\"times\":1},\"T2\":{\"done\":true,\"stars\":2,\"at\":\"2026-11-08T11:00:00.000Z\",\"times\":1},\"R1\":{\"done\":true,\"stars\":2,\"at\":\"2026-11-09T10:00:00.000Z\",\"times\":2}},$BODY}"
+classroom '#/classroom/cards'
+echo "classroom xp: merged-away progress (T1 T2 R1) -> cards=$(count 'class="cl-kcard[ "]') got=$(count 'class="cl-kcard got') kept=$(curl -s $BASE/api/progress | tr -d ' \n' | grep -o '"T[12]":{"done":true' | wc -l | tr -d ' ') $(xp)"
 node --input-type=module -e '
   import { store } from "./public/js/store.js";
-  store.update((d) => { d.classroom = { T1: { done: true, stars: 3 }, R1: { done: true, stars: 1 } }; d.works = [{ at: "2026-11-18T10:00:00.000Z", level: "T17", root: 60, scale: "penta", notes: [60, 63, 60] }]; });
+  store.update((d) => { d.classroom = { T5: { done: true, stars: 3 }, R1: { done: true, stars: 1 } }; d.works = [{ at: "2026-11-18T10:00:00.000Z", level: "T17", root: 60, scale: "penta", notes: [60, 63, 60] }]; });
   const before = store.progress().xp;
   store.resetProgress();
   console.log(`classroom reset -> before=${before} after=${store.progress().xp} classroom=${JSON.stringify(store.data.classroom ?? null)} works=${JSON.stringify(store.data.works ?? null)}`);

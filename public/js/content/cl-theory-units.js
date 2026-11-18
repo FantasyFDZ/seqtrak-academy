@@ -12,7 +12,6 @@ import { UNITS_PHASE2 } from './cl-theory-units2.js';
 import { UNITS_PHASE3 } from './cl-theory-units3.js';
 
 export const THEORY_UNITS = [
-  { id: 'u0', name: '拍子', sub: '以后并进节奏线' },
   { id: 'u1', name: '单元 1 · 音高', sub: '高低、八度、12 格' },
   { id: 'u2', name: '单元 2 · 梯子', sub: '音阶、亮暗、家' },
   { id: 'u3', name: '单元 3 · 旋律', sub: '走跳、问答、重复、长短' },
@@ -293,7 +292,7 @@ export function redo(old) {
   const P = UNITS_PHASE2;
   const Q = UNITS_PHASE3;
   return [
-    { ...by.T1, unit: 'u0' }, { ...by.T2, unit: 'u0' },
+    // 原来打头的 T1、T2（“拍子”那一组）2026-11-18 并进了节奏线的 R1、R2（content/classroom.js 的 MERGED）
     swap('T5', T5), swap('T6', T6), T14,
     T15, swap('T7', T7), T16, swap('T8', T8), swap('T12', T12), T17,
     P.T18, P.T19, P.T20, P.T21, P.T22,
