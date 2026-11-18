@@ -655,10 +655,12 @@ function relay(spec, env, level) {
   let got = [];
   let cur = null;
   let extra = ''; // 某一段过关时带的补充的话（见 views/classroom.js 的 award）
-  const chips = h('ol', { class: 'cl-relay-chips' });
+  // 段数多（节奏大关是六段）的时候加一个 many：窄一点的屏上一行放不下六个名字，不是眼下这一段的只留号码（classroom.css）
+  const chips = h('ol', { class: ['cl-relay-chips', stages.length > 5 && 'many'] });
   const host = h('div', { class: 'cl-relay-host' });
   const bar = h('div', { class: 'cl-relay-bar' });
-  const paint = () => chips.replaceChildren(...stages.map((st, j) => h('li', { class: j === i ? 'now' : got[j] ? 'done' : '' }, h('i', {}, got[j] ? '✓' : String(j + 1)), st.title || `第 ${j + 1} 段`)));
+  const name = (st, j) => st.title || `第 ${j + 1} 段`;
+  const paint = () => chips.replaceChildren(...stages.map((st, j) => h('li', { class: j === i ? 'now' : got[j] ? 'done' : '', title: name(st, j) }, h('i', {}, got[j] ? '✓' : String(j + 1)), h('span', {}, name(st, j)))));
   function mount() {
     cur?.destroy();
     const st = stages[i];

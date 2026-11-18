@@ -302,6 +302,13 @@ r14="ring=$(count 'class="rh-rc[ "]')"
 classroom '?clstep=quiz#/classroom/R14'
 r14="$r14 quiz-game=$(count 'game-canvas') bar-steps=$(count 'class="step-head[ "]')"
 echo "classroom rhythm4 -> R12 $r12 | R13 $r13 | R14 $r14 errors=$(count '这一页出错了')"
+# 节奏大关 2026-11-18 从四段加到六段（段名条上六个：stages=6）；后加的第 3 段“灰的别按”、第 4 段“三格一圈”都是音游的舞台（game=1）
+relay_now() { grep -o '<li class="now"[^>]*title="[^"]*"' $D/dom.html | sed 's/.*title="//; s/"$//' | head -1; }
+classroom '?clstep=quiz&clstage=3#/classroom/RB'
+rb="stages=$(grep -o '<ol class="cl-relay-chips many">.*' $D/dom.html | sed 's|</ol>.*||' | grep -o '<li' | wc -l | tr -d ' ') 3=$(relay_now) game=$(count 'game-canvas')"
+classroom '?clstep=quiz&clstage=4#/classroom/RB'
+rb="$rb | 4=$(relay_now) game=$(count 'game-canvas')"
+echo "classroom RB -> $rb errors=$(count '这一页出错了')"
 classroom '?clstep=quiz#/classroom/R3'
 echo "classroom quiz -> options=$(count 'class="cl-opt[ "]') pattern-keys=$(count 'class="cl-key[ "]') errors=$(count '这一页出错了')"
 classroom '?clstep=machine#/classroom/T10'
@@ -314,9 +321,9 @@ echo "classroom machine (mirror) -> bench-live=$(count 'class="cl-bench live"') 
 # 首页（闯关地图）、两套配色、经验值和徽章。
 # 先放进一份“改版之前的旧进度”（没有 game 那一段，设置里也没有配色）：页面要按机身配色打开，并把经验值和徽章回算出来、写回去。
 # 这份进度应该算出：573 经验 = Lv 3 节拍手，15 个徽章里拿到 3 个（第一声、连练 3 天、通关一章）；
-# 地图上 49 个点（map-nodes）= 35 节课 + 章开头挂着的 14 个小课堂的小关（minis：第 1 章前 R1 R9，第 2 章前 T5 T15，第 3 章前 T9 T28（2026-11-18 按乐理线的单元重新挂的；之前是 T1 R1、T5 T7、T10 T11），
-# 第 4 章前 F2 F4，第 6 章前 D1 D4，第 7 章前 F5 F6，第 8 章前 D3 D5；这份进度里一个都没学，minis-done=0）；
-# 2026-11-18：T1 并进了 R1，第 1 章前同一天换成了 R1、R9：点还是 14 个。
+# 地图上 51 个点（map-nodes）= 35 节课 + 章开头挂着的 16 个小课堂的小关（minis：第 1 章前 R1 R9，第 2 章前 T5 T15，第 3 章前 T9 T28（2026-11-18 按乐理线的单元重新挂的；之前是 T1 R1、T5 T7、T10 T11），
+# 第 4 章前 F2 F4，第 6 章前 D1 D4 R12，第 7 章前 F5 F6 R11，第 8 章前 D3 D5；这份进度里一个都没学，minis-done=0）；
+# 2026-11-18：T1 并进了 R1，第 1 章前同一天换成了 R1、R9：点还是 14 个。同一天晚些时候第 6、7 章前各多挂一关节奏（R12、R11）：16 个，一共 51 个点。
 # done / now / locked 只数课：3 关已通过，现在这一关是 1.1，锁着 31 关（2026-11-15 小课堂丰富版之后实测的数）；
 # 左边的导航栏上亮着的入口是路由表里有页面的那几个（小课堂接上之后是 7 个，之前是 6 个）。窗口按平板横屏 1180 × 820 开。
 put() { curl -s -X PUT -H 'Content-Type: application/json' -d "$1" $BASE/api/progress > /dev/null; }

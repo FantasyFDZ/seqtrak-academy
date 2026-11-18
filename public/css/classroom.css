@@ -417,6 +417,11 @@ button.cl-key:active { transform: translateY(3px); box-shadow: 0 0 0 var(--key-e
 .cl-relay-chips li.now i { color: var(--c); }
 .cl-relay-chips li.done { background: var(--ok-soft); color: var(--ok); }
 .cl-relay-chips li.done i { background: var(--lamp-ok); color: var(--on-bright); }
+/* 六段的大关：1024 宽的平板上六个名字一行放不下（会剩一个掉到第二行）。不是眼下这一段的只留号码，名字在右边那张卡片和「下一段」按钮上都有 */
+@media (max-width: 1140px) {
+  .cl-relay-chips.many li:not(.now) { padding: 0 5px; }
+  .cl-relay-chips.many li:not(.now) span { display: none; }
+}
 .cl-relay-bar { flex: none; display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14.5px; color: var(--text-2); }
 .cl-relay-bar .cl-pass { margin: 0; }
 .cl-relay-host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
