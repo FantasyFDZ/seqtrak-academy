@@ -101,11 +101,11 @@ export const DJ = [
     id: 'D6', line: 'dj', kind: 'ear', title: '调性', about: '两首歌放一起，会不会“打架”', minutes: 4,
     say: '两首歌的鼓对上了，可旋律一起响时有几个音“酸酸的”：那是它们不在一个调上。把一首挪几格，就不打架了。',
     play: {
-      toy: 'keymatch',
+      toy: 'keyclash',
       tip: '点「放」：A 放和弦，B 放另一首的旋律。按 −/+ 一格一格挪 B，看“打架的音”有几个，听哪个位置最顺。',
       name: '两首歌的调合得来，叫**调性兼容**（harmonic mixing）。合不来就**移调**（T12 学过）。',
     },
-    quiz: { toy: 'keymatch', ask: 'B 的旋律和 A 不在一个调上：一格一格挪 B，挪到不打架，点「不打架了」。铜看得见打架的音有几个，银只在答错时告诉你，金什么都不说。' },
+    quiz: { toy: 'keyclash', ask: 'B 的旋律和 A 不在一个调上：一格一格挪 B，挪到不打架，点「不打架了」。铜看得见打架的音有几个，银只在答错时告诉你，金什么都不说。' },
     takeaway: '两首歌一起放，**调**也要合得来：同一个调（或者亮暗一对的“亲戚调”）最顺。合不来就把一首挪几格（移调）。',
     coach: '小课堂 D6「调性」：调性兼容 / harmonic mixing（只讲“音落不落在同一把梯子上”，不讲五度圈和 Camelot 编号）。A 放一首的和弦 + 贝斯（Wake Me Up、Faded、Levels、Believer、Lean On），B 放另一首的旋律，可以 ±1 半音挪；“打架的音”= B 用到的音名里不在 A 音阶上的个数，挪到 0 就算对。铜看得见个数，银答错才说，金不说。机器上对应 [KEY]（T12）。',
     links: { lessons: ['2-2', '8-1'], songs: ['wake-me-up', 'dont-start-now', 'faded'] },

@@ -13,7 +13,6 @@ import { store } from './store.js';
 import { sfx } from './sfx.js';
 import { confetti, pop } from './fx.js';
 
-export const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 export const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 export const shuffle = (arr) => arr.map((v) => [Math.random(), v]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
 /** 一次敲击落在音频时钟的哪一刻（算上「设备」页校准出来的输入延迟） */
@@ -144,37 +143,6 @@ export function keys16({ pattern = '', editable = false, onChange, small = false
   };
 }
 
-/** 一串音，隔 gap 秒一个地放出来。返回大约要放多久（秒） */
-export function playNotes(notes, { gap = 0.3, len = 0.42, voice = 'keys', vel = 0.85 } = {}) {
-  audio.init().then((ok) => {
-    if (!ok) return;
-    const t0 = audio.now() + 0.04;
-    notes.forEach((n, i) => n !== null && audio.note(n, t0 + i * gap, len, { voice, vel }));
-  });
-  return notes.length * gap + len;
-}
-
-/** 几个音一起响；spread = 先一个一个，再一起 */
-export function playChord(notes, { spread = false, voice = 'keys', at = 0, len = 1.1 } = {}) {
-  audio.init().then((ok) => {
-    if (!ok) return;
-    const t0 = audio.now() + 0.03 + at;
-    if (spread) notes.forEach((n, i) => audio.note(n, t0 + i * 0.32, 0.4, { voice, vel: 0.8 }));
-    const start = spread ? t0 + notes.length * 0.32 + 0.1 : t0;
-    notes.forEach((n, i) => audio.note(n, start + i * 0.012, len, { voice, vel: notes.length > 1 ? 0.55 : 0.85 }));
-  });
-}
-
-/** 一排和弦，一个接一个（每个 beat 秒） */
-export function playChords(list, { beat = 0.9, voice = 'keys' } = {}) {
-  audio.init().then((ok) => {
-    if (!ok) return;
-    const t0 = audio.now() + 0.04;
-    list.forEach((notes, i) => notes.forEach((n, j) => audio.note(n, t0 + i * beat + j * 0.01, beat * 0.92, { voice, vel: 0.5 })));
-  });
-  return list.length * beat;
-}
-
 /** 放一小段循环，放满 bars 小节自己停。返回停止函数 */
 export function playLoopOnce(player, bars = 2) {
   player.stop();
@@ -253,7 +221,7 @@ export function listenQuiz({ need = 3, env, make, stage = null, listenLabel = '�
     opts.replaceChildren(...round.options.map((o) => {
       const btn = h('button', { class: ['cl-opt', o.node && 'card'], type: 'button' }, o.node || o.label);
       btn.addEventListener('click', () => choose(o, btn));
-      btn.__right = !!o.right; // 给走查脚本用（dev/walk-classroom.js）
+      btn.__right = !!o.right; // 给走查脚本用（dev/walk-classroom2.js）
       o.btn = btn;
       return btn;
     }));
@@ -305,20 +273,4 @@ export function listenQuiz({ need = 3, env, make, stage = null, listenLabel = '�
       stopPlay();
     },
   };
-}
-
-/** 一排 7 个 Synth key 的样子（中间两排键）：点它出声。keys = 要摆的键（1–7），notes(d) = 这个键发什么音 */
-export function synthKeyRow({ keys = [1, 2, 3, 4, 5, 6, 7], label = (d) => `键 ${d}`, sub = () => '', onPress } = {}) {
-  const btns = keys.map((d) => {
-    const b = h('button', { class: 'cl-skey', type: 'button', 'data-sfx': 'none', 'data-key': String(d) }, h('b', {}, label(d)), h('span', {}, sub(d)), h('em', {}));
-    b.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      b.classList.add('down');
-      setTimeout(() => b.classList.remove('down'), 160);
-      onPress?.(d, b);
-    });
-    b.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && !e.repeat && onPress?.(d, b));
-    return b;
-  });
-  return { el: h('div', { class: 'cl-skeys', style: { gridTemplateColumns: `repeat(${keys.length}, minmax(0, 1fr))` } }, btns), btns };
 }

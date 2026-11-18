@@ -306,7 +306,7 @@ function findmelody(spec, env) {
 }
 
 // ───────────── T8 啾啾唱一句，你弹回来 ─────────────
-// 第一期留下的一处：T8 的挑战原来是一排 6 个键（classroom-ear.js 的 pentaecho），不在乐理台上。这回搬过来：同样的玩法，换到键盘上答。
+// 第一期留下的一处：T8 的挑战原来是一排 6 个键（classroom-ear.js 的 pentaecho，2026-11-18 清掉了），不在乐理台上。这回搬过来：同样的玩法，换到键盘上答。
 
 function pentaback(spec, env) {
   const tier = env.tier || 1;

@@ -274,15 +274,14 @@ function cardsPage(view) {
 
 // ───────────── 每日五分钟 ─────────────
 
-// 复习用的短版：听辨类答对 2 题、排顺序 / 配对 / 听写 / 学舌做 1 轮；铜那一档
-const SHORT = { order: 1, progorder: 1, resoorder: 1, energyorder: 1, memory: 1, intervalmem: 1, modmem: 1, griddict: 1, subdict: 1, pentaecho: 1, phrasecatch: 1, dropcatch: 1, keymatch: 1,
+// 复习用的短版：听辨类答对 2 题、排顺序 / 配对 / 听写做 1 轮；铜那一档
+const SHORT = { order: 1, resoorder: 1, energyorder: 1, memory: 1, modmem: 1, griddict: 1, phrasecatch: 1, dropcatch: 1, keyclash: 1, keymatch: 1,
   findhome: 1, findchords: 1, rhythmread: 1, barcount: 1, scoremarks: 1 }; // 后面五个是乐理线第三期的：一轮就是一首歌 / 一小节谱子
 function reviewSpec(level) {
   const spec = tierSpec(level.quiz, 1);
-  if (spec.toy === 'steady') return { ...spec, challenge: 6 };
-  if (spec.toy === 'memory' || spec.toy === 'intervalmem' || spec.toy === 'modmem') return { ...spec, pairs: 3 };
+  if (spec.toy === 'memory' || spec.toy === 'modmem') return { ...spec, pairs: 3 };
   if (SHORT[spec.toy]) return { ...spec, need: 1 };
-  if (spec.toy === 'oddchord' || spec.toy === 'duckodd') return { ...spec, need: 2 };
+  if (spec.toy === 'duckodd') return { ...spec, need: 2 };
   return { ...spec, need: Math.min(spec.need || 2, 2) };
 }
 

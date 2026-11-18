@@ -1108,8 +1108,10 @@ const KEY_B = ['levels', 'faded', 'starboy', 'wake-me-up', 'believer', 'shape-of
 /**
  * A 放和弦和贝斯，B 放另一首歌的旋律，B 的调可以一格一格（半音）挪。挪到“不打架”（B 的音全落在 A 那把梯子上）就对了。
  * 铜：看得见“打架的音有几个”；银：看不见，答错了才告诉你；金：什么都不说。
+ * 原来叫 keymatch，和乐理线 T14 的玩具（theory-toys.js）重了名：总表里后展开的盖掉前面的，D6 摆出来的一直是 T14 那个。
+ * 2026-11-18 改叫 keyclash；tools/toy-check.mjs 的 shadowed 看的就是这种重名。
  */
-function keymatch(spec, env) {
+function keyclash(spec, env) {
   const free = !env.tier;
   const need = spec.need || (free ? 0 : byTier(env.tier, [1, 2, 3]));
   const showMeter = free || env.tier <= 1;
@@ -1272,4 +1274,4 @@ function keymatch(spec, env) {
   };
 }
 
-export const DJ_TOYS = { phrasecount, phrasecatch, dropview, dropcatch, energymap, energyorder, transition, beatmatch, keymatch };
+export const DJ_TOYS = { phrasecount, phrasecatch, dropview, dropcatch, energymap, energyorder, transition, beatmatch, keyclash };

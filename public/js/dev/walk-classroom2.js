@@ -36,18 +36,13 @@ const press = (node) => {
 };
 const tapAtPerf = (perf, fn) => setTimeout(fn, Math.max(0, perf - performance.now()));
 
-// 记下应用排进时钟的声音：拍垫子的几样（T1、R1、R6）要知道拍子落在哪一刻
+// 记下应用排进时钟的鼓声：拍垫子的那一样（R6）要知道底鼓落在哪一刻
 const sched = [];
 let hooked = false;
 function hook() {
   if (hooked) return;
   hooked = true;
-  const click0 = audio.click.bind(audio);
   const drum0 = audio.drum.bind(audio);
-  audio.click = (t, accent) => {
-    sched.push({ what: 'click', t, accent: !!accent });
-    return click0(t, accent);
-  };
   audio.drum = (lane, t, ...rest) => {
     sched.push({ what: lane, t });
     return drum0(lane, t, ...rest);
@@ -89,7 +84,7 @@ async function play() {
     await sleep(150);
   }
   // 点几样能点的东西：大部分玩具“动一下”就是点它的键、格子、开关
-  const things = $$('.cl-mood button, .cl-skey, .cl-chrom, .cl-wkey, .cl-key, .cl-ptile, .cl-groove, .cl-tl-block[role="button"], .cl-seg button, .fx-ab button, .fx-seg button, .cl-row .btn:not(.cl-play):not(.primary)', stage).slice(0, 6);
+  const things = $$('.cl-key, .cl-groove, .cl-tl-block[role="button"], .cl-seg button, .fx-ab button, .fx-seg button, .cl-row .btn:not(.cl-play):not(.primary)', stage).slice(0, 6);
   for (const t of things) {
     press(t);
     t.click();
@@ -171,20 +166,6 @@ async function solveDict(root) {
     });
     $$('.cl-dict .btn.primary', root).find((x) => x.textContent === '对一下')?.click();
     await sleep(2900);
-  }
-}
-
-async function solveEcho(root) {
-  const el = $('.cl-echo', root);
-  for (let n = 0; n < 6 && !$('.cl-pass', root); n++) {
-    const r = el.__round();
-    $('.cl-echo .btn.primary', root).click();
-    await sleep(r.degrees.length * 450 + 300);
-    for (const d of r.degrees) {
-      ev('pointerdown', $(`.cl-echo .cl-skey[data-key="${d}"]`, root));
-      await sleep(180);
-    }
-    await sleep(1900);
   }
 }
 
@@ -309,25 +290,7 @@ async function solveBuild(toy, root) {
 
 async function solveTimed(toy, root, kind) {
   const used = new Set();
-  if (kind === 'findone') {
-    $('.cl-play', root).click();
-    const end = performance.now() + 30000;
-    while (!$('.cl-name:not([hidden]) .cl-medal') && performance.now() < end) {
-      const b = await nextBeat((e) => e.what === 'click' && e.accent, used);
-      if (!b) break;
-      padAt(b.t);
-      await sleep(400);
-    }
-  } else if (kind === 'steady') {
-    $('.cl-play', root).click();
-    const end = performance.now() + 20000;
-    while (!$('.cl-meter .dot.keep', root) && performance.now() < end) {
-      const b = await nextBeat((e) => e.what === 'click', used);
-      if (!b) break;
-      padAt(b.t);
-      await sleep(120);
-    }
-  } else if (kind === 'swingtap') {
+  if (kind === 'swingtap') {
     $('.cl-play', root).click();
     const beat = 60 / 84;
     const end = performance.now() + 30000;
@@ -376,18 +339,15 @@ async function solve(toy, root, tier) {
   if ($('.cl-order', root)) return (await solveOrder(root), { type: 'order' });
   if ($('.cl-memory', root)) return (await solveMemory(root), { type: 'memory' });
   if ($('.cl-dict', root)) return (await solveDict(root), { type: 'dictate' });
-  if ($('.cl-echo', root)) return (await solveEcho(root), { type: 'echo' });
   if ($('.cl-mixer', root)) return (await solveTransition(toy, root, tier), { type: 'transition' });
   if ($('.cl-match2', root)) return (await solveBeatmatch(toy, root, tier), { type: 'beatmatch' });
-  if ($('.cl-keym', root)) return (await solveKey(toy, root, tier), { type: 'keymatch' });
+  if ($('.cl-keym', root)) return (await solveKey(toy, root, tier), { type: 'keyclash' });
   if ($('.cl-build', root)) return (await solveBuild(toy, root), { type: 'buildup' });
   if ($('.cl-dj-tap', root)) return (await solveCatch(toy, root), { type: 'catch' });
   if ($('.cl-cards', root)) return (await solveOdd(root), { type: 'odd' });
   if ($('.cl-opts', root)) return (await solveOpts(root), { type: 'pick' });
   if ($('.cl-match', root)) return (await solveTimed(toy, root, 'matchcut'), { type: 'matchcut' });
-  if ($('.cl-steady', root)) return (await solveTimed(toy, root, 'steady'), { type: 'steady' });
   if ($('.cl-tap', root)) return (await solveTimed(toy, root, 'swingtap'), { type: 'swingtap' });
-  if ($('.cl-beat.blind', root)) return (await solveTimed(toy, root, 'findone'), { type: 'findone' });
   return { type: '认不出' };
 }
 

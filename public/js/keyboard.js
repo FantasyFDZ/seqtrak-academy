@@ -3,7 +3,7 @@
 // 什么时候接管键盘：学习方式是键盘（learn-mode.js），模拟机在屏幕上看得见，没在输入框里打字，上面没盖着全屏的东西（过关和升级的庆祝、开屏）。
 // 不接管的时候一个键都不碰，别的地方自己的按键照常：
 //   音游（和模拟机不同屏）、延迟校准、开屏的空格 / 回车、庆祝（Esc 合上）、啾啾的输入框（输入框拿着焦点）。
-//   拿着焦点、自己会听方向键 / 空格 / 回车的东西（OWN_KEYS：音色、效果实验台的旋钮和滑条，小课堂的敲击板、琴键）：这几个键给它们。
+//   拿着焦点、自己会听方向键 / 空格 / 回车的东西（OWN_KEYS：音色、效果实验台的旋钮和滑条，小课堂的敲击板）：这几个键给它们。
 // 接管的键：preventDefault + stopPropagation（在 window 的捕获阶段），页面上别处就收不到了；松手（keyup）不管当时接不接管都送到模拟机，免得按着的键卡住。
 // 焦点：用 Tab 走到页面上某个按钮再按回车，照常是按那个按钮（kbFocus）；空格一律是 [PLAY]（按钮还留着焦点时也是）。
 // Tab 走到模拟机上没有专门电脑键的控件（[VOL+]、右边 4 个旋钮……）时：回车 = 按它（按住回车 = 按住它），↑ ↓ = 转它。
@@ -17,7 +17,7 @@ import { TRACK } from './tracks.js';
 
 // 模拟机上没有专门电脑键的控件：能用 Tab 选中
 const TAB_IDS = ['VOL+', 'VOL-', 'RECSAMPLE', 'UNDO', 'CLEARFX', 'MASTERSINGLE', 'FXPAGE', 'SD1', 'SD2', 'SD3', 'SD4', 'FX', 'FXLEVEL'];
-const OWN_KEYS = '[role="slider"], input[type="range"], .cl-pad, .cl-wkey, .cl-skey, [data-keys="own"]';
+const OWN_KEYS = '[role="slider"], input[type="range"], .cl-pad, [data-keys="own"]';
 const STRIP_START = 0.2; // ← / → 按下去时手指按在触摸条的多高（REPEATER：一拍一拍地重复）
 const STRIP_STEP = 0.2;
 
@@ -110,7 +110,7 @@ function onKeyDown(e) {
     return;
   }
   const code = e.code;
-  // 拿着焦点的是自己会听方向键 / 空格 / 回车的东西（音色、效果实验台的旋钮和滑条，小课堂的敲击板、琴键）：这几个键给它
+  // 拿着焦点的是自己会听方向键 / 空格 / 回车的东西（音色、效果实验台的旋钮和滑条，小课堂的敲击板）：这几个键给它
   if (e.target?.closest?.(OWN_KEYS) && /^(Arrow|Space$|Enter$)/.test(code)) return;
   const take = () => {
     e.preventDefault();

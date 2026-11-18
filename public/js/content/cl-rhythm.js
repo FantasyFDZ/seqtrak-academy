@@ -83,7 +83,7 @@ export const RHYTHM = [
   {
     id: 'R1', line: 'rhythm', kind: 'explain', title: '跟稳', about: '四拍一组，每拍一下：看自己偏早还是偏晚', minutes: 4,
     say: '音乐是“**1**、2、3、4”，四下一组。打碟对拍靠的就是这个：心里有个钟，每一下都落在它上面。',
-    // 2026-11-17：加了“节拍器三招”（classroom-rhythm2.js 的 metro）。原来的 steady 还留在 classroom-toys.js 里，没有关在用
+    // 2026-11-17：加了“节拍器三招”（classroom-rhythm2.js 的 metro）。原来的 steady 还留在 classroom-toys.js 里，没有关在用（2026-11-18 清掉了）
     // 2026-11-18：原来乐理线的 T1「四个一组」（拍子和小节）并进了这里：热身的第一段、“用在机器上”看方键上那盏白灯、带走的话、两道快问快答
     play: {
       toy: 'metro', bpm: 92,
@@ -121,8 +121,8 @@ export const RHYTHM = [
   {
     id: 'R2', line: 'rhythm', kind: 'rhythm', title: '数出来', about: '把一拍切开，边数边打', minutes: 5,
     say: '一拍像一块蛋糕：可以整块吃，也可以切两半、切四块。鼓手嘴里一直在念经：“1 e & a 2 e & a……”。念得出，再密的节奏也不乱，啾。',
-    // 2026-11-17：加了“只念开头”的读法（classroom-rhythm2.js 的 saycount / saywords，音游下面的读法条）。原来的热身 countalong 还在 classroom-rhythm.js 里，没有关在用
-    // 2026-11-18：原来乐理线的 T2「把一拍切开」（一拍 1 下 / 2 下 / 4 下）并进了这里：热身的前三步、带走的话、一道快问快答。它的格子听写（subdict）没有关在用了
+    // 2026-11-17：加了“只念开头”的读法（classroom-rhythm2.js 的 saycount / saywords，音游下面的读法条）。原来的热身 countalong 还在 classroom-rhythm.js 里，没有关在用（2026-11-18 清掉了）
+    // 2026-11-18：原来乐理线的 T2「把一拍切开」（一拍 1 下 / 2 下 / 4 下）并进了这里：热身的前三步、带走的话、一道快问快答。它的格子听写（subdict）没有关在用了（2026-11-18 清掉了）
     play: {
       toy: 'saycount', bpm: 84,
       tip: '照上面那一条说的一步一步来。先整拍一下，再切两半、切四块；再看长的音：一个音占好几格，只念开头那个字。念出声最好。',
@@ -163,7 +163,7 @@ export const RHYTHM = [
   {
     id: 'R3', line: 'rhythm', kind: 'ear', title: '听一段，选图案', about: '把听到的节奏和 16 格的图对上', minutes: 5,
     say: '鼓点可以画成图：亮的格子有声音，暗的格子是空的。',
-    // 2026-11-18：热身换成分三小步的 readblocks（classroom-rhythm3.js）：点格子 → 把重复的小块圈出来 → 两下一组还是三下一组。原来的 gridplay 还在 classroom-toys.js 里，没有关在用
+    // 2026-11-18：热身换成分三小步的 readblocks（classroom-rhythm3.js）：点格子 → 把重复的小块圈出来 → 两下一组还是三下一组。原来的 gridplay 还在 classroom-toys.js 里，没有关在用（2026-11-18 清掉了）
     play: {
       toy: 'readblocks', bpm: 104, pattern: 'x---x---x-x-----',
       tip: '照上面那一条说的一步一步来：先点格子听听，再把**重复的小块**圈出来，最后听一串镲是**几下一组**。',
@@ -271,7 +271,7 @@ export const RHYTHM = [
   {
     id: 'R6', line: 'rhythm', kind: 'explain', title: '晃起来', about: '摇摆：直的和晃的各打一遍', minutes: 4,
     say: '同一个节奏，可以走得像机器人，也可以像蹦蹦跳跳的小孩。差别只有一点：每一对里的第二下，晚一点点。',
-    // 2026-11-18：热身换成分四小步的 swingthirds（classroom-rhythm3.js）：直的 → 一拍切三份 → 拿掉中间那下 → 滑条。原来的 swingfeel 还在 classroom-toys.js 里，没有关在用
+    // 2026-11-18：热身换成分四小步的 swingthirds（classroom-rhythm3.js）：直的 → 一拍切三份 → 拿掉中间那下 → 滑条。原来的 swingfeel 还在 classroom-toys.js 里，没有关在用（2026-11-18 清掉了）
     play: {
       toy: 'swingthirds', bpm: 92,
       tip: '照上面那一条说的一步一步来：先听直的，再把一拍**切成三份**，拿掉中间那一下，最后拖滑条，把第二下推到“三份的最后一份”上。',
@@ -357,7 +357,7 @@ export const RHYTHM = [
   {
     id: 'R8', line: 'rhythm', kind: 'ear', title: '听律动，猜风格', about: 'House、Hip-hop、Techno 的鼓有什么不一样', minutes: 4,
     say: '你打碟时一耳朵就分得出 House 和 Hip-hop。靠的不是旋律，是鼓怎么摆。',
-    // 2026-11-18：热身换成 layers（classroom-rhythm3.js）：还是三张牌，多了“一层一层放”和每一层的开关。原来的 grooves 还在 classroom-toys.js 里，没有关在用
+    // 2026-11-18：热身换成 layers（classroom-rhythm3.js）：还是三张牌，多了“一层一层放”和每一层的开关。原来的 grooves 还在 classroom-toys.js 里，没有关在用（2026-11-18 清掉了）
     play: {
       toy: 'layers',
       tip: '三张牌，点哪张放哪张。再点「**一层一层放**」：先只有底鼓，每两小节加一层。盯着图看：底鼓落在哪几格、第 2、4 拍是谁、镲密不密。',

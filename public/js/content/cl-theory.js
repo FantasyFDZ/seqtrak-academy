@@ -4,6 +4,8 @@
 // 2026-11-17 乐理线重做第一期：T5、T6、T7、T8、T12 的“学”和“挑战”换了新的，又加了 T14–T17，排成单元的顺序——
 // 都在 cl-theory-units.js 里（它的 redo() 拿这里的原文当底子）。这个文件里这几关的 play / quiz 已经不用了，
 // “用在机器上”、带走的话、快问快答还在用。T9、T10、T11、TB 还是老样子，等下一期。
+// 2026-11-18：后两期把 T9、T10、T11、TB 也换了。下面老关的 play / quiz 里写的玩具（octaves、samename、brightdark……）代码已经清掉了，
+// 这些字段只是留着的原文：play 被 redo() 丢掉，quiz 被新的盖掉，走不到（tools/toy-check.mjs 看的是排好以后的清单）。
 // 2026-11-18：T1「四个一组」并进了节奏线的 R1，T2「把一拍切开」并进了 R2（原文搬到了 cl-rhythm.js 的 R1、R2 里，精简过）。
 import { PLAY, STOP, PICK, STEPS } from './classroom-bits.js';
 import { redo, THEORY_UNITS } from './cl-theory-units.js';

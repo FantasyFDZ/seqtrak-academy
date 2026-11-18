@@ -137,8 +137,6 @@
 .cl-beats i.on { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }
 .cl-beats i.one.on { background: var(--accent); color: var(--accent-ink); transform: scale(1.06); }
 .cl-beats i.got { background: var(--lamp-ok); color: var(--on-bright); border-color: var(--lamp-ok); transform: scale(1.12); }
-[data-fx="rich"] .cl-beat.blind.playing .cl-beats i { animation: cl-breathe var(--beat) ease-in-out infinite alternate; }
-@keyframes cl-breathe { to { opacity: .5; } }
 
 /* 16 个格子：机器上那两排方键 */
 .cl-keys { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; width: 100%; max-width: 640px; align-self: center; touch-action: pan-y; }
@@ -169,53 +167,6 @@ button.cl-key:active { transform: translateY(3px); box-shadow: 0 0 0 var(--key-e
 .cl-opt.right { border-color: var(--lamp-ok); background: var(--ok-soft); }
 .cl-opt.wrong { border-color: var(--bad); background: var(--bad-soft); }
 
-/* T5：三层楼，每层 7 个键，同名的上下对齐 */
-.cl-floors { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
-.cl-floor { flex: 1; min-height: 56px; max-height: 170px; display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 8px; }
-.cl-floor > span { font: 700 13px var(--mono); color: var(--muted); }
-.cl-wkeys { height: 100%; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
-.cl-wkey { min-width: 0; display: grid; place-items: center; border-radius: 12px; color: var(--piano-ink); background: linear-gradient(var(--piano-w1), var(--piano-w2)); border: 1px solid var(--piano-edge); box-shadow: 0 5px 0 var(--piano-edge); cursor: pointer; touch-action: none; transition: transform 60ms, box-shadow 60ms, background var(--t-move); }
-.cl-wkey b { font: 800 22px var(--mono); }
-.cl-wkey.same { background: var(--c); color: var(--on-bright); border-color: var(--shade-3); }
-.cl-wkey.down, .cl-wkey:active { transform: translateY(5px); box-shadow: 0 0 0 var(--piano-edge); }
-
-/* T7：一把梯子 */
-.cl-bd { border-radius: 12px; transition: background var(--t-show) var(--out); }
-.cl-mood { display: inline-flex; padding: 4px; gap: 2px; border-radius: 16px; background: var(--panel-3); box-shadow: 0 1px 2px var(--shade-2) inset; }
-.cl-mood button { min-width: 104px; height: 50px; border: 0; border-radius: 12px; background: transparent; color: var(--text-2); font-size: 17px; font-weight: 800; cursor: pointer; transition: background var(--t-move), color var(--t-move); }
-.cl-mood button.on { background: var(--yellow); color: var(--yellow-ink); box-shadow: 0 2px 0 var(--shade-3); }
-.cl-bd.dark .cl-mood button.on { background: var(--blue); color: var(--on-bright); }
-.cl-rungs { flex: 1; min-height: 130px; max-height: 240px; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; padding-bottom: 26px; }
-.cl-rung { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; padding: 0 0 12px; border-radius: 12px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 1px solid var(--key-border); box-shadow: 0 4px 0 var(--key-edge); cursor: pointer; touch-action: none; transition: transform var(--t-move) var(--pop), background var(--t-move), border-color var(--t-move), box-shadow var(--t-press); }
-.cl-rung b { font: 800 20px var(--mono); }
-.cl-rung span { font: 700 12px var(--mono); color: var(--muted); }
-.cl-rung.moves { background: var(--warn-soft); border-color: var(--yellow); }
-.cl-bd.dark .cl-rung.moves { transform: translateY(22px); background: var(--blue-soft); border-color: var(--blue); }
-.cl-rung.down { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-2); box-shadow: 0 0 0 var(--key-edge); }
-.cl-rung.down span { color: var(--accent-ink); }
-
-/* T10：叠积木 */
-.cl-badge { min-height: 30px; padding: 4px 12px; border-radius: 15px; font-weight: 800; font-size: 14px; background: var(--panel-3); color: var(--text-2); }
-.cl-badge:empty { visibility: hidden; }
-.cl-badge[data-mood="major"] { background: var(--warn-soft); color: var(--warn); }
-.cl-badge[data-mood="minor"] { background: var(--blue-soft); color: var(--blue); }
-.cl-tower-wrap { flex: 1; min-height: 110px; display: grid; place-items: center; }
-.cl-tower { display: flex; flex-direction: column; gap: 6px; width: min(260px, 60%); }
-.cl-brick { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-radius: 10px; font-weight: 800; color: var(--on-bright); box-shadow: 0 3px 0 var(--shade-3); }
-.cl-brick span { font: 700 12px var(--mono); opacity: .9; }
-.cl-brick[data-layer="1"], .cl-skey.on[data-layer="1"] { --k: var(--accent); }
-.cl-brick[data-layer="2"], .cl-skey.on[data-layer="2"] { --k: var(--violet); }
-.cl-brick[data-layer="3"], .cl-skey.on[data-layer="3"] { --k: var(--cyan); }
-.cl-brick { background: var(--k); }
-.cl-skeys { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
-.cl-skey { min-width: 0; min-height: 78px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border-radius: 12px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 2px solid var(--key-border); box-shadow: 0 4px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-press), box-shadow var(--t-press), opacity var(--t-move), border-color var(--t-move); }
-.cl-skey:active { transform: translateY(4px); box-shadow: 0 0 0 var(--key-edge); }
-.cl-skey b { font: 800 18px var(--mono); }
-.cl-skey span { font-size: 12px; color: var(--muted); }
-.cl-skey em { min-height: 16px; font: 700 12px var(--mono); font-style: normal; color: var(--k, var(--muted)); }
-.cl-skey.on { border-color: var(--k); box-shadow: 0 4px 0 var(--k); transform: translateY(-6px); }
-.cl-skey.skip { opacity: .4; }
-
 /* T10：三张牌 */
 .cl-cards { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: center; }
 .cl-cardbox { display: flex; flex-direction: column; gap: 10px; align-items: stretch; transition: opacity var(--t-move); }
@@ -243,13 +194,6 @@ button.cl-key:active { transform: translateY(3px); box-shadow: 0 0 0 var(--key-e
 @keyframes cl-drop { from { transform: translateY(-26px) scale(1.6); opacity: 0; } }
 
 /* R6：摇摆 */
-.cl-swingrow { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); padding: 14px 0; border-radius: 14px; background: var(--field); border: 1px solid var(--line-2); box-shadow: 0 1px 3px var(--shade-2) inset; }
-.cl-swingrow i { display: grid; place-items: center; height: 34px; transition: transform 120ms var(--out); }
-.cl-swingrow i::before { content: ""; width: 16px; height: 16px; border-radius: 50%; background: var(--line-3); transition: transform 60ms, background 60ms; }
-.cl-swingrow i.beat::before { background: var(--text); }
-.cl-swingrow i.late { transform: translateX(calc(var(--swing, 0) * 100%)); }
-.cl-swingrow i.late::before { background: transparent; border: 3px solid var(--accent); }
-.cl-swingrow i.on::before { transform: scale(1.5); background: var(--accent); }
 .cl-sliderow { display: flex; align-items: center; gap: 14px; font-weight: 700; color: var(--text-2); }
 /* 滑条：手指碰得到的范围有 44 像素高，画出来的槽只有中间那 10 像素 */
 .cl-range { height: 44px !important; box-shadow: none !important; background: linear-gradient(var(--panel-3), var(--panel-3)) center / 100% 10px no-repeat !important; touch-action: none; }
@@ -519,16 +463,6 @@ a.cl-next:hover, .cl-daily-mini:hover { border-color: var(--c, var(--accent)); c
 .cl-key.extra { outline: 3px solid var(--bad); outline-offset: 1px; }
 .cl-dict .cl-keys { max-width: 560px; }
 
-/* 啾啾唱一句，你弹回来 */
-.cl-echo-typed { display: flex; gap: 10px; justify-content: center; }
-.cl-echo-typed i { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 14px; font: 800 22px var(--mono); font-style: normal; color: var(--muted); background: var(--field); border: 2px dashed var(--line-2); transition: transform 120ms var(--pop), background 120ms, border-color 120ms, color 120ms; }
-.cl-echo-typed i.singing { color: var(--accent-text); background: var(--accent-soft); border: 2px solid var(--accent); transform: translateY(-4px) scale(1.06); }
-.cl-echo-typed i.on { color: var(--on-bright); background: var(--c); border: 2px solid var(--c); }
-.cl-echo-keys { flex: 1; min-height: 0; display: flex; align-items: center; }
-.cl-echo-keys .cl-skeys { width: 100%; }
-.cl-skey.down { transform: translateY(4px); box-shadow: 0 0 0 var(--key-edge); background: color-mix(in srgb, var(--c) 18%, var(--panel)); }
-.cl-skey.hint { border-color: var(--accent); box-shadow: 0 4px 0 var(--accent); }
-
 /* 快问快答 */
 .cl-ask-q { font-size: 19px; font-weight: 750; line-height: 1.5; color: var(--text); }
 .cl-ask-opts .cl-opt { min-height: 54px; text-align: left; padding-left: 18px; font-size: 16px; }
@@ -541,43 +475,6 @@ a.cl-next:hover, .cl-daily-mini:hover { border-color: var(--c, var(--accent)); c
 .cl-rhythm-host .game-hud { padding: 6px 14px 4px; }
 .cl-rhythm-host .game-steps { display: none; }
 .cl-rhythm .cl-note { min-height: 0; }
-
-/* 数出来：“1 e & a” */
-.cl-words { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 4px; max-width: 640px; width: 100%; align-self: center; }
-.cl-words i { display: grid; place-items: center; height: 34px; border-radius: 8px; font: 800 15px var(--mono); font-style: normal; color: var(--muted); background: var(--panel-2); transition: background 60ms, color 60ms, transform 60ms; }
-.cl-words i.beat { color: var(--text); }
-.cl-words i.on { background: var(--accent); color: var(--accent-ink); transform: scale(1.12); }
-.cl-count16 .cl-pad { max-height: 130px; }
-.cl-two-grids { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.cl-two-grids > div { display: flex; flex-direction: column; gap: 6px; }
-.cl-two-grids .cl-keys.small { max-width: none; }
-.cl-two-pads { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.cl-two-pads .cl-pad { max-height: none; }
-
-/* 乐理的几样新玩具 */
-.cl-chroms { flex: 1; min-height: 120px; max-height: 260px; display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 5px; }
-.cl-chrom { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; padding-bottom: 10px; border-radius: 10px; color: var(--piano-ink); background: linear-gradient(var(--piano-w1), var(--piano-w2)); border: 1px solid var(--piano-edge); box-shadow: 0 4px 0 var(--piano-edge); cursor: pointer; touch-action: none; }
-.cl-chrom.black { color: var(--inv-text); background: linear-gradient(var(--piano-b1), var(--piano-b2)); border-color: var(--piano-b-edge); box-shadow: 0 4px 0 var(--piano-b-edge); }
-.cl-chrom b { font: 800 14px var(--mono); }
-.cl-chrom span { font: 700 11px var(--mono); opacity: .7; }
-.cl-chrom.here { background: var(--c); color: var(--on-bright); border-color: var(--c); transform: translateY(4px); box-shadow: 0 0 0 var(--piano-edge); }
-.cl-chrom.from { outline: 3px dashed var(--c); outline-offset: 2px; }
-.cl-penta-keys { flex: 1; min-height: 120px; max-height: 240px; display: grid; gap: 8px; touch-action: pan-y; }
-.cl-penta-keys .cl-wkey { touch-action: pan-y; }
-.cl-penta-keys .cl-wkey.black { color: var(--inv-text); background: linear-gradient(var(--piano-b1), var(--piano-b2)); border-color: var(--piano-b-edge); box-shadow: 0 5px 0 var(--piano-b-edge); }
-.cl-penta-keys .cl-wkey.down { transform: translateY(5px); box-shadow: none; background: var(--c); color: var(--on-bright); }
-.cl-penta-keys .cl-wkey b { font-size: 18px; }
-.cl-iv .cl-skeys { flex: 1; min-height: 0; align-content: center; }
-.cl-iv .cl-skey.on { border-color: var(--c); box-shadow: 0 4px 0 var(--c); transform: translateY(-6px); }
-.cl-ground { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; border-radius: 12px; background: color-mix(in srgb, var(--c) 14%, var(--panel-2)); border: 2px solid var(--c); font-weight: 800; }
-.cl-ground span { font: 800 16px var(--mono); color: var(--text-2); }
-.cl-prog { flex: 1; min-height: 120px; max-height: 220px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.cl-ptile { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 16px; color: var(--text); background: linear-gradient(var(--key-top), var(--key-bot)); border: 2px solid var(--key-border); box-shadow: 0 5px 0 var(--key-edge); cursor: pointer; transition: transform var(--t-move) var(--pop), border-color var(--t-move); }
-.cl-ptile b { font: 800 24px var(--mono); }
-.cl-ptile span { font: 800 15px var(--mono); color: var(--text-2); }
-.cl-ptile em { font-size: 12px; font-style: normal; color: var(--muted); }
-.cl-ptile.now { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, var(--panel)); transform: translateY(-4px); }
-.cl-trans .cl-skeys { flex: 1; min-height: 0; align-content: center; }
 
 /* 做一次铺垫：两条“按住才有”的触摸条 */
 .cl-build-strips { flex: 1; min-height: 0; display: grid; grid-template-columns: 96px 96px minmax(0, 1fr); gap: 16px; }

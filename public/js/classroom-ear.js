@@ -3,18 +3,14 @@
 //   oddQuiz     找不同：几张牌里只有一张和别的不一样
 //   memoryQuiz  记忆配对：翻牌，两张一样的声音配成一对
 //   dictateQuiz 格子听写：听一段节奏，在 16 个格子（机器上那两排方键）上点出来
-//   echoQuiz    啾啾唱一句，你弹回来：在屏幕上的几个键上（或真机的 Synth keys 上）照着弹
 //   askQuiz     快问快答：一句话的选择题（每日五分钟、关底大关用）
 // 约定和别的玩具一样，见 classroom-kit.js 开头。每种题都是“答对几轮过关”，答错不扣分、马上下一轮，星星看错了几次。
 import { h, rich } from './util.js';
-import { audio } from './audio.js';
 import { LoopPlayer } from './looper.js';
-import { midi } from './midi.js';
 import { sfx } from './sfx.js';
 import { confetti, pop } from './fx.js';
-import { synthKeyNote, SCALES } from './scales.js';
-import * as jiu from './jiu.js';
-import { shuffle, keys16, pad16, starsByWrong, passLine, byTier, synthKeyRow, asStop } from './classroom-kit.js';
+import { SCALES } from './scales.js';
+import { shuffle, keys16, pad16, starsByWrong, passLine, byTier, asStop } from './classroom-kit.js';
 
 const LETTERS = 'ABCDEFGH';
 
@@ -460,138 +456,6 @@ export function dictateQuiz(spec, env, make) {
       stop();
     },
   };
-}
-
-// ───────────── 啾啾唱一句，你弹回来 ─────────────
-
-/**
- * make(len) → { degrees: [键…], keys: 屏幕上摆哪几个键, scale, key, octave, gap }：啾啾唱的那一句（第几个 Synth key）
- * spec.len = 一句几个音（铜 2、银 3、金 4），spec.need = 弹对几句
- * 真机：音阶要和这一题一样（比如五声那一关要先把 [SCALE] 换到 MINOR PENTATONIC），按的音按音名认
- */
-export function echoQuiz(spec, env, make) {
-  const len = spec.len || byTier(env.tier, [2, 3, 4]);
-  const need = spec.need || byTier(env.tier, [2, 3, 3]);
-  const f = frame(need);
-  let round = null;
-  let got = [];
-  let timer = 0;
-  let listening = false;
-  let singTimers = [];
-  const clearSing = () => singTimers.splice(0).forEach(clearTimeout);
-  const sing = h('button', { class: 'btn primary lg', type: 'button' }, '▶ 啾啾唱一句');
-  const typed = h('div', { class: 'cl-echo-typed' });
-  const keysBox = h('div', { class: 'cl-echo-keys' });
-  let row = null;
-  const el = h('div', { class: 'cl-toy cl-echo' },
-    h('div', { class: 'cl-row' }, sing, h('span', { class: 'spacer' }), f.lamps),
-    h('div', { class: 'cl-cap' }, `啾啾唱几个音，你在下面的键上照着弹（${len} 个音）`),
-    typed, keysBox, f.note);
-
-  el.__round = () => round; // 给走查脚本用
-  const noteOf = (d) => synthKeyNote(d, { scale: round.scale ?? 0, key: round.key || 0, octave: round.octave ?? -1 });
-  const paintTyped = () => typed.replaceChildren(...Array.from({ length: len }, (_, i) => h('i', { class: got[i] !== undefined ? 'on' : '' }, got[i] !== undefined ? String(got[i]) : '·')));
-
-  function singNow() {
-    clearSing();
-    listening = true;
-    got = [];
-    paintTyped();
-    const gap = round.gap || 0.42;
-    audio.init().then((ok) => {
-      if (!ok) return;
-      const t0 = audio.now() + 0.05;
-      round.degrees.forEach((d, i) => audio.note(noteOf(d), t0 + i * gap, gap * 0.85, { voice: 'keys', vel: 0.7 }));
-      jiu.chirp('echo', { notes: round.degrees.map((d, i) => [i * gap, noteOf(d) + 12, gap * 0.8]) });
-      jiu.setMood('happy', 1500);
-    });
-    round.degrees.forEach((_, i) => {
-      singTimers.push(setTimeout(() => {
-        if (got.length > 0) return;
-        const slot = typed.children[i];
-        if (!slot) return;
-        slot.classList.add('singing');
-        slot.textContent = '♪';
-      }, 50 + i * gap * 1000));
-      singTimers.push(setTimeout(() => {
-        if (got.length > 0) return;
-        const slot = typed.children[i];
-        if (!slot) return;
-        slot.classList.remove('singing');
-        slot.textContent = '·';
-      }, 50 + (i + 0.78) * gap * 1000));
-    });
-    f.say('该你了：照着弹。');
-  }
-  sing.addEventListener('click', singNow);
-
-  function press(d, btn) {
-    clearSing();
-    audio.init().then((ok) => ok && audio.note(noteOf(d), audio.now() + 0.01, 0.4, { voice: 'keys', vel: 0.85 }));
-    if (!listening) return f.say('先点「啾啾唱一句」。');
-    got.push(d);
-    paintTyped();
-    if (btn) pop(btn);
-    if (got.length < len) return;
-    listening = false;
-    const ok = got.every((x, i) => x === round.degrees[i]);
-    if (ok) {
-      const done = f.hit();
-      f.say(`✓ 一模一样：键 ${round.degrees.join(' → ')}。`);
-      jiu.chirp('ok');
-      if (done) return f.pass(env, next);
-      timer = setTimeout(() => {
-        next();
-        singNow();
-      }, 1600);
-    } else {
-      f.miss();
-      f.say(`啾啾唱的是 **键 ${round.degrees.join(' → ')}**，你弹的是 ${got.join(' → ')}。点「啾啾唱一句」再来。`);
-      row?.btns.forEach((b) => b.classList.toggle('hint', round.degrees.includes(Number(b.dataset.key))));
-      setTimeout(() => row?.btns.forEach((b) => b.classList.remove('hint')), 1800);
-    }
-  }
-
-  function next() {
-    clearTimeout(timer);
-    clearSing();
-    round = make(len);
-    got = [];
-    listening = false;
-    row = synthKeyRow({ keys: round.keys, label: (d) => String(d), sub: (d) => round.names?.[d] || '', onPress: (d, b) => press(d, b) });
-    keysBox.replaceChildren(row.el);
-    paintTyped();
-    f.say(f.right || f.wrong ? '下一句。' : '点「啾啾唱一句」，听完在下面照着弹。');
-  }
-
-  // 真机上弹也算：按音名对回这一题的键
-  const off = midi.on('noteon', (m) => {
-    if (!round) return;
-    const pc = ((m.note % 12) + 12) % 12;
-    const d = round.keys.find((k) => ((noteOf(k) % 12) + 12) % 12 === pc);
-    if (d) press(d, row?.btns.find((b) => Number(b.dataset.key) === d));
-  });
-
-  next();
-  return {
-    el,
-    destroy() {
-      clearTimeout(timer);
-      clearSing();
-      off();
-    },
-  };
-}
-
-/** 一句旋律的常用写法：在 keys 这几个键里随机走 len 步，相邻两个音最多跳 maxJump 个键 */
-export function randomPhrase(keys, len, maxJump = 2) {
-  const out = [keys[Math.floor(Math.random() * Math.min(3, keys.length))]];
-  while (out.length < len) {
-    const at = keys.indexOf(out[out.length - 1]);
-    const near = keys.filter((_, i) => Math.abs(i - at) <= maxJump && i !== at);
-    out.push(near[Math.floor(Math.random() * near.length)]);
-  }
-  return out;
 }
 
 export const SCALE_NAME = (i) => SCALES[i]?.name || '';

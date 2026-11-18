@@ -175,7 +175,7 @@ done
 # 另有推荐路线（9 站、60 个关的小牌子，最下面 2 段选学的岔路上另有 6 个，一共 chips=66）、卡册（66 张卡，6 张带“选学”的角标）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
 # 再看“试一试”和“用在机器上”那两屏：?clstep=quiz / machine 是开发用的参数，直接从那一步开始（public/js/views/classroom.js）。
 # “用在机器上”有三种样子：模拟机、效果关用的效果模拟机、接着假真机时的真机镜像（class 里带 live）。窗口按最小的平板 1024 × 768 开。
-# 把每一关真的从头走到尾（要点、要拍、要等声音）在无界面的浏览器里做不了：那是 public/js/dev/walk-classroom.js，在开着的浏览器里跑。
+# 把每一关真的从头走到尾（要点、要拍、要等声音）在无界面的浏览器里做不了：那是 public/js/dev/walk-classroom2.js，在开着的浏览器里跑。
 classroom() {
   "$CHROME" --headless=new --disable-gpu --no-first-run --user-data-dir=$D/profile --window-size=1024,768 --virtual-time-budget=${2:-5000} --dump-dom "$BASE/$1" 2>/dev/null > $D/dom.html
 }
@@ -191,6 +191,9 @@ for id in T5 T6 T14 T15 T7 T16 T8 T12 T17 T18 T19 T20 T21 T22 T9 T10 T23 T24 T25
   if [[ $(count 'class="cl-toy') -ge 1 && $(count 'class="cl-say"') -eq 1 && $(count '这一页出错了') -eq 0 ]]; then playable=$((playable + 1)); else broken="$broken $id"; fi
 done
 echo "classroom levels -> playable=$playable/66 broken=[${broken# }]"
+# 玩具对不对得上（tools/toy-check.mjs，不用浏览器，2026-11-18 清老玩具时加的）：关里写的玩具登记表里都得有（missing=0）；
+# 登记了、没有任何关在用的也应该是 0（unused=0）。kept = 有意留着的，shadowed = 同一个名字登记了两次（后面的盖掉前面的）
+echo "classroom toys -> $(node tools/toy-check.mjs | head -1 | sed 's/^toy-check: //')"
 classroom '#/classroom/works'
 echo "classroom works -> page=$(count 'tw-page') empty=$(count 'class="tw-empty"') tabs=$(count 'class="cl-tab[ "]') errors=$(count '这一页出错了')"
 classroom '#/classroom/route'
