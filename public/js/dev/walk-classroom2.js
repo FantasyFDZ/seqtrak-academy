@@ -192,7 +192,7 @@ async function solveRhythm(toy) {
   const game = toy.game;
   $$('.game-card .btn.primary').find((b) => /开始/.test(b.textContent))?.click();
   await until(() => game.clock && game.state !== 'idle', 3000);
-  for (const t of game.targets) tapAtPerf(audio.ctxToPerf(game.clock.ctxAtBeat(t.beat)), () => game.hit(t.lane, performance.now(), 'keyboard'));
+  for (const t of game.targets) if (!t.rest) tapAtPerf(audio.ctxToPerf(game.clock.ctxAtBeat(t.beat)), () => game.hit(t.lane, performance.now(), 'keyboard')); // 灰音符（心里数、不许按）不打
   await until(() => game.state === 'done', 60000, 200);
   await sleep(500);
   return { accuracy: Math.round((game.result?.accuracy || 0) * 100), combo: game.result?.maxCombo };

@@ -75,7 +75,8 @@ const driftWords = (total) => (Math.abs(total) < DRIFT_MIN ? '没怎么漂' : `*
 // ───────────── R1 跟稳：节拍器三招 ─────────────
 
 const MOVES = {
-  every: { name: '先跟上', how: '每“嘀”一声拍一下，连着拍 **8 下**。', short: '每拍都响' },
+  // 2026-11-18：原来乐理线的 T1「四个一组」并进了这一段（“嘀”四下一组、每组第一下音高一点；一排拍子上每组第一个点大一号）
+  every: { name: '先跟上', how: '“嘀”是**四下一组**，每组第一下音高一点。每“嘀”一声拍一下，连着拍 **8 下**：正好两组。', short: '每拍都响' },
   thin: { name: '越放越稀', how: '“嘀”越来越少：每拍一声 → 两拍一声 → 一小节一声。你别停，照样**每拍一下**。', short: '放稀' },
   gone: { name: '消失再回来', how: '“嘀”响两小节，再**静两小节**。你别停。它回来的那一下，看你还在不在点上。', short: '消失再回来' },
   flip: { name: '反过来听', how: '这回它不踩拍子，只在缝里“嚓”。你拍的是两声“嚓”中间的那一下“**咚**”。', short: '只给“嚓”' },
@@ -286,7 +287,7 @@ function metro(spec, env) {
     paintHead();
     env.touched();
     const lastOne = mi >= list.length - 1;
-    const tail = { every: '', thin: '“嘀”少了就开始晃、开始漂，说明刚才是你在跟着它走，心里的钟还没走起来。', gone: '没有它的时候还在点上，才是真的稳。', flip: '“咚”在你手上，“嚓”在它那儿：合起来就是咚-嚓。' }[kind];
+    const tail = { every: '一下一下的叫**拍**；四拍一组，叫一**小节**：你刚拍了两小节。', thin: '“嘀”少了就开始晃、开始漂，说明刚才是你在跟着它走，心里的钟还没走起来。', gone: '没有它的时候还在点上，才是真的稳。', flip: '“咚”在你手上，“嚓”在它那儿：合起来就是咚-嚓。' }[kind];
     say.innerHTML = rich(`✓ ${r.html}${tail}`);
     if (lastOne) {
       confetti(meter, 18);
@@ -1379,14 +1380,16 @@ function playBarOnce(pattern, d) {
   return p.length * d;
 }
 
+// 2026-11-18：原来乐理线的 T2「把一拍切开」并进了前三步（一拍 1 下 / 2 下 / 4 下），顺序也换成了从疏到密：先整拍，再切两半，再切四块
 const SAY_PLAY = [
-  { p: 'xxxxxxxxxxxxxxxx', title: '一格一个音', how: '点「播放」。16 格都有音，16 个字全念出来。', after: '一拍四个字：“1 e & a”。' },
-  { p: 'x-x-x-x-x-x-x-x-', title: '一个音占两格', how: '现在每个音占两格。**只念它开头那个字**，后面那个字不出声，在心里过。', after: '嘴里剩下“1 & 2 & 3 & 4 &”：e 和 a 不出声了。' },
+  { p: 'x---x---x---x---', title: '一拍一下', how: '点「播放」。每拍一个音，一个音占满这一拍的四格。下面是每一格的名字：一个音不管占几格，**只念它开头那个字**。', after: '嘴里是“1 2 3 4”。一拍一下，这种音叫**四分**音符。' },
+  { p: 'x-x-x-x-x-x-x-x-', title: '切两半', how: '把一拍切成两半：每个音占两格。还是只念开头那个字，后面那个字不出声，在心里过。', after: '嘴里是“1 & 2 & 3 & 4 &”。一拍两下，叫**八分**。' },
+  { p: 'xxxxxxxxxxxxxxxx', title: '切四块', how: '再切一刀：一格一个音，16 个字全念出来。', after: '一拍四个字：“1 e & a”。一拍四下，叫**十六分**。名字不用背，记住“切几块”就行。' },
   { p: 'x-x-xxxxx---x--x', title: '长长短短', how: '有长有短混着来。还是那一条：一个音不管多长，只念开头那个字。', after: '长音后面的字都不出声：“1 & 2 e & a 3 4 a”。' },
   { quiz: 3, title: '你来点', how: '看这一拍里的音：该念哪几个字？点出来。' },
 ];
 
-/** R2 的热身：先听满的，再听“一个音占两格”，再听混着的，最后点 3 拍（这一拍该念哪几个字） */
+/** R2 的热身：一拍一下 → 切两半 → 切四块（原来 T2 的内容）→ 长短混着 → 最后点 3 拍（这一拍该念哪几个字） */
 function saycount(spec, env) {
   const bpm = spec.bpm || 84;
   const d = 60 / bpm / 4;
@@ -1612,3 +1615,6 @@ function saywords(spec, env) {
 }
 
 export const RHYTHM2_TOYS = { metro, accents, handshift, saycount, saywords };
+
+// 第二批（classroom-rhythm3.js）接着用的几样零件
+export { TOUCH, typing, sleep, fill, until, pressAt, shotSeg, offWords, steadyWord, gridRunner, handPads, CELL_NAMES, timingTag };

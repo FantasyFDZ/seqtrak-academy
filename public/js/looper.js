@@ -8,6 +8,7 @@ export class LoopPlayer {
   #raf = 0;
   #queue = []; // 已经排进音频时钟的步：{ step, time }
   #stepCb = null;
+  #run = 0; // 第几次 start()（见 start() 里那一句）
   // 开始播放时记下两个时钟。音频时钟要是一直不走（无界面的浏览器里就是这样；声音被系统挂起时也会），
   // 过了 0.4 秒就改用页面时钟往下数步：声音排不进去（反正也出不来），但灯、步、“到下一小节再换”照常走
   #clock = null;
@@ -67,9 +68,12 @@ export class LoopPlayer {
   async start() {
     if (this.playing) return;
     this.playing = true;
+    const run = ++this.#run;
     // 没有用户手势时（无界面的浏览器）让音频恢复的那一步可能一直不回来：最多等 0.4 秒，等不到就当声音没起来，下面改用页面时钟
     const ok = await Promise.race([audio.init(), new Promise((r) => setTimeout(() => r(false), 400))]);
-    if (!this.playing) return; // 等待期间已经被停掉了
+    // 等待期间已经被停掉了；或者停了又开了一次（stop(); start(); 紧跟在上一次 start() 后面）：让后来的那一次去放。
+    // 不拦的话两次都会各起一个定时器，后起的把前一个的号盖掉，stop() 再也停不到它，声音就在后台一直响（2026-11-18 走查时撞到的）
+    if (!this.playing || run !== this.#run) return;
     if (!ok && !audio.ctx) {
       this.playing = false;
       return;

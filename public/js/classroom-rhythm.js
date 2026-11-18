@@ -12,6 +12,7 @@ import { segmented } from './ui.js';
 import { byTier, keys16, playButton, tapPad, tapTime, pad16 } from './classroom-kit.js';
 import { audio } from './audio.js';
 import { RHYTHM2_TOYS, ONE_PAD_GOLD, onePad, onePadSwitch, readStrip, shotLater } from './classroom-rhythm2.js';
+import { RHYTHM3_TOYS } from './classroom-rhythm3.js';
 
 let shotSkipped = false;
 
@@ -27,10 +28,17 @@ const TIER_RULE = [
  *   spec.fixed  'KICK'：这条轨道是“不动的那只手”。金那一档不画它的下落音符（它得自己走）；
  *               只有鼠标的人可以换成一块垫子版：这只手交给机器当伴奏，只打在挪的那一只（金那一档最多给到银牌）
  *   spec.words  true：舞台下面摆一条读法条（“只念开头”的读法）。铜 16 个字都在、不念的是淡的；银只显示要念的；金不显示字
+ * 2026-11-18 加的（“一心多用”第二批，R10「不出声的那一拍」）：
+ *   谱面里的 rests     灰音符：心里数、不许按（chart.js）。按了算错，忍住才对
+ *   spec.quiet  [[从第几拍, 到第几拍], …]：这几段里节拍器、伴奏、示范音都不出声。静的时候谱面还在不在看档：铜照常、银很淡、金一点不剩。
+ *               这一段过不过，除了准确率，还要看静完回来的那一下接没接上；星星按它偏了多少给（先减掉平时的平均偏差）
+ *   spec.lite   true：分小段的热身里用（rhythmsteps）：开始卡片只留一句话和「开始」，过了以后收起结算卡片
  */
 function rhythm(spec, env) {
   const tier = Math.max(1, env.tier || 1);
   const rule = { ...byTier(tier, TIER_RULE), ...(spec.rules ? byTier(tier, spec.rules) : {}) };
+  const see = spec.see ?? byTier(tier, [1, 0.3, 0]);
+  const quiet = (spec.quiet || []).map(([from, to]) => ({ from, to, see }));
   const host = h('div', { class: 'cl-rhythm-host' });
   const readHost = spec.words ? h('div', { class: 'rh-readhost' }) : null;
   const note = h('div', { class: 'cl-note' });
@@ -38,7 +46,13 @@ function rhythm(spec, env) {
   let game = null;
   let raf = 0;
   let one = !!spec.fixed && onePad.get();
-  const tierNote = () => `**${['铜', '银', '金'][tier - 1]}**：${rule.say}${!spec.fixed ? '' : one ? ` 一块垫子版：不动的那只手机器替你打。${tier >= 3 ? '这一版在金这一档最多拿银牌。' : ''}` : tier >= 3 ? ' 不动的那只手不再画出来：它得自己走。' : ''}`;
+  const quietNote = !quiet.length ? '' : ` 静的那一小节，谱面${see >= 1 ? '还在' : see > 0 ? '只剩淡淡的影子' : '也一起没了：全靠心里数'}。`;
+  const tierNote = () => (spec.lite ? '' : `**${['铜', '银', '金'][tier - 1]}**：${rule.say}${quietNote}${!spec.fixed ? '' : one ? ` 一块垫子版：不动的那只手机器替你打。${tier >= 3 ? '这一版在金这一档最多拿银牌。' : ''}` : tier >= 3 ? ' 不动的那只手不再画出来：它得自己走。' : ''}`);
+  /** 静完回来的那几下各偏了多少毫秒（减掉平时的平均偏差；没接上的是 null） */
+  const backs = (g, r) => quiet.map((q) => {
+    const t = g.targets.find((x) => !x.rest && Math.abs(x.beat - q.to) < 0.01);
+    return t?.result && t.result.grade !== 'miss' ? Math.round(t.result.deltaMs - r.meanMs) : null;
+  });
 
   function build() {
     game?.destroy();
@@ -60,6 +74,7 @@ function rhythm(spec, env) {
       countInBeats: 4,
       showKeyHints: !midi.connected,
       hideLanes: tier >= 3 && fixedLane >= 0 ? [fixedLane] : null,
+      quiet: quiet.length ? quiet : null,
     });
     game = g;
     g.mount(host).attachKeyboard();
@@ -67,9 +82,9 @@ function rhythm(spec, env) {
     g.elStage.classList.add('compact');
     const keys = chart.lanes.map((l) => `${l.key === ' ' ? '空格' : (l.key || '').toUpperCase()} = ${l.label}`).join('，');
     g.showCard(h('div', { class: 'game-card' },
-      h('h3', { style: { marginTop: '0' } }, spec.title || '跟着落下来的音符打'),
-      h('p', { html: rich((one && spec.oneHow) || spec.how || '音符落到线上的那一刻，点那条轨道底下的键帽。') }),
-      h('p', { class: 'small muted' }, midi.connected ? '直接在 SEQTRAK 上打也行。' : `电脑上也可以按键盘：${keys}。`),
+      spec.lite ? null : h('h3', { style: { marginTop: '0' } }, spec.title || '跟着落下来的音符打'),
+      spec.lite ? null : h('p', { html: rich((one && spec.oneHow) || spec.how || '音符落到线上的那一刻，点那条轨道底下的键帽。') }),
+      h('p', { class: 'small muted' }, midi.connected ? '直接在 SEQTRAK 上打也行。' : `${spec.lite ? '音符落到线上的那一刻，点轨道底下的键帽。' : ''}电脑上也可以按键盘：${keys}。`),
       h('div', { class: 'game-actions' },
         spec.fixed && !midi.connected ? onePadSwitch((v) => {
           one = v;
@@ -80,14 +95,26 @@ function rhythm(spec, env) {
     g.on('done', (r) => {
       if (r.demo) return;
       const pct = Math.round(r.accuracy * 100);
-      if (r.passed) {
-        // 表现：准确率越高星越多（金那一档还要求准确率本身够高，页面会再看一眼）
-        const stars = r.accuracy >= 0.92 ? 3 : r.accuracy >= rule.pass + 0.08 ? 2 : 1;
+      const held = r.rests?.total ? `灰的 ${r.rests.total} 下忍住了 **${r.rests.held}** 下。` : '';
+      const back = quiet.length ? backs(g, r) : [];
+      if (r.passed && back.some((v) => v === null)) {
+        // 准确率够了，可是静完回来的那一下没接上：这一段练的就是它
+        note.innerHTML = rich(`准确率 ${pct}%，可是静完**回来的那一下**没接上：这一${spec.lite ? '步' : '段'}练的就是它。`);
+        g.showCard(h('div', { class: 'game-card' },
+          h('h3', { style: { marginTop: '0' } }, '回来的那一下没接上'),
+          h('p', {}, '静的那一小节，心里接着数：1、2、3、4。下一个“1”就是它。'),
+          h('div', { class: 'game-actions' }, h('button', { class: 'btn primary lg', type: 'button', onclick: () => g.start() }, '再来一次'))));
+      } else if (r.passed) {
+        // 表现：准确率越高星越多（金那一档还要求准确率本身够高，页面会再看一眼）；有“静完回来”的看回来那一下偏多少
+        const err = back.length ? back.reduce((s, v) => s + Math.abs(v), 0) / back.length : 0;
+        const stars = back.length ? (err <= 35 ? 3 : err <= 60 ? 2 : 1) : r.accuracy >= 0.92 ? 3 : r.accuracy >= rule.pass + 0.08 ? 2 : 1;
+        const backSay = back.length ? `静完回来的那一下：${back.map((v) => `**${Math.abs(v) < 15 ? '正好' : `${v < 0 ? '早了' : '晚了'} ${Math.abs(v)} 毫秒`}**`).join('、')}。` : '';
         if (one && tier >= 3) env.done(Math.min(stars, 1), ONE_PAD_GOLD);
         else env.done(stars);
-        note.innerHTML = rich(`准确率 **${pct}%**，最高连击 **${r.maxCombo}**：过了。${one && tier >= 3 ? '一块垫子版只打了一半的活，这一档先给银牌。' : ''}`);
+        note.innerHTML = rich(`准确率 **${pct}%**，最高连击 **${r.maxCombo}**：过了。${held}${backSay}${one && tier >= 3 ? '一块垫子版只打了一半的活，这一档先给银牌。' : ''}`);
+        if (spec.lite) g.showCard(null);
       } else {
-        note.innerHTML = rich(`准确率 ${pct}%，这一档要 ${Math.round(rule.pass * 100)}%。点「再来一次」。${tier > 1 ? '先拿下低一档也行。' : ''}`);
+        note.innerHTML = rich(`准确率 ${pct}%，这一${spec.lite ? '步' : '档'}要 ${Math.round(rule.pass * 100)}%。${r.rests?.total && r.rests.held < r.rests.total ? `灰的 ${r.rests.total} 下里按了 ${r.rests.total - r.rests.held} 下：灰的不按。` : ''}点「再来一次」。${tier > 1 ? '先拿下低一档也行。' : ''}`);
       }
     });
     g.on('continue', () => g.showCard(null));
@@ -110,7 +137,7 @@ function rhythm(spec, env) {
         env.done(3);
         return setTimeout(() => document.querySelector('.cl-relay-bar .btn.primary')?.click(), 60);
       }
-      if (words.includes('stage')) g.preview('stage', 6);
+      if (words.includes('stage')) g.preview('stage', Number((words.find((x) => /^b\d+$/.test(x)) || 'b6').slice(1))); // …-stage-b5：停在第 5 拍（不写就是第 6 拍）
     });
   }
   build();
@@ -124,6 +151,88 @@ function rhythm(spec, env) {
       game.destroy();
     },
   };
+}
+
+// ───────────── 热身：分成几小段的音游（R10） ─────────────
+
+/**
+ * “热身”也用音游的舞台，分成几小段带着做：每段顶上一句话说要做什么，打过了才出下一段（都按铜那一档的规矩：85% 速度、有示范音）。
+ * spec.segs = [{ title, how, after（过了以后说的那句）, chart, quiet?, … }]，每一段的写法同 rhythm 的 spec。
+ */
+function rhythmsteps(spec, env) {
+  const segs = spec.segs || [];
+  let si = 0;
+  let cur = null;
+  let touches = 0;
+  const done = segs.map(() => false);
+  const head = h('div', { class: 'rh-move' });
+  const host = h('div', { class: 'rh-stephost' });
+  const say = h('div', { class: 'cl-note' });
+  const el = h('div', { class: 'cl-toy rh-steps' }, head, host, say);
+  function enter(i) {
+    si = i;
+    const s = segs[si];
+    cur?.destroy();
+    head.replaceChildren(h('small', {}, `第 ${si + 1} / ${segs.length} 步`), h('b', {}, s.title), h('span', { html: rich(s.how) }));
+    say.textContent = '';
+    cur = rhythm({ ...s, lite: true }, {
+      ...env, tier: 1, touched() {},
+      done() {
+        const lastOne = si >= segs.length - 1;
+        if (!done[si]) {
+          done[si] = true;
+          do {
+            touches++;
+            env.touched();
+          } while (lastOne && touches < 3);
+        }
+        say.innerHTML = rich(`✓ ${s.after || ''}`);
+        if (lastOne) return say.append(' ', h('button', { class: 'btn sm', type: 'button', onclick: () => enter(0) }, '从头再来一遍'));
+        const go = h('button', { class: 'btn sm primary', type: 'button', onclick: () => enter(si + 1) }, `下一步：${segs[si + 1].title} →`);
+        say.append(' ', go);
+      },
+    });
+    host.replaceChildren(cur.el);
+  }
+  enter(Math.max(0, Math.min(segs.length - 1, stepShot())));
+  return {
+    el,
+    get game() {
+      return cur.game;
+    },
+    /** 开发用：把几小段挨个打掉（按音频时钟去打，灰的不按） */
+    async __autoPlay() {
+      const out = [];
+      for (let i = si; i < segs.length; i++) {
+        const r = await autoGame(cur.game, el);
+        out.push({ seg: i, done: done[i], ...r });
+        const go = say.querySelector('.btn.primary');
+        if (!done[i] || !go) break;
+        go.click();
+        await new Promise((res) => setTimeout(res, 200));
+      }
+      return out;
+    },
+    destroy: () => cur?.destroy(),
+  };
+}
+/** 开发用：?rhshot=s2 直接从第 3 小段开始（截图用） */
+const stepShot = () => {
+  const w = (new URLSearchParams(location.search).get('rhshot') || '').split('-').find((x) => /^s\d$/.test(x));
+  return w ? Number(w[1]) : 0;
+};
+/** 开发用：把一局音游打掉。该打的按音频时钟去打，灰的不按 */
+export async function autoGame(game, root = document) {
+  [...root.querySelectorAll('.game-card .btn.primary')].find((b) => /开始|再来/.test(b.textContent))?.click();
+  const t0 = performance.now();
+  while (!(game.clock && game.state !== 'idle') && performance.now() - t0 < 3000) await new Promise((res) => setTimeout(res, 40));
+  for (const t of game.targets) {
+    if (t.rest) continue;
+    setTimeout(() => game.hit(t.lane, performance.now(), 'keyboard'), Math.max(0, audio.ctxToPerf(game.clock.ctxAtBeat(t.beat)) - performance.now()));
+  }
+  while (game.state !== 'done' && performance.now() - t0 < 90000) await new Promise((res) => setTimeout(res, 150));
+  await new Promise((res) => setTimeout(res, 300));
+  return { accuracy: Math.round((game.result?.accuracy || 0) * 100), held: game.result?.rests?.held };
 }
 
 // ───────────── 热身：数出来 ─────────────
@@ -318,4 +427,5 @@ function twohands(spec, env) {
 }
 
 // 2026-11-17：“一心多用”第一批的几样（节拍器三招、重音挪一挪、一只手不动一只手挪、只念开头）在 classroom-rhythm2.js
-export const RHYTHM_TOYS = { rhythm, countalong, nudge, twohands, ...RHYTHM2_TOYS };
+// 2026-11-18：第二批（腾出一只手，R3 / R6 / R8 的三样新热身）在 classroom-rhythm3.js
+export const RHYTHM_TOYS = { rhythm, rhythmsteps, countalong, nudge, twohands, ...RHYTHM2_TOYS, ...RHYTHM3_TOYS };

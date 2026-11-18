@@ -5,6 +5,7 @@
 //     id, title, bpm, bars, loops,
 //     lanes:   { KICK: 'x---x---x---x---' },          // 要你打的鼓
 //     backing: { HAT1: '--x---x---x---x-' },          // 自动播放的伴奏
+//     rests:   { KICK: '--------x-------' },          // “心里数、不许按”的灰音符（小课堂 R10）：画在同名的那条鼓轨上，按了算错，忍住才对
 //     melody:  { voice: 'bass', track: 'SYNTH1', notes: [[0, 'C1', 2], [4, 'C1', 2]] },   // 要你弹的音：[第几步, 音名, 持续几步]
 //     chords:  { voice: 'keys', track: 'SYNTH2', scale: { scale: 0, key: 0 }, hits: [[0, 1, 8], [8, 6, 8]] },
 //                                                     // 要你按的和弦：[第几步, 第几个 Synth key, 持续几步]。机器要在 CHORD 状态
@@ -59,6 +60,21 @@ export function normalizeChart(def) {
     for (const { step, accent } of patternSteps(pattern)) {
       if (step >= stepsPerLoop) continue;
       loopTargets.push({ step, beat: stepToBeat(step, swing), lane: laneIndex, vel: accent ? 1 : 0.82, kind: 'drum', sound: trackId });
+    }
+  }
+
+  // 灰音符：落在同名的那条鼓轨上（没有这条轨道就另开一条）。目标上带 rest: true，音游引擎见了它不出示范音、按了算错
+  for (const [trackId, pattern] of Object.entries(def.rests || {})) {
+    const track = TRACK[trackId];
+    if (!track) continue;
+    let laneIndex = lanes.findIndex((l) => l.id === trackId);
+    if (laneIndex < 0) {
+      laneIndex = lanes.length;
+      lanes.push({ id: trackId, label: track.label, name: track.name, color: track.color, kind: 'drum', track: trackId });
+    }
+    for (const { step } of patternSteps(pattern)) {
+      if (step >= stepsPerLoop) continue;
+      loopTargets.push({ step, beat: stepToBeat(step, swing), lane: laneIndex, vel: 0, kind: 'drum', sound: trackId, rest: true });
     }
   }
 

@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BADGES, LEVELS, backfillGame, blankGame, awardBadges, xpBreakdown, levelOf, streaks } from '../public/js/levels.js';
+import { levelById } from '../public/js/content/classroom.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.resolve(root, process.argv[2] || 'data');
@@ -35,8 +36,11 @@ const st = streaks(data.practiceDays, today);
 console.log(`数据目录：${dir}`);
 console.log(`进度文件里${had ? '已经有' : '没有'} game 这一段${had ? '' : `，从已有进度回算（练习记录 ${sessions.length} 条）`}`);
 console.log(`课程：完成 ${Object.values(data.lessons).filter((l) => l.done).length} 节，碰过 ${Object.keys(data.lessons).length} 节；谱面 ${Object.keys(data.charts).length} 个，共 ${Object.values(data.charts).reduce((n, c) => n + (c.plays || 0), 0)} 局；练习 ${data.practiceDays.length} 天`);
-const rooms = Object.entries(data.classroom || {}).filter(([, s]) => s?.done);
-console.log(`小课堂：学完 ${rooms.length} 关${rooms.length ? `（${rooms.map(([id, s]) => `${id} ${s.stars || 1} 星`).join('、')}）` : ''}`);
+// 清单里已经没有的关号（并进别的关的旧关：T1、T2、T3……）不算学完，也不算经验；记录还留在进度文件里
+const all = Object.entries(data.classroom || {}).filter(([, s]) => s?.done);
+const rooms = all.filter(([id]) => levelById(id)?.id === id);
+const gone = all.filter(([id]) => levelById(id)?.id !== id).map(([id]) => id);
+console.log(`小课堂：学完 ${rooms.length} 关${rooms.length ? `（${rooms.map(([id, s]) => `${id} ${s.stars || 1} 星`).join('、')}）` : ''}${gone.length ? `；另有并掉的旧关号 ${gone.join('、')}，不算` : ''}`);
 console.log(`经验：${xp.total}（课程 ${xp.lessons} + 每天 ${xp.days} + 音游 ${xp.plays} + 小课堂 ${xp.classroom} + 其它 ${xp.extra}）`);
 console.log(`等级：Lv ${lv.lv} ${lv.name}${lv.next ? `，离 Lv ${lv.next.lv} ${lv.next.name} 还差 ${lv.next.at - xp.total}` : '（满级）'}`);
 console.log(`连续：现在 ${st.current} 天，最长 ${st.longest} 天`);

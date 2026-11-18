@@ -151,6 +151,10 @@ export class RhythmGame extends Emitter {
    *   speed   速度倍率（0.7 = 七成速）
    *   metronome, hitSound, inputOffsetMs, countInBeats, passAccuracy
    *   hideLanes  [第几条轨道, …]：这几条轨道的音符不画出来（照样要打、照样判）。小课堂 R7 的金那一档用：不动的那只手得自己走
+   *   fade       (音符, 现在第几拍) → 0–1：这个音符画多淡（1 = 照常，0 = 不画；照样要打、照样判）。谱面淡出用（小课堂 R11「腾出一只手」）
+   *   quiet      [{ from, to, see }, …]：第 from 拍到第 to 拍（不含）之间，节拍器、伴奏、示范音都不出声；
+   *              这段时间里下落的谱面按 see 画（1 = 照常，0 = 音符和拍线都不画：只能在心里数）。小课堂 R10「不出声的那一拍」用
+   * 谱面里带 rest: true 的音符是“灰音符”（chart.js 的 rests）：心里数、不许按。按了算一次失误，忍过去才算对；它没有早晚，不进偏差的统计。
    */
   constructor(chart, opts = {}) {
     super();
@@ -440,12 +444,13 @@ export class RhythmGame extends Emitter {
     const { chart } = this;
     const { countInBeats, metronome, assist } = this.opts;
     const ev = [];
+    const quiet = (b) => !!this.#quietAt(b);
     for (let b = -countInBeats; b < chart.totalBeats; b++) {
-      if (b < 0 || metronome) ev.push({ beat: b, type: 'click', accent: ((b % 4) + 4) % 4 === 0 });
+      if ((b < 0 || metronome) && !quiet(b)) ev.push({ beat: b, type: 'click', accent: ((b % 4) + 4) % 4 === 0 });
     }
     ev.push({ beat: chart.totalBeats, type: 'click', accent: true });
-    for (const b of chart.backing) ev.push({ beat: b.beat, type: 'backing', b });
-    if (assist !== 'solo') for (const t of this.targets) ev.push({ beat: t.beat, type: 'guide', t });
+    for (const b of chart.backing) if (!quiet(b.beat)) ev.push({ beat: b.beat, type: 'backing', b });
+    if (assist !== 'solo') for (const t of this.targets) if (!t.rest && !quiet(t.beat)) ev.push({ beat: t.beat, type: 'guide', t });
     ev.sort((a, b) => a.beat - b.beat);
     this.events = ev;
     this.evIdx = 0;
@@ -468,6 +473,11 @@ export class RhythmGame extends Emitter {
         else sound.note(e.t.midi, t, e.t.lenBeats * this.spb * 0.92, e.t.voice, e.t.vel, role);
       }
     }
+  }
+
+  /** 第 b 拍落在哪一段“静”里（opts.quiet）；不在就是 null */
+  #quietAt(b) {
+    return (this.opts.quiet || []).find((q) => b >= q.from - 1e-6 && b < q.to - 1e-6) || null;
   }
 
   /** 一个和弦 = 几个音同时响；每个音放轻一些，叠起来才不会比贝斯和鼓响出一大截 */
@@ -500,7 +510,10 @@ export class RhythmGame extends Emitter {
     for (let i = this.missPtr; i < this.targets.length && this.targets[i].beat <= nowBeat; i++) {
       const t = this.targets[i];
       if (t.result) continue;
-      if (this.opts.assist === 'demo') this.#judge(t, 0, true);
+      if (t.rest) {
+        // 灰音符：它的窗口过去了还没被按，就是忍住了
+        if (nowBeat - t.beat > okBeats) this.#held(t);
+      } else if (this.opts.assist === 'demo') this.#judge(t, 0, true);
       else if (nowBeat - t.beat > okBeats) this.#miss(t);
     }
     while (this.missPtr < this.targets.length && this.targets[this.missPtr].result) this.missPtr++;
@@ -564,7 +577,8 @@ export class RhythmGame extends Emitter {
       }
     }
     if (best && Math.abs(bestDelta) <= this.win.ok) {
-      this.#judge(best, bestDelta, false);
+      if (best.rest) this.#pressedRest(best);
+      else this.#judge(best, bestDelta, false);
     } else if (beat > -0.3 && beat < this.chart.totalBeats + 0.3) {
       this.extras++;
       this.#fly(laneIndex, '多了', 'extra');
@@ -596,6 +610,29 @@ export class RhythmGame extends Emitter {
     this.combo = 0;
     this.fx.push({ type: 'miss', lane: t.lane, t0: performance.now() });
     this.#fly(t.lane, 'MISS', 'miss');
+    this.#markStep(t, 'miss');
+    this.#comboChanged(had);
+    this.#updateHud();
+  }
+
+  /** 灰音符忍住了没按：算对一下（连击照涨），不落偏差仪 */
+  #held(t) {
+    t.result = { grade: 'perfect', rest: true, held: true };
+    this.combo++;
+    this.maxCombo = Math.max(this.maxCombo, this.combo);
+    if (this.opts.assist !== 'demo') this.#fly(t.lane, '忍住了', 'great');
+    this.#markStep(t, 'perfect');
+    this.#comboChanged();
+    this.#updateHud();
+  }
+
+  /** 灰音符被按了：算一次失误，连击断 */
+  #pressedRest(t) {
+    t.result = { grade: 'miss', rest: true, pressed: true };
+    const had = this.combo;
+    this.combo = 0;
+    this.fx.push({ type: 'miss', lane: t.lane, t0: performance.now() });
+    this.#fly(t.lane, '这下别按', 'miss');
     this.#markStep(t, 'miss');
     this.#comboChanged(had);
     this.#updateHud();
@@ -740,11 +777,35 @@ export class RhythmGame extends Emitter {
     g.lineTo(x0 + totalW + 1, hitY + 4);
     g.stroke();
 
+    // 静的那一段（opts.quiet）：还没到的时候是谱面上一条灰带，跟着往下落；正处在里面时，下落的谱面按它的 see 画
+    // （刚进去的半拍里慢慢淡下去，0 = 音符和拍线都不画，只能在心里数），过了它后面第一下的判定窗口才放回来
+    const quiets = this.opts.quiet || [];
+    const qNow = quiets.find((q) => nowBeat >= q.from && nowBeat < q.to + this.win.ok / this.spbMs);
+    const see = qNow ? 1 + ((qNow.see ?? 1) - 1) * clamp((nowBeat - qNow.from) / 0.5, 0, 1) : 1;
+    g.textBaseline = 'middle';
+    for (const q of quiets) {
+      const top = Math.max(0, yOf(q.to));
+      const bottom = Math.min(hitY, yOf(q.from));
+      if (bottom <= top || see <= 0.02) continue;
+      g.fillStyle = INK(0.09 * see);
+      g.fillRect(x0, top, totalW, bottom - top);
+      g.fillStyle = INK(0.55 * see);
+      g.font = `700 12px ${FONT}`;
+      g.textAlign = 'left';
+      g.fillText('静', x0 + totalW + 8, clamp((top + bottom) / 2, 10, hitY - 10));
+    }
+    if (qNow && (qNow.see ?? 1) < 1) {
+      g.fillStyle = INK(0.62 * (1 - see));
+      g.font = `700 15px ${FONT}`;
+      g.textAlign = 'center';
+      g.fillText('没声音了：心里接着数', x0 + totalW / 2, hitY * 0.45);
+    }
+
     // 节拍线：小节线最亮，拍线次之，半拍最淡
     g.font = `600 12px ${FONT}`;
     g.textAlign = 'right';
-    g.textBaseline = 'middle';
-    for (let b = Math.ceil((nowBeat - 0.4) * 2) / 2; b <= nowBeat + this.lookahead + 0.01; b += 0.5) {
+    g.globalAlpha = see;
+    for (let b = Math.ceil((nowBeat - 0.4) * 2) / 2; see > 0.02 && b <= nowBeat + this.lookahead + 0.01; b += 0.5) {
       const y = yOf(b);
       if (y < -2) break;
       const whole = Math.abs(b - Math.round(b)) < 1e-6;
@@ -761,6 +822,7 @@ export class RhythmGame extends Emitter {
         g.fillText(String(inBar + 1), x0 - 7, y);
       }
     }
+    g.globalAlpha = 1;
 
     // 音符
     while (this.drawPtr < this.targets.length && yOf(this.targets[this.drawPtr].beat + (this.targets[this.drawPtr].lenBeats || 0)) > H + 30) this.drawPtr++;
@@ -770,11 +832,31 @@ export class RhythmGame extends Emitter {
       const missed = t.result?.grade === 'miss';
       if (t.result && !missed) continue;
       if (this.opts.hideLanes?.includes(t.lane)) continue;
+      const shown = see * (this.opts.fade ? clamp(this.opts.fade(t, nowBeat), 0, 1) : 1); // 谱面淡出、静的那一段
+      if (shown <= 0.02) continue;
+      g.globalAlpha = shown;
       const color = pal.lanes[t.lane];
       const y = yOf(t.beat);
       const cx = x0 + t.lane * laneW + laneW / 2;
       const w = laneW * 0.74;
       const hh = 18;
+      if (t.rest) {
+        // 灰音符：一圈虚线，里面写着“心里数”。按了它的那一个留在原地、更淡
+        g.setLineDash([5, 4]);
+        g.lineWidth = 1.5;
+        g.strokeStyle = INK(missed ? 0.25 : 0.6);
+        g.fillStyle = INK(missed ? 0.04 : 0.1);
+        g.beginPath();
+        g.roundRect(cx - w / 2, y - hh / 2, w, hh, 8);
+        g.fill();
+        g.stroke();
+        g.setLineDash([]);
+        g.fillStyle = INK(missed ? 0.35 : 0.75);
+        g.font = `700 11px ${FONT}`;
+        g.textAlign = 'center';
+        g.fillText('心里数', cx, y + 0.5);
+        continue;
+      }
       if (t.lenBeats > 0.26) {
         const tail = t.lenBeats * ppb - 6;
         g.fillStyle = alpha(color, missed ? 0.1 : 0.26);
@@ -799,6 +881,7 @@ export class RhythmGame extends Emitter {
         g.stroke();
       }
     }
+    g.globalAlpha = 1;
 
     // 判定线：跟着节拍更亮一点；丰富档下敲击某条轨道时，那一段像琴弦一样产生阻尼回弹振动
     g.strokeStyle = glow;
@@ -945,9 +1028,12 @@ export class RhythmGame extends Emitter {
       byPos[pos].total++;
       if (hitOk) {
         bl.hit++;
-        bl.deltas.push(t.result.deltaMs);
         byPos[pos].hit++;
-        deltas.push(t.result.deltaMs);
+        if (!t.rest) {
+          // 灰音符是“忍住了”，没有早晚，不进偏差的统计
+          bl.deltas.push(t.result.deltaMs);
+          deltas.push(t.result.deltaMs);
+        }
       } else {
         missByStep.set(t.step, (missByStep.get(t.step) || 0) + 1);
       }
@@ -991,6 +1077,8 @@ export class RhythmGame extends Emitter {
       byLane,
       byPos,
       missSteps: [...missByStep.entries()].map(([step, count]) => ({ step, count })).sort((a, b) => b.count - a.count),
+      // 灰音符（心里数、不许按）一共几个、忍住了几个
+      rests: { total: this.targets.filter((t) => t.rest).length, held: this.targets.filter((t) => t.rest && t.result?.held).length },
       pattern,
     };
   }
@@ -1078,7 +1166,11 @@ export class RhythmGame extends Emitter {
     past.forEach((t, i) => {
       const miss = kind === 'stage' ? i === 2 && past.length > 4 : !hitAt(i);
       const deltaMs = [-9, 14, -22, 5, 31, -4, 48, -12][i % 8] * (stars === 3 || kind === 'stage' ? 1 : 0.5);
-      if (miss) {
+      if (t.rest) {
+        t.result = { grade: 'perfect', rest: true, held: true };
+        this.combo++;
+        this.maxCombo = Math.max(this.maxCombo, this.combo);
+      } else if (miss) {
         t.result = { grade: 'miss' };
         this.combo = 0;
       } else {
