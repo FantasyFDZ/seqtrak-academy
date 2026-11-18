@@ -13,6 +13,7 @@ import { byTier, keys16, playButton, tapPad, tapTime, pad16 } from './classroom-
 import { audio } from './audio.js';
 import { RHYTHM2_TOYS, ONE_PAD_GOLD, onePad, onePadSwitch, readStrip, shotLater } from './classroom-rhythm2.js';
 import { RHYTHM3_TOYS } from './classroom-rhythm3.js';
+import { RHYTHM4_TOYS } from './classroom-rhythm4.js';
 
 let shotSkipped = false;
 
@@ -33,6 +34,9 @@ const TIER_RULE = [
  *   spec.quiet  [[从第几拍, 到第几拍], …]：这几段里节拍器、伴奏、示范音都不出声。静的时候谱面还在不在看档：铜照常、银很淡、金一点不剩。
  *               这一段过不过，除了准确率，还要看静完回来的那一下接没接上；星星按它偏了多少给（先减掉平时的平均偏差）
  *   spec.lite   true：分小段的热身里用（rhythmsteps）：开始卡片只留一句话和「开始」，过了以后收起结算卡片
+ * 2026-11-18 加的（第三批）：
+ *   谱面里的 stepsPerBar  一圈不是 16 格（R14「三对二」是 12 格 = 3 拍一圈）：预备拍按整圈给（三拍一圈就预备两圈）
+ *   spec.fixedName  说明里怎么叫 spec.fixed 那只手（不写就是“不动的那只手”）。R14 两只手都在匀匀地打，交给机器的是“打‘三’的那只手”
  */
 function rhythm(spec, env) {
   const tier = Math.max(1, env.tier || 1);
@@ -47,7 +51,8 @@ function rhythm(spec, env) {
   let raf = 0;
   let one = !!spec.fixed && onePad.get();
   const quietNote = !quiet.length ? '' : ` 静的那一小节，谱面${see >= 1 ? '还在' : see > 0 ? '只剩淡淡的影子' : '也一起没了：全靠心里数'}。`;
-  const tierNote = () => (spec.lite ? '' : `**${['铜', '银', '金'][tier - 1]}**：${rule.say}${quietNote}${!spec.fixed ? '' : one ? ` 一块垫子版：不动的那只手机器替你打。${tier >= 3 ? '这一版在金这一档最多拿银牌。' : ''}` : tier >= 3 ? ' 不动的那只手不再画出来：它得自己走。' : ''}`);
+  const fixedName = spec.fixedName || '不动的那只手';
+  const tierNote = () => (spec.lite ? '' : `**${['铜', '银', '金'][tier - 1]}**：${rule.say}${quietNote}${!spec.fixed ? '' : one ? ` 一块垫子版：${fixedName}机器替你打。${tier >= 3 ? '这一版在金这一档最多拿银牌。' : ''}` : tier >= 3 ? ` ${fixedName}不再画出来：它得自己走。` : ''}`);
   /** 静完回来的那几下各偏了多少毫秒（减掉平时的平均偏差；没接上的是 null） */
   const backs = (g, r) => quiet.map((q) => {
     const t = g.targets.find((x) => !x.rest && Math.abs(x.beat - q.to) < 0.01);
@@ -71,7 +76,8 @@ function rhythm(spec, env) {
       metronome: true,
       inputOffsetMs: store.settings.inputOffsetMs,
       passAccuracy: rule.pass,
-      countInBeats: 4,
+      // 预备拍：平常 4 拍；一圈不是 4 拍的谱面按整圈给，凑够 4 拍以上（三拍一圈 = 预备两圈 6 拍）
+      countInBeats: chart.beatsPerBar === 4 ? 4 : chart.beatsPerBar * Math.ceil(4 / chart.beatsPerBar),
       showKeyHints: !midi.connected,
       hideLanes: tier >= 3 && fixedLane >= 0 ? [fixedLane] : null,
       quiet: quiet.length ? quiet : null,
@@ -428,4 +434,5 @@ function twohands(spec, env) {
 
 // 2026-11-17：“一心多用”第一批的几样（节拍器三招、重音挪一挪、一只手不动一只手挪、只念开头）在 classroom-rhythm2.js
 // 2026-11-18：第二批（腾出一只手，R3 / R6 / R8 的三样新热身）在 classroom-rhythm3.js
-export const RHYTHM_TOYS = { rhythm, rhythmsteps, countalong, nudge, twohands, ...RHYTHM2_TOYS, ...RHYTHM3_TOYS };
+// 2026-11-18：第三批（不断拍，三格一圈和三对二的热身）在 classroom-rhythm4.js
+export const RHYTHM_TOYS = { rhythm, rhythmsteps, countalong, nudge, twohands, ...RHYTHM2_TOYS, ...RHYTHM3_TOYS, ...RHYTHM4_TOYS };

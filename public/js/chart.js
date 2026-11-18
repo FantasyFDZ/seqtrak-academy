@@ -11,13 +11,16 @@
 //                                                     // 要你按的和弦：[第几步, 第几个 Synth key, 持续几步]。机器要在 CHORD 状态
 //     backingMelody: { voice: 'pad', notes: [...] },
 //     swing: 0..0.5,
+//     stepsPerBar: 12,                                // 一小节（一圈）几格，不写就是 16。一格永远是四分之一拍：12 格 = 3 拍一圈（小课堂 R14「三对二」）
+//     sections: [0, 0, 1, 1, 2, 2],                   // 分段：整局里每一小节算在第几条上（从 0 数；不够长就从头再取）。音游按条记分（小课堂 R12「不断拍」）
 //   }
-// 节奏串：每小节 16 个字符。x = 有音，X = 重音，- = 空。可以用 | 或空格分组，展开时会去掉。
+// 节奏串：每小节 16 个字符（写了 stepsPerBar 就是那么多个）。x = 有音，X = 重音，- = 空。可以用 | 或空格分组，展开时会去掉。
 
 import { TRACK, laneKeys, pitchColor } from './tracks.js';
 import { nameToMidi, midiToName } from './audio.js';
 import { SCALES, chordNotes, chordName } from './scales.js';
 
+// 一小节几格、几拍：没写 stepsPerBar 的谱面都按这两个数（一格 = 四分之一拍，所以 16 格 = 4 拍）
 export const STEPS_PER_BAR = 16;
 export const BEATS_PER_BAR = 4;
 
@@ -44,8 +47,14 @@ export function normalizeChart(def) {
   const bars = def.bars || 1;
   const loops = def.loops || 1;
   const swing = def.swing || 0;
-  const stepsPerLoop = bars * STEPS_PER_BAR;
-  const beatsPerLoop = bars * BEATS_PER_BAR;
+  // 一小节几格可以按谱面配（不写 = 16 格 = 4 拍）。一格还是四分之一拍，变的只是“多少格算一圈”：小节线、节拍器的重音、预备拍跟着它走
+  const stepsPerBar = def.stepsPerBar > 0 ? Math.round(def.stepsPerBar) : STEPS_PER_BAR;
+  const beatsPerBar = stepsPerBar === STEPS_PER_BAR ? BEATS_PER_BAR : stepsPerBar / 4;
+  const stepsPerLoop = bars * stepsPerBar;
+  const beatsPerLoop = bars * beatsPerBar;
+  // 分段：整局第 n 小节（从 0 数）算在第几条上
+  const secList = Array.isArray(def.sections) && def.sections.length ? def.sections : null;
+  const secOfBar = secList ? Array.from({ length: bars * loops }, (_, n) => secList[n % secList.length]) : null;
 
   const lanes = [];
   const loopTargets = []; // 一圈内的目标
@@ -156,7 +165,11 @@ export function normalizeChart(def) {
   const backing = [];
   for (let l = 0; l < loops; l++) {
     const offset = l * beatsPerLoop;
-    for (const t of loopTargets) targets.push({ ...t, beat: t.beat + offset, loop: l, id: targets.length });
+    for (const t of loopTargets) {
+      const target = { ...t, beat: t.beat + offset, loop: l, id: targets.length };
+      if (secOfBar) target.sec = secOfBar[l * bars + Math.floor(t.step / stepsPerBar)];
+      targets.push(target);
+    }
     for (const b of loopBacking) backing.push({ ...b, beat: b.beat + offset });
   }
   targets.sort((a, b) => a.beat - b.beat || a.lane - b.lane);
@@ -177,6 +190,8 @@ export function normalizeChart(def) {
     bars,
     loops,
     swing,
+    stepsPerBar,
+    beatsPerBar,
     stepsPerLoop,
     beatsPerLoop,
     totalBeats: beatsPerLoop * loops,
@@ -186,6 +201,8 @@ export function normalizeChart(def) {
     loopTargets,
     loopBacking,
     minGapBeats: Number.isFinite(minGapBeats) ? minGapBeats : 4,
+    // 分段（没写就是 null）：ofBar[n] = 整局第 n 小节是第几条，count = 一共几条
+    sections: secOfBar ? { ofBar: secOfBar, count: Math.max(...secOfBar) + 1 } : null,
     def,
   };
 }

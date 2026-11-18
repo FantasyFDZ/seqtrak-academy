@@ -399,7 +399,7 @@ function autopilot(spec, env) {
     if (i === taskIdx) return;
     taskIdx = i;
     clearTask();
-    if (i < 0 || i >= n) return idle(i < 0 ? '等谱面淡掉，活就来了。' : '右手的活完了。左手打到底。');
+    if (i < 0 || i >= n) return idle(i < 0 ? '等谱面淡掉，活就来了。' : '右手的活完了。左手接着打完。');
     task = TASKS[s.tasks[i]](() => {
       made++;
       paintLamps();

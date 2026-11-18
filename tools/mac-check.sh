@@ -170,9 +170,9 @@ for id in $(node -e "import('./public/js/content/arrangement-lessons.js').then((
 done
 
 # 小课堂（乐理、节奏、效果、DJ 四条线的小关）：2026-11-15 起列表上的关全部开放（2026-11-17 节奏线加了 R9、乐理线加了 T18–T27；
-# 2026-11-18 乐理线第三期又加了 T28–T36，节奏线第二批把乐理线的 T1、T2 并进了 R1、R2、又加了 R10、R11，一共 63 关：
-# 乐理 32（其中 6 关是选学）、节奏 12、效果 12、DJ 7；open=63 soon=0 optional=6）；每关各打开一次，看能玩的东西摆出来没有。
-# 另有推荐路线（9 站、57 个关的小牌子，最下面 2 段选学的岔路上另有 6 个，一共 chips=63）、卡册（63 张卡，6 张带“选学”的角标）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
+# 2026-11-18 乐理线第三期又加了 T28–T36，节奏线第二批把乐理线的 T1、T2 并进了 R1、R2、又加了 R10、R11；节奏线第三批加了 R12、R13、R14，一共 66 关：
+# 乐理 32（其中 6 关是选学）、节奏 15、效果 12、DJ 7；open=66 soon=0 optional=6）；每关各打开一次，看能玩的东西摆出来没有。
+# 另有推荐路线（9 站、60 个关的小牌子，最下面 2 段选学的岔路上另有 6 个，一共 chips=66）、卡册（66 张卡，6 张带“选学”的角标）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
 # 再看“试一试”和“用在机器上”那两屏：?clstep=quiz / machine 是开发用的参数，直接从那一步开始（public/js/views/classroom.js）。
 # “用在机器上”有三种样子：模拟机、效果关用的效果模拟机、接着假真机时的真机镜像（class 里带 live）。窗口按最小的平板 1024 × 768 开。
 # 把每一关真的从头走到尾（要点、要拍、要等声音）在无界面的浏览器里做不了：那是 public/js/dev/walk-classroom.js，在开着的浏览器里跑。
@@ -185,11 +185,12 @@ playable=0
 broken=''
 # 2026-11-17 乐理线重做第二期：多了 T18–T27 这 10 关（单元 3「旋律」、单元 4「和声」）；推荐路线多一站（8 站），多一页小本子。
 # 2026-11-18 第三期：多了 T28–T30（单元 5「拆歌」，大关 TB 排在它后面）和选学的 T31–T36；推荐路线又多一站（9 站）。节奏线第二批：去掉 T1、T2，多了 R10、R11。
-for id in T5 T6 T14 T15 T7 T16 T8 T12 T17 T18 T19 T20 T21 T22 T9 T10 T23 T24 T25 T11 T26 T27 T28 T29 T30 TB T31 T32 T33 T34 T35 T36 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
+# 节奏线第三批：多了 R12、R13、R14（排在 R11 后面、大关前面）。
+for id in T5 T6 T14 T15 T7 T16 T8 T12 T17 T18 T19 T20 T21 T22 T9 T10 T23 T24 T25 T11 T26 T27 T28 T29 T30 TB T31 T32 T33 T34 T35 T36 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 RB F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 FB D1 D2 D3 D4 D5 D6 DB; do
   classroom "#/classroom/$id"
   if [[ $(count 'class="cl-toy') -ge 1 && $(count 'class="cl-say"') -eq 1 && $(count '这一页出错了') -eq 0 ]]; then playable=$((playable + 1)); else broken="$broken $id"; fi
 done
-echo "classroom levels -> playable=$playable/63 broken=[${broken# }]"
+echo "classroom levels -> playable=$playable/66 broken=[${broken# }]"
 classroom '#/classroom/works'
 echo "classroom works -> page=$(count 'tw-page') empty=$(count 'class="tw-empty"') tabs=$(count 'class="cl-tab[ "]') errors=$(count '这一页出错了')"
 classroom '#/classroom/route'
@@ -268,6 +269,23 @@ classroom '#/classroom/T2'
 old="$old | T2->$(grep -o '<span class="no">[A-Z0-9]*</span><b>[^<]*' $D/dom.html | head -1 | sed 's/<[^>]*>/ /g; s/^ *//; s/  */ /g')"
 echo "classroom rhythm3 -> R10 $r10 | R11 $r11 | R3 $r3 | R6 $r6 | R8 $r8 errors=$(count '这一页出错了')"
 echo "classroom merged -> $old"
+# 节奏线第三批（2026-11-18，public/js/classroom-rhythm4.js；音游引擎的“分段”和“一圈不是 16 格”在 game.js / chart.js）：
+# R12 的热身和挑战都是音游的舞台，上面一条说明、下面一行“现在 / 下一条”（两张小图各 16 格）；?rhshot=result 摆出银那一档打完的样子：那一行换成每条一格的成绩（8 条）
+# 和一颗“放慢重练”的按钮；R13 的热身是一行一小节的格子，?rhshot=s1-mid 换成 3 格一圈：3 行、48 格、4 种圈长；挑战是音游；
+# R14 的热身三行 12 格（三 / 二 / 合起来）；挑战是音游，谱面一圈 12 格：步进条的表头是 12 格（它在小课堂里不显示，DOM 里有）。
+classroom '#/classroom/R12'
+r12="head=$(count 'class="rh-move"') game=$(count 'game-canvas') cards=$(count 'class="rh-chain-card[ "]') grids=$(count 'class="rh-cg"')"
+classroom '?clstep=quiz&cltier=2&rhshot=result#/classroom/R12'
+r12="$r12 secs=$(count 'class="rh-sec[ "]') redo=$(count 'rh-redo')"
+classroom '?rhshot=s1-mid#/classroom/R13'
+r13="rows=$(count 'class="rh-cyc-row"') cells=$(count 'class="rh-cy[ "]') lens=$(count 'class="rh-len[ "]')"
+classroom '?clstep=quiz#/classroom/R13'
+r13="$r13 quiz-game=$(count 'game-canvas')"
+classroom '#/classroom/R14'
+r14="ring=$(count 'class="rh-rc[ "]')"
+classroom '?clstep=quiz#/classroom/R14'
+r14="$r14 quiz-game=$(count 'game-canvas') bar-steps=$(count 'class="step-head[ "]')"
+echo "classroom rhythm4 -> R12 $r12 | R13 $r13 | R14 $r14 errors=$(count '这一页出错了')"
 classroom '?clstep=quiz#/classroom/R3'
 echo "classroom quiz -> options=$(count 'class="cl-opt[ "]') pattern-keys=$(count 'class="cl-key[ "]') errors=$(count '这一页出错了')"
 classroom '?clstep=machine#/classroom/T10'
@@ -311,7 +329,7 @@ ls -l tools/out/home-neon.png | awk '{print "screenshot -> " $NF " " $5 " bytes"
 #   再学完 R1、F1：653；乐理、节奏、效果三条线都有了，多一个徽章“三线齐亮”（got 从 3 变成 4）；小关亮 2 个（T5，和第 1 章前的 R1）；
 #   旧进度里本来就带着学过的关（T5 三星、R1 两星，没有 game 那一段）：一打开就是 573 + 30 + 25 = 628，小关亮 2 个；
 #   并关之前的旧进度（T1 三星、T2 两星、R1 两星）：T1、T2 已经不在清单里，照并关的老规矩不算经验、不出卡——573 + 25 = 598，
-#   卡册 63 张里拿到 1 张（R1）；记录本身留在进度文件里不删；
+#   卡册 66 张里拿到 1 张（R1）；记录本身留在进度文件里不删；
 #   “清空学习进度”（设置页的按钮调的是 store.resetProgress()；无界面的浏览器里点不了按钮，所以在 Node 里直接调）：classroom 没了，经验回到 0；
 #   小本子里的作品（works）也跟着清掉（2026-11-18 起）。
 # 2026-11-18 以前这一段是拿 T1 测的。T1 并进了 R1 以后换成 T5（乐理线现在的第一关）：经验的数没变（613 / 653 / 628），

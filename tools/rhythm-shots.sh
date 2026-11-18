@@ -1,13 +1,15 @@
 #!/bin/zsh
-# 开发期：给小课堂节奏线“一心多用”第一批（R1 节拍器三招、R2 只念开头、R7 一只手不动一只手挪、R9 重音挪一挪，外加大关和 R4 的小改）的各种画面截图，看版式用。
+# 开发期：给小课堂节奏线第一批（R1 节拍器三招、R2 只念开头、R7 一只手不动一只手挪、R9 重音挪一挪，外加大关和 R4 的小改）、第二批、第三批的各种画面截图，看版式用。
 # Mac 上无界面的 Chrome；图放在 tools/out/rhythm/<尺寸>/。另起一个临时服务（端口默认 4767，数据放临时目录），不碰真实的学习进度。
 #
 # 2026-11-18：第二批的画面也在这里（set2_for：R10 不出声的那一拍、R11 腾出一只手，R3 / R6 / R8 的新热身，R1、R2 并进 T1、T2 之后的第一屏）。
+# 2026-11-18：第三批的画面也在这里（set3_for：R12 不断拍、R13 三格一圈、R14 三对二）。
 #
 # 用法：zsh tools/rhythm-shots.sh            1024×768：机身配色一整套 + 霓虹配色同样一整套（第一批、第二批都截）
 #      zsh tools/rhythm-shots.sh wide       再加一套 1180×820
 #      zsh tools/rhythm-shots.sh batch2     只截第二批的（两套配色）
-#      端口被占着就换一个：PORT=4773 zsh tools/rhythm-shots.sh batch2
+#      zsh tools/rhythm-shots.sh batch3     只截第三批的（两套配色）
+#      端口被占着就换一个：PORT=4773 zsh tools/rhythm-shots.sh batch3
 #
 # 无界面的浏览器里没有声音、也没法拍，所以打到一半、结果这些画面是摆出来的：地址里的 ?rhshot=…（public/js/classroom-rhythm2.js 开头有说明）。
 # 别的开发用参数：?still 入场动画直接到位；?skin=neon 临时换成霓虹配色；?clstep=quiz / machine 直接从那一步开始，?cltier=1/2/3 挑一档。
@@ -131,17 +133,60 @@ set2_for() {
   flush
 }
 
+# 第三批（2026-11-18）：R12 不断拍、R13 三格一圈、R14 三对二
+set3_for() {
+  local s=$1 k=$2
+  local skin=${3:+skin=$3&}
+  # R12 不断拍：热身（开始卡片 / 第 2 步打到一半：下面一行“现在 / 下一条”），挑战（开始卡片 / 银打到一半：换条的线和小牌子 / 金：每小节都换 /
+  # 打完：每条一格的成绩和“放慢重练” / 没过 / 放慢重练的开始卡片），机器那一步
+  shot $s ${k}R12-01-play "${skin}" /classroom/R12
+  shot $s ${k}R12-02-play-stage "${skin}rhshot=s1-stage-b9" /classroom/R12
+  shot $s ${k}R12-03-quiz-bronze-card "${skin}clstep=quiz&cltier=1" /classroom/R12
+  shot $s ${k}R12-04-quiz-silver-stage "${skin}clstep=quiz&cltier=2&rhshot=stage" /classroom/R12
+  shot $s ${k}R12-05-quiz-gold-stage "${skin}clstep=quiz&cltier=3&rhshot=stage-b30" /classroom/R12
+  shot $s ${k}R12-06-quiz-silver-result "${skin}clstep=quiz&cltier=2&rhshot=result" /classroom/R12
+  shot $s ${k}R12-07-quiz-silver-fail "${skin}clstep=quiz&cltier=2&rhshot=result-fail" /classroom/R12
+  shot $s ${k}R12-08-quiz-drill-card "${skin}clstep=quiz&cltier=2&rhshot=drill-fail" /classroom/R12
+  shot $s ${k}R12-09-machine "${skin}clstep=machine" /classroom/R12
+  # R13 三格一圈：热身（4 格一圈：一行 / 3 格：三行，圈跨过小节线 / 5 格：五行 / 每 8 格截断：三、三、二），挑战（开始卡片 / 银打到一半 / 金：两条轨道），机器那一步
+  shot $s ${k}R13-01-play "${skin}" /classroom/R13
+  shot $s ${k}R13-02-play-three-mid "${skin}rhshot=s1-mid" /classroom/R13
+  shot $s ${k}R13-03-play-five-mid "${skin}rhshot=s2-mid" /classroom/R13
+  shot $s ${k}R13-04-play-cut-mid "${skin}rhshot=s3-mid" /classroom/R13
+  shot $s ${k}R13-05-quiz-bronze-card "${skin}clstep=quiz&cltier=1" /classroom/R13
+  shot $s ${k}R13-06-quiz-silver-stage "${skin}clstep=quiz&cltier=2&rhshot=stage-b9" /classroom/R13
+  shot $s ${k}R13-07-quiz-gold-card "${skin}clstep=quiz&cltier=3" /classroom/R13
+  shot $s ${k}R13-08-quiz-gold-stage "${skin}clstep=quiz&cltier=3&rhshot=stage-b9" /classroom/R13
+  shot $s ${k}R13-09-machine "${skin}clstep=machine" /classroom/R13
+  # R14 三对二：热身（只听“二” / 只听“三” / 合起来 / 当成一句来拍），挑战（开始卡片 / 铜打到一半：一圈 12 格、两条轨道 / 金：“啪”那一条不画），机器那一步
+  shot $s ${k}R14-01-play "${skin}" /classroom/R14
+  shot $s ${k}R14-02-play-three "${skin}rhshot=s1" /classroom/R14
+  shot $s ${k}R14-03-play-both-mid "${skin}rhshot=s2-mid" /classroom/R14
+  shot $s ${k}R14-04-play-tap-mid "${skin}rhshot=s3-mid" /classroom/R14
+  shot $s ${k}R14-05-quiz-bronze-card "${skin}clstep=quiz&cltier=1" /classroom/R14
+  shot $s ${k}R14-06-quiz-bronze-stage "${skin}clstep=quiz&cltier=1&rhshot=stage-b7" /classroom/R14
+  shot $s ${k}R14-07-quiz-gold-stage "${skin}clstep=quiz&cltier=3&rhshot=stage-b7" /classroom/R14
+  shot $s ${k}R14-08-machine "${skin}clstep=machine" /classroom/R14
+  flush
+}
+
 rm -rf $OUT
 if [[ "$1" == batch2 ]]; then
   # 只截第二批的画面：zsh tools/rhythm-shots.sh batch2
   set2_for 1024x768 ''
   set2_for 1024x768 neon- neon
+elif [[ "$1" == batch3 ]]; then
+  # 只截第三批的画面：zsh tools/rhythm-shots.sh batch3
+  set3_for 1024x768 ''
+  set3_for 1024x768 neon- neon
 else
   set_for 1024x768 ''
   set_for 1024x768 neon- neon
   set2_for 1024x768 ''
   set2_for 1024x768 neon- neon
-  [[ "$1" == wide ]] && set_for 1180x820 '' && set2_for 1180x820 ''
+  set3_for 1024x768 ''
+  set3_for 1024x768 neon- neon
+  [[ "$1" == wide ]] && set_for 1180x820 '' && set2_for 1180x820 '' && set3_for 1180x820 ''
 fi
 # 列表和推荐路线上有没有新关
 shot 1024x768 00-list '' /classroom
