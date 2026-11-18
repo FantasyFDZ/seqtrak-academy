@@ -155,6 +155,9 @@ export class RhythmGame extends Emitter {
    *   quiet      [{ from, to, see }, …]：第 from 拍到第 to 拍（不含）之间，节拍器、伴奏、示范音都不出声；
    *              这段时间里下落的谱面按 see 画（1 = 照常，0 = 音符和拍线都不画：只能在心里数）。小课堂 R10「不出声的那一拍」用
    * 谱面里带 rest: true 的音符是“灰音符”（chart.js 的 rests）：心里数、不许按。按了算一次失误，忍过去才算对；它没有早晚，不进偏差的统计。
+   * 谱面写了 stepsPerBar 的（一小节不是 16 格，小课堂 R14「三对二」是 12 格一圈）：小节线、拍子的数字、节拍器的重音、预备拍的数法按它那一圈几拍走。
+   * 谱面写了 sections 的（分段，小课堂 R12「不断拍」）：换条的地方谱面上有一条线和“第几条”的小牌子；每到一个新的小节发一次 'section' 事件
+   * （{ bar 整局第几小节, sec 第几条 }）；结果里多一个 sections：[{ index, total, hit, accuracy }]，一条一项。
    */
   constructor(chart, opts = {}) {
     super();
@@ -177,6 +180,7 @@ export class RhythmGame extends Emitter {
     const scale = clamp((gapMs * 0.45) / WINDOWS.ok, 0.5, 1);
     this.win = { perfect: Math.max(25, WINDOWS.perfect * scale), great: WINDOWS.great * scale, ok: WINDOWS.ok * scale };
     this.lookahead = clamp(Math.round(1.9 / this.spb), 2, 6); // 音符从出现到落地大约 2 秒
+    this.bpb = chart.beatsPerBar || 4; // 一小节（一圈）几拍：平常是 4；谱面写了 stepsPerBar 的按它算
   }
 
   setOptions(patch) {
@@ -242,7 +246,7 @@ export class RhythmGame extends Emitter {
     const cols = `repeat(${chart.stepsPerLoop}, 1fr)`;
     const head = h('div', { class: 'steps-grid steps-head', style: { gridTemplateColumns: cols } });
     for (let s = 0; s < chart.stepsPerLoop; s++) {
-      const c = h('i', { class: ['step-head', s % 4 === 0 && 'beat'] }, s % 4 === 0 ? String((s / 4) % 4 + 1) : '');
+      const c = h('i', { class: ['step-head', s % 4 === 0 && 'beat'] }, s % 4 === 0 ? String(Math.floor((s / 4) % this.bpb) + 1) : '');
       this.headCells.push(c);
       head.append(c);
     }
@@ -369,6 +373,7 @@ export class RhythmGame extends Emitter {
     this.countIdx = -1;
     this.loopIdx = -1;
     this.headIdx = -1;
+    this.barIdx = -1; // 分段的谱面：走到整局第几小节了
     this.usedMidi = false;
     this.frozenBeat = null;
     this.frozenNow = null; // 静帧时用的“现在”（见 preview）
@@ -445,8 +450,9 @@ export class RhythmGame extends Emitter {
     const { countInBeats, metronome, assist } = this.opts;
     const ev = [];
     const quiet = (b) => !!this.#quietAt(b);
+    const bpb = this.bpb;
     for (let b = -countInBeats; b < chart.totalBeats; b++) {
-      if ((b < 0 || metronome) && !quiet(b)) ev.push({ beat: b, type: 'click', accent: ((b % 4) + 4) % 4 === 0 });
+      if ((b < 0 || metronome) && !quiet(b)) ev.push({ beat: b, type: 'click', accent: ((b % bpb) + bpb) % bpb === 0 });
     }
     ev.push({ beat: chart.totalBeats, type: 'click', accent: true });
     for (const b of chart.backing) if (!quiet(b.beat)) ev.push({ beat: b.beat, type: 'backing', b });
@@ -498,7 +504,8 @@ export class RhythmGame extends Emitter {
         const idx = Math.floor(nowBeat + this.opts.countInBeats);
         if (idx !== this.countIdx && idx >= 0) {
           this.countIdx = idx;
-          this.elCount.textContent = String(idx + 1);
+          // 一圈不是 4 拍的谱面，预备拍按圈数：三拍一圈、预备两圈，就是 1 2 3 1 2 3
+          this.elCount.textContent = String((this.bpb === 4 || !Number.isInteger(this.bpb) ? idx : idx % this.bpb) + 1);
           retrigger(this.elCount, 'tick');
           [...this.elDots.children].forEach((d, i) => d.classList.toggle('on', i <= idx));
         }
@@ -530,6 +537,15 @@ export class RhythmGame extends Emitter {
         this.headCells[this.headIdx]?.classList.remove('now');
         this.headCells[step]?.classList.add('now');
         this.headIdx = step;
+      }
+    }
+
+    // 分段的谱面：每到一个新的小节说一声现在是第几条（舞台外面那一条“现在 / 下一条”跟着它换）
+    if (chart.sections && nowBeat >= 0 && nowBeat < chart.totalBeats) {
+      const bar = Math.floor(nowBeat / chart.beatsPerBar);
+      if (bar !== this.barIdx) {
+        this.barIdx = bar;
+        this.emit('section', { bar, sec: chart.sections.ofBar[bar] });
       }
     }
 
@@ -733,7 +749,8 @@ export class RhythmGame extends Emitter {
     // 舞台的光：判定线那里一团光，跟着节拍亮一下（下拍更亮）；连击到了里程碑换一种颜色
     const live = this.state === 'countin' || this.state === 'playing' || this.state === 'frozen';
     const phase = nowBeat - Math.floor(nowBeat);
-    const downbeat = ((Math.floor(nowBeat) % 4) + 4) % 4 === 0;
+    const bpb = this.bpb;
+    const downbeat = ((Math.floor(nowBeat) % bpb) + bpb) % bpb === 0;
     const pulse = live && rich ? (1 - phase) ** 2 * (downbeat ? 1 : 0.6) : 0;
     const heat = Number(this.elStage.dataset.heat) || 0;
     const glow = heat === 3 ? pal.cyan : heat === 2 ? pal.yellow : pal.accent;
@@ -809,7 +826,7 @@ export class RhythmGame extends Emitter {
       const y = yOf(b);
       if (y < -2) break;
       const whole = Math.abs(b - Math.round(b)) < 1e-6;
-      const inBar = ((Math.round(b) % 4) + 4) % 4;
+      const inBar = ((Math.round(b) % bpb) + bpb) % bpb;
       const isBar = whole && inBar === 0;
       g.strokeStyle = isBar ? INK(0.4) : whole ? INK(0.17) : INK(0.07);
       g.lineWidth = isBar ? 1.5 : 1;
@@ -819,10 +836,39 @@ export class RhythmGame extends Emitter {
       g.stroke();
       if (whole) {
         g.fillStyle = b < 0 || b >= this.chart.totalBeats ? INK(0.25) : isBar ? INK(0.9) : INK(0.5);
-        g.fillText(String(inBar + 1), x0 - 7, y);
+        g.fillText(String(Math.floor(inBar) + 1), x0 - 7, y);
       }
     }
     g.globalAlpha = 1;
+
+    // 分段（谱面的 sections）：换条的那条小节线描一道重点色，轨道右边挂一块小牌子“第几条”，跟着谱面往下落——让人提前看见“要换了”
+    if (this.chart.sections && see > 0.02) {
+      const { ofBar } = this.chart.sections;
+      const per = this.chart.beatsPerBar;
+      const roomy = W - (x0 + totalW) >= 64;
+      g.font = `700 12px ${FONT}`;
+      for (let k = Math.max(0, Math.ceil((nowBeat - 0.4) / per)); k < ofBar.length; k++) {
+        const b = k * per;
+        if (b > nowBeat + this.lookahead + 0.01) break;
+        if (k > 0 && ofBar[k] === ofBar[k - 1]) continue;
+        const y = yOf(b);
+        g.strokeStyle = alpha(pal.accent, 0.9 * see);
+        g.lineWidth = 2.5;
+        g.beginPath();
+        g.moveTo(x0, y);
+        g.lineTo(x0 + totalW, y);
+        g.stroke();
+        const text = roomy ? `第 ${ofBar[k] + 1} 条` : String(ofBar[k] + 1);
+        const tw = g.measureText(text).width + 14;
+        g.fillStyle = alpha(pal.accent, see);
+        g.beginPath();
+        g.roundRect(x0 + totalW + 5, y - 10, tw, 20, 10);
+        g.fill();
+        g.fillStyle = pal.keyInk;
+        g.textAlign = 'center';
+        g.fillText(text, x0 + totalW + 5 + tw / 2, y + 0.5);
+      }
+    }
 
     // 音符
     while (this.drawPtr < this.targets.length && yOf(this.targets[this.drawPtr].beat + (this.targets[this.drawPtr].lenBeats || 0)) > H + 30) this.drawPtr++;
@@ -1044,6 +1090,23 @@ export class RhythmGame extends Emitter {
       delete v.deltas;
     }
     const total = this.targets.length;
+    // 分段的谱面：一条一项——这一条一共几下、打中几下、打对几成（多按的不分条，只折进整局的准确率）
+    let sections = null;
+    if (chart.sections) {
+      sections = Array.from({ length: chart.sections.count }, (_, index) => ({ index, total: 0, hit: 0, score: 0 }));
+      for (const t of this.targets) {
+        const sec = sections[t.sec];
+        if (!sec) continue;
+        const grade = t.result?.grade || 'miss';
+        sec.total++;
+        sec.score += SCORE[grade];
+        if (grade !== 'miss') sec.hit++;
+      }
+      for (const sec of sections) {
+        sec.accuracy = sec.total ? sec.score / (sec.total * 100) : 0;
+        delete sec.score;
+      }
+    }
     // 乱按一通也能“碰中”，所以多按的要折进分母里
     const accuracy = total ? score / ((total + this.extras * 0.5) * 100) : 0;
     const half = Math.floor(deltas.length / 2);
@@ -1079,6 +1142,7 @@ export class RhythmGame extends Emitter {
       missSteps: [...missByStep.entries()].map(([step, count]) => ({ step, count })).sort((a, b) => b.count - a.count),
       // 灰音符（心里数、不许按）一共几个、忍住了几个
       rests: { total: this.targets.filter((t) => t.rest).length, held: this.targets.filter((t) => t.rest && t.result?.held).length },
+      ...(sections ? { sections } : {}),
       pattern,
     };
   }

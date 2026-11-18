@@ -188,11 +188,21 @@ async function solveEcho(root) {
   }
 }
 
+/**
+ * 到点了打这一下。临到跟前（半秒以内）才把音频时钟换算成页面时钟：一开局就把整局全排好的话，长一点的谱面（二三十秒以上）
+ * 两只钟会漂开几十毫秒（2026-11-18 在虚拟机里量到 24 秒漂 30 多毫秒），打出来就从 PERFECT 掉成 GREAT，金那一档会差一口气
+ */
+function hitAt(game, t) {
+  const wait = audio.ctxToPerf(game.clock.ctxAtBeat(t.beat)) - performance.now();
+  if (wait > 500) return setTimeout(() => hitAt(game, t), wait - 400);
+  setTimeout(() => game.hit(t.lane, performance.now(), 'keyboard'), Math.max(0, wait));
+}
+
 async function solveRhythm(toy) {
   const game = toy.game;
   $$('.game-card .btn.primary').find((b) => /开始/.test(b.textContent))?.click();
   await until(() => game.clock && game.state !== 'idle', 3000);
-  for (const t of game.targets) if (!t.rest) tapAtPerf(audio.ctxToPerf(game.clock.ctxAtBeat(t.beat)), () => game.hit(t.lane, performance.now(), 'keyboard')); // 灰音符（心里数、不许按）不打
+  for (const t of game.targets) if (!t.rest) hitAt(game, t); // 灰音符（心里数、不许按）不打
   await until(() => game.state === 'done', 60000, 200);
   await sleep(500);
   return { accuracy: Math.round((game.result?.accuracy || 0) * 100), combo: game.result?.maxCombo };
@@ -414,6 +424,16 @@ async function drive(d, task) {
       if (d.key === undefined) return w.tap('KEY');
       for (let i = 0; i < 12 && simulator.proj.key !== d.key; i++) await w.tap('KEY');
       return;
+    case 'stepvel': // 长按亮着的方键出黑圈，转旋钮 4，再点一下松开
+      await w.hold(`DK${d.step + 1}`);
+      await w.turn('SD4', d.dir === 'down' ? -1 : 1, 2);
+      return w.tap(`DK${d.step + 1}`);
+    case 'steplen': { // 长按 [PAGE] 出黑圈，转那条鼓轨的旋钮，再点一下松开
+      const cur = simulator.lengthOf(d.track);
+      await w.hold('PAGE');
+      await w.turn(d.track, d.steps > cur ? 1 : -1, Math.abs(d.steps - cur));
+      return w.tap('PAGE');
+    }
     case 'steps': {
       const cur = simulator.stepsOf(d.track);
       const flip = [...d.steps.filter((s) => !cur.includes(s)), ...(d.atLeast ? [] : cur.filter((s) => !d.steps.includes(s)))];
