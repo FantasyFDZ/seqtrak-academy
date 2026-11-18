@@ -79,9 +79,10 @@ function turn(dir) {
     simulator.kbdTurn(hover, dir);
     return true;
   }
-  // 按着 [OCTAVE]、步进键、[PAGE]：转的是 ALL（升降八度、改音长、改 scene 的长度）
+  // 按着 [OCTAVE]、步进键、[PAGE]：转的是 ALL（升降八度、改音长、改 scene 的长度）；
+  // 鼓轨上按着方键时转的是右边第 4 个旋钮（按住亮着的一步，只改这一步的力度）：哪一个由模拟机说（kbdArrowKnob）
   if (held.some((id) => id === 'OCTAVE' || id === 'PAGE' || /^DK/.test(id))) {
-    simulator.kbdTurn('ALL', dir);
+    simulator.kbdTurn(simulator.kbdArrowKnob, dir);
     return true;
   }
   return false;

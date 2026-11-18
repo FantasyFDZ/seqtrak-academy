@@ -20,6 +20,19 @@
 //     [ALL] + [VOL+] 混音台模式（音量、混响 / 延迟送多少听得出来；声像和 [ALL] 只做演示）。
 // 键盘学习方式（keyboard.js 调下面的 kbd* 那几个）：电脑键盘上“按住”就是真的按住——按下去马上算按住，不用等黑圈；
 //   手不松，再按别的键每一下都是组合键。和鼠标的“长按锁定”并存：鼠标长按出来的黑圈照旧，也能和键盘上按着的键配。
+// 2026-11-18 加进来的两样（小课堂节奏线要用；依据是 docs/seqtrak-operation-reference.md 的 3.6.1、3.11.2、3.7.4）：
+//   鼓轨每一步的力度：按住一个亮着的方键，转右边第 1 页的旋钮 4（VOLUME）= 给这一步做参数锁，改的是这一步的力度，这一步亮紫色。
+//     存在 p.vel[轨道][第几段] 里（Map：步 → 力度 1–127；没锁的步照 100 放）。把这一步按灭、清空这段乐句，锁跟着清；
+//     按住 [DELETE] 再按旋钮 4 = 清掉这段乐句里所有步的力度锁（手册 3.6.2）；复制粘贴、[BAR LENGTH] 照抄、临时保存都带着它。
+//     只做了力度这一样；音高、声像……别的参数锁没做，同时按住几个方键一起锁也没做。
+//     手册没写的、模拟机自己定的：往上转（顺时针）是重、往下是轻；一格 9；默认 100。说话时不替真机下断言。
+//   鼓轨的乐句长度按步改（方法 B）：按住 [PAGE] 转那条鼓轨的旋钮，一格一步，1–128 步。
+//     小节数还是存在 p.bars 里（= 步数向上凑成整小节），不满整小节的步数另存在 p.stepLen[轨道][第几段]（没有就是 bars × 16）：
+//     [PAGE] 翻页、Song / scene 的 AUTO 长度、课程里按小节数的核对都还是看 bars。
+//     按住 [PAGE] 转的时候，方键上白色亮着的是步数（最后一页有几步），右边那列小灯是小节数；平时范围以外的方键不亮、也不能填。
+//     缩短不丢数据；加长跨进新的一小节时照手册的表抄一份（和 [BAR LENGTH] 一样）。
+//     [BAR LENGTH]：跳到比现在长的下一个 1 / 2 / 4 / 8 小节（已经满 8 小节就回 1 小节），步数的零头清掉——这是模拟机定的。
+//     没做的：按住 [PAGE] 把旋钮按下去再转（16 步一档；模拟机上“转”和“按下去转”分不开）、方法 A（按住 [BAR LENGTH] 转旋钮）、合成器轨按步改。
 import { Emitter, h, clamp, rich } from './util.js';
 import { createPanel } from './device-panel.js';
 import { LoopPlayer } from './looper.js';
@@ -105,6 +118,8 @@ const SYNTH_CATEGORIES = ['BASS', 'SYNTH LEAD', 'PIANO', 'KEYBOARD', 'ORGAN', 'P
 const NATURALS = [0, 2, 4, 5, 7, 9, 11];
 const PAT_MAX = 6; // 每条轨道最多 6 段乐句（出厂 3 段）
 const LOOP_STEPS = 128; // 播放器按 8 小节转（乐句最长 8 小节）；短的乐句在里面自己走好几圈
+const VEL_DEFAULT = 100; // 鼓轨上没锁过力度的步照这个力度放（模拟机定的数；真机的默认力度手册没写）
+const VEL_STEP = 9; // 按住一步转旋钮 4，一格改这么多：100 往上 3 格到 127，往下 11 格到 1
 const HELLO = '**模拟机已就绪** · 点按面板即可发声，拧动旋钮或推滑条时右上角会浮现实时参数。';
 const HELLO_KBD = '**模拟机已就绪（键盘模式）** · 键旁小字即电脑按键，〔空格〕播放，按 〔?〕 查看全键位。';
 
@@ -122,10 +137,13 @@ const nameOf = (id) =>
               : id === 'REC' ? '**录音键**' : `[${id}]`;
 
 function makeProject(seed = {}) {
-  const p = { tempo: 120, swing: 0, scale: 0, key: 0, pat: {}, drums: {}, synth: {}, octave: {}, poly: {}, bars: {}, mute: new Set(), solo: null, ...seed.settings };
+  const p = { tempo: 120, swing: 0, scale: 0, key: 0, pat: {}, drums: {}, synth: {}, octave: {}, poly: {}, bars: {}, vel: {}, stepLen: {}, mute: new Set(), solo: null, ...seed.settings };
   for (const t of DRUMS) {
     p.drums[t] = [new Set(seed.drums?.[t] || []), ...Array.from({ length: PAT_MAX - 1 }, () => new Set())];
     p.bars[t] = Array(PAT_MAX).fill(1);
+    // 鼓轨每一步的力度锁（步 → 1–127；没有 = 没锁）；按步改过的乐句长度（几步；null = 没按步改过，照 bars × 16）
+    p.vel[t] = Array.from({ length: PAT_MAX }, () => new Map());
+    p.stepLen[t] = Array(PAT_MAX).fill(null);
     p.pat[t] = 0;
   }
   for (const t of SYNTHS) {
@@ -169,10 +187,12 @@ const makeProjects = () => [
 
 /** 一个工程的深拷贝（临时保存用）：Set、Map 都另起一份 */
 function cloneProject(p) {
-  const c = { ...p, pat: { ...p.pat }, octave: { ...p.octave }, poly: { ...p.poly }, mute: new Set(p.mute), drums: {}, synth: {}, bars: {} };
+  const c = { ...p, pat: { ...p.pat }, octave: { ...p.octave }, poly: { ...p.poly }, mute: new Set(p.mute), drums: {}, synth: {}, bars: {}, vel: {}, stepLen: {} };
   for (const t of Object.keys(p.drums)) {
     c.drums[t] = p.drums[t].map((set) => new Set(set));
     c.bars[t] = [...p.bars[t]];
+    c.vel[t] = p.vel[t].map((m) => new Map(m));
+    c.stepLen[t] = [...p.stepLen[t]];
   }
   for (const t of Object.keys(p.synth)) {
     c.synth[t] = p.synth[t].map((m) => new Map([...m].map(([k, v]) => [k, { ...v, notes: [...v.notes] }])));
@@ -228,6 +248,9 @@ class Simulator extends Emitter {
   #pendingStep = null; // 按下了一个已经有音的步：松手才关，长按则是“按住它”
   #tapOnUp = null; // 松手时才算“单按一下”的键（[PAGE]：它既能单按翻页，又能按住当功能键）
   #lenShow = null; // 正在调哪一步的音长：{ step, len }
+  #lenTrack = null; // 按住 [PAGE] 时正在改哪条鼓轨的乐句长度（方键显示它的步数，小灯显示小节数）；松开 [PAGE] 就清掉
+  #lenTurned = false; // 这次按住 [PAGE] 已经转过长度了：接着去按别的键，就当 [PAGE] 已经松开
+  #lenTap = null; // 按住 [PAGE] 时按下去的那个鼓轨旋钮：{ id, was 按下去之前已经转过长度了, turned 这一下转了 }。松手时没转 = 点了它一下
   #mono = {}; // 单音轨上正在响的那个音的“掐断”函数
   #cluster = null; // 复音轨上一秒之内连着点的几个键（屏幕上没法真的同时按）
   #undo = []; // 拧过的参数：[{ track, param, before, after }]，[UNDO/REDO] 用
@@ -266,10 +289,28 @@ class Simulator extends Emitter {
 
   // ───────────── 给课程用的统一接口（和真机镜像相同） ─────────────
 
-  /** 某条轨道当前这段乐句有几步 */
+  /** 某条轨道当前这段乐句有几步：鼓轨按步改过就是改成的那么多步，别的都是 小节数 × 16 */
   #lenOfTrack(track) {
     const p = this.proj;
-    return (p.bars[track]?.[p.pat[track]] || 1) * 16;
+    return p.stepLen[track]?.[p.pat[track]] || (p.bars[track]?.[p.pat[track]] || 1) * 16;
+  }
+
+  /** 某条轨道当前这段乐句有几步（1–128）。鼓轨可以不是整小节（按住 [PAGE] 转它的旋钮改的） */
+  lengthOf(track) {
+    return this.proj.bars[track] ? this.#lenOfTrack(track) : null;
+  }
+
+  /** 鼓轨第 step 步（从 0 起）单独锁的力度（1–127）；这一步没亮、没锁过、在乐句范围以外，都是 null */
+  velOf(track, step) {
+    const p = this.proj;
+    if (!DRUMS.includes(track) || step >= this.#lenOfTrack(track) || !p.drums[track][p.pat[track]].has(step)) return null;
+    return p.vel[track][p.pat[track]].get(step) ?? null;
+  }
+
+  /** 鼓轨当前这段乐句里锁过力度的步：{ 步: 力度 } */
+  velsOf(track) {
+    if (!DRUMS.includes(track)) return {};
+    return Object.fromEntries(this.stepsOf(track).map((s) => [s, this.velOf(track, s)]).filter(([, v]) => v !== null));
   }
 
   /** 某条轨道当前这段乐句里有音的步（从 0 起） */
@@ -401,8 +442,14 @@ class Simulator extends Emitter {
     }
     if (spec.slots) p.slots = Math.max(p.slots, spec.slots);
     const fill = (pat, part) => {
-      for (const [t, steps] of Object.entries(part.drums || {})) p.drums[t][pat] = new Set(steps);
-      for (const [t, bars] of Object.entries(part.bars || {})) p.bars[t][pat] = bars;
+      for (const [t, steps] of Object.entries(part.drums || {})) {
+        p.drums[t][pat] = new Set(steps);
+        p.vel[t][pat] = new Map(); // 整段换掉了：原来哪几步锁过力度不作数了
+      }
+      for (const [t, bars] of Object.entries(part.bars || {})) {
+        p.bars[t][pat] = bars;
+        if (p.stepLen[t]) p.stepLen[t][pat] = null;
+      }
       for (const [t, list] of Object.entries(part.keys || {})) {
         const map = p.synth[t][pat];
         for (const [step, key, len = 1, shift = 0] of list) {
@@ -499,6 +546,8 @@ class Simulator extends Emitter {
     this.#pendingStep = null;
     this.#tapOnUp = null;
     this.#lenShow = null;
+    this.#lenTrack = null;
+    this.#lenTurned = false;
     this.#cluster = null;
     this.el?.remove();
     this.el = null;
@@ -535,6 +584,19 @@ class Simulator extends Emitter {
     this.#render();
   }
 
+  /**
+   * 把一个工程里鼓轨每一步的力度锁、按步改过的乐句长度都清回原样（格子、小节数不动；被按步改短的乐句回到整小节，范围以外的内容本来就留着）。
+   * 小课堂每一关的“用在机器上”开头用：上一关把 HAT 1 留成 3 步的话，这一关往它后面的格子里就填不进去了
+   */
+  resetStepEdits(i = this.project) {
+    const p = this.projects[clamp(i, 0, 7)];
+    for (const t of DRUMS) {
+      p.vel[t].forEach((m) => m.clear());
+      p.stepLen[t].fill(null);
+    }
+    if (this.project === clamp(i, 0, 7)) this.#render();
+  }
+
   /** 把模拟机恢复成刚开箱的样子 */
   reset() {
     const mounted = !!this.panel;
@@ -550,6 +612,8 @@ class Simulator extends Emitter {
     this.#undo = [];
     this.#redo = null;
     this.#lenShow = null;
+    this.#lenTrack = null;
+    this.#lenTurned = false;
     this.panel?.setHeld([]);
     this.#say(this.keyboard ? HELLO_KBD : HELLO);
     if (mounted) this.#render();
@@ -608,6 +672,131 @@ class Simulator extends Emitter {
     this.#say(`第 ${step + 1} 步锁了一个音高：**${e.lock > 0 ? '+' : ''}${e.lock} 个半音**（这一步亮紫色，别的步不变）。这叫**参数锁**：一步一个音高，一声关门也能弹出一段旋律。${this.#k('调好了，再点一下被按住的那个键松开。', '调好了，松开步进键。')}`);
     this.#event('plock', { track: 'SAMPLER', step, value: e.lock });
     this.#render();
+  }
+
+  /** 鼓轨一步的力度（1–127，没锁过是 undefined）换成放这一声用的音量：没锁过和力度 100 都是原来的 0.9 */
+  #gainOf(vel) {
+    return vel === undefined ? 0.9 : (0.9 * vel) / VEL_DEFAULT;
+  }
+
+  /** 鼓轨上正按住的那一步（从 0 起）：按住的是一个方键、选中的是鼓轨、不在 Song / Scene 模式里。别的时候是 null */
+  #heldDrumStep() {
+    if (!isStepKey(this.held) || !DRUMS.includes(this.sel) || this.songMode) return null;
+    return this.page * 16 + Number(this.held.slice(2)) - 1;
+  }
+
+  /**
+   * 鼓轨的参数锁：按住一个亮着的方键，转第 1 页的旋钮 4（VOLUME），只改这一步的力度，这一步亮紫色（手册 3.6.1、3.11.2）。
+   * 整条轨道的音量不动。往哪边是轻、一格多少、锁完报不报，手册都没写：模拟机上往上（顺时针）是重，一格 9，说话时不替真机下断言
+   */
+  #lockVel(step, dir) {
+    const p = this.proj;
+    const tr = this.sel;
+    const pat = p.pat[tr];
+    if (!p.drums[tr][pat].has(step)) return this.#say('按住的这一步是空的：先把它按亮，再按住它转旋钮。');
+    const map = p.vel[tr][pat];
+    const before = map.get(step) ?? VEL_DEFAULT;
+    const v = clamp(before + dir * VEL_STEP, 1, 127);
+    map.set(step, v);
+    this.#armLatchTimeout();
+    this.#index = 'VOLUME';
+    this.#meter = Object.fromEntries(Array.from({ length: clamp(Math.round((v / 127) * 8), 1, 8) }, (_, i) => [`METER.${i + 1}`, 'white']));
+    this.#meterLater();
+    this.panel?.showHud(`${TRACK[tr].label} · STEP ${step + 1}`, `VEL ${v}`, v / 127);
+    if (!this.playing) audio.drum(tr, 0, this.#gainOf(v), this.#bus('drums', tr)); // 停着的时候让他听一下这一步现在多重；放着的时候下一圈自然听到
+    else sfx.play('detent');
+    const words = v === before ? `已经到头了（力度只能在 1–127 之间），现在是 **${v}**` : `力度 **${v}**`;
+    const how = v > VEL_DEFAULT ? '比没改过的步重' : v < VEL_DEFAULT ? (v <= 37 ? '比没改过的步轻很多' : '比没改过的步轻') : '和没改过的步一样重';
+    const way = this.#toldVel ? '' : this.#k('（模拟机上往上拖是重、往下拖是轻；真机上往哪边是哪边，手册没写，转着听。）', '（模拟机上按 〔↑〕 是重、按 〔↓〕 是轻；真机上往哪边是哪边，手册没写，转着听。）');
+    this.#toldVel = true;
+    this.#say(`${TRACK[tr].label} 第 ${step + 1} 步单独改了力度：${words}，${how}（没改过的是 ${VEL_DEFAULT}）。这一步亮**紫色**，别的步没变，整条轨道的音量也没动。这叫**参数锁**。${way}${this.#k('调好了，再点一下被按住的那个方键松开。', '调好了，松开方键。')}`);
+    this.#event('vel', { track: tr, step, value: v });
+    this.#render();
+  }
+
+  #toldVel = false;
+
+  /** 鼓轨上按住一步，却去转别的旋钮（或者旋钮 4 不在第 1 页上）：说一句该转哪个 */
+  #drumStepHint(id) {
+    if (id === 'SD4') return `右边 4 个旋钮现在在**第 ${this.sdPage + 1} 页**，旋钮 4 管的不是音量。先按一下翻页键翻回第 1 页（右边那列字里 VOLUME 会亮）：按住一步转它，才是改这一步的力度。`;
+    if (id === 'ALL') return '鼓轨的一步没有“音长”可调（按住一步转 ALL 是合成器轨步进输入里改音长的做法）。按住这一步的时候，转右边从上往下**第 4 个**旋钮：只改这一步的力度。';
+    if (id === 'SD1' && this.sdPage === 0) return '最上面这个旋钮是换音色的，音色不能锁在某一步上。按住这一步的时候，转从上往下**第 4 个**旋钮（VOLUME）：只改这一步的力度。';
+    return '模拟机只做了**力度**这一样参数锁：按住这一步的时候，转从上往下**第 4 个**旋钮（第 1 页上是 VOLUME）。手册上这个旋钮管的参数也能锁在一步上，模拟机没做。';
+  }
+
+  /** 按住 [DELETE] 再按第 1 页的旋钮 4：清掉这条鼓轨这段乐句里所有步的力度锁（手册 3.6.2：删整个 pattern 里某个参数的锁） */
+  #clearVel() {
+    const p = this.proj;
+    const tr = this.sel;
+    const map = p.vel[tr][p.pat[tr]];
+    const n = this.stepsOf(tr).filter((s) => map.has(s)).length;
+    map.clear();
+    this.#index = 'VOLUME';
+    this.#meterLater();
+    this.#say(n ? `清掉了 ${TRACK[tr].label} 这段乐句里 ${n} 步的力度锁：紫色的方键变回黄色，每一步又一样重了。` : `${TRACK[tr].label} 这段乐句里没有哪一步锁过力度。（按住 [DELETE] 再按旋钮 4，是清掉这段乐句里所有步的力度锁。）`);
+    this.#event('vel', { track: tr, cleared: true });
+  }
+
+  /**
+   * 按住 [PAGE] 转一条鼓轨的旋钮：这条鼓轨当前这段乐句的长度一步一步地改，1–128 步（手册 3.7.4 的方法 B）。
+   * 缩短不丢数据（范围以外的步留着，只是不亮、不响）；加长跨进新的一小节时照手册的表抄一份。别的轨道不受影响：各转各的圈
+   */
+  #drumLength(tr, dir) {
+    const p = this.proj;
+    const pat = p.pat[tr];
+    const was = this.#lenOfTrack(tr);
+    const len = clamp(was + dir, 1, 128);
+    this.#lenTrack = tr;
+    this.#lenTurned = true;
+    if (this.#lenTap) this.#lenTap.turned = true;
+    this.#armLatchTimeout();
+    if (len === was) {
+      this.#say(`已经到头了：一段乐句最短 1 步，最长 128 步（8 小节）。`);
+      return this.#render();
+    }
+    const wasBars = p.bars[tr][pat];
+    const bars = Math.ceil(len / 16);
+    const copied = bars > wasBars && this.#copyDrumBars(tr, pat, wasBars, bars);
+    p.bars[tr][pat] = bars;
+    p.stepLen[tr][pat] = len % 16 ? len : null;
+    if (tr === this.sel && this.page >= bars) this.page = 0;
+    this.panel?.showHud(`${TRACK[tr].label} · LENGTH`, `${len} STEP`, len / 128);
+    sfx.play('detent');
+    const size = len % 16 === 0 ? `（${len / 16} 小节）` : len > 16 ? `（${bars - 1} 小节零 ${len % 16} 步）` : '';
+    const more = copied ? `新露出来的第 ${bars} 小节先照着前面抄了一份。`
+      : len < was ? '范围以外的格子没有丢，再加长回来还在。' : '';
+    // 1、2、4、8 步正好除得尽 16：每小节对上的位置都一样，不会错开
+    const loop = !(len % 16) ? '' : 16 % len
+      ? `它自己 ${len} 步转一圈，别的轨道照各自的长度转，所以每一圈对上的位置都不一样。`
+      : `它自己 ${len} 步转一圈：16 步的一小节里正好转 ${16 / len} 圈。`;
+    const once = this.#toldLen ? '' : '（真机上按住 [PAGE] 把旋钮**按下去**再转，是 16 步一档；模拟机上没做这个，要整小节地改就按 [BAR LENGTH]。）';
+    this.#toldLen = true;
+    this.#say(`${TRACK[tr].label} 这段乐句现在长 **${len} 步**${size}：方键上白色亮着的是${len > 16 ? '最后一页的' : ''}步数，右边那列小灯是小节数。${more}${loop}${once}${this.#k('调好了，再点一下 [PAGE] 松开（直接去按别的键也行；想接着改另一条鼓轨，直接拖它的旋钮）。', '调好了，松开 [PAGE]。')}`);
+    this.#event('length', { track: tr, bars, steps: len, by: 'page' });
+    this.#render();
+  }
+
+  #toldLen = false;
+
+  /**
+   * 鼓轨加长时，新的那几小节照前面的抄一份，力度锁一起抄（手册 3.7.4 的表：第 2、3、5 小节抄第 1 小节，第 4、6 抄第 2，第 7 抄第 3，第 8 抄第 4）。
+   * 新的范围里已经有东西就不抄。was、next = 原来 / 现在有几小节。返回抄没抄
+   */
+  #copyDrumBars(tr, pat, was, next) {
+    const p = this.proj;
+    const set = p.drums[tr][pat];
+    const vel = p.vel[tr][pat];
+    if ([...set].some((s) => s >= was * 16 && s < next * 16)) return false;
+    for (let b = was; b < next; b++) {
+      const shift = 2 ** Math.floor(Math.log2(b)) * 16; // 第 b 小节（从 0 数）抄的是往前这么多步的那一小节
+      for (const s of [...set]) {
+        if (Math.floor(s / 16) !== b - shift / 16) continue;
+        set.add(s + shift);
+        if (vel.has(s)) vel.set(s + shift, vel.get(s));
+        else vel.delete(s + shift);
+      }
+    }
+    return true;
   }
 
   /** 模拟机的声音走哪条总线：整台效果那一串搭好了就走它（第 7 章），没搭好就走原来的 */
@@ -789,7 +978,11 @@ class Simulator extends Emitter {
     if (this.metronome && step % 4 === 0) sound.click(t, step % 16 === 0);
     const stepSec = 60 / p.tempo / 4;
     if (step % 16 === 0) this.#applyMix(); // 换了工程、恢复了临时保存：每小节开头对一次混音
-    for (const tr of DRUMS) if (this.#audible(tr) && p.drums[tr][p.pat[tr]].has(step % this.#lenOfTrack(tr))) audio.drum(tr, t, 0.9, this.#bus('drums', tr));
+    for (const tr of DRUMS) {
+      const pos = step % this.#lenOfTrack(tr);
+      // 这一步锁过力度就照它放（100 = 和没锁的一样），没锁过的和以前一样
+      if (this.#audible(tr) && p.drums[tr][p.pat[tr]].has(pos)) audio.drum(tr, t, this.#gainOf(p.vel[tr][p.pat[tr]].get(pos)), this.#bus('drums', tr));
+    }
     for (const tr of SYNTHS) {
       if (!this.#audible(tr)) continue;
       const e = p.synth[tr][p.pat[tr]].get(step % this.#lenOfTrack(tr));
@@ -843,10 +1036,14 @@ class Simulator extends Emitter {
   /** 步进输入里，这个步进键对应的那一步现在有没有音 */
   #stepHas(id) {
     const tr = this.sel;
-    if (!isStepKey(id) || this.stepMode !== tr) return false;
+    if (!isStepKey(id)) return false;
     // 选采样源的那几秒里方键 1–3 是采样源、Song 模式里方键是 scene：都不当“按住这一步”
     if (this.songMode || (this.#srcPick > performance.now() && /^DK[1-3]$/.test(id))) return false;
-    return this.proj.synth[tr][this.proj.pat[tr]].has(this.page * 16 + Number(id.slice(2)) - 1);
+    const step = this.page * 16 + Number(id.slice(2)) - 1;
+    // 鼓轨上亮着的方键也一样（乐句范围以内的）：按下去先不动，松手才按灭；按住它转旋钮 4 = 只改这一步的力度
+    if (DRUMS.includes(tr)) return step < this.#lenOfTrack(tr) && this.proj.drums[tr][this.proj.pat[tr]].has(step);
+    if (this.stepMode !== tr) return false;
+    return this.proj.synth[tr][this.proj.pat[tr]].has(step);
   }
 
   #down(id, kbd = false) {
@@ -859,6 +1056,37 @@ class Simulator extends Emitter {
       else this.#say(this.#k('机器关着。**按住 [PLAY] 2 秒**开机。', '机器关着。**按住 〔空格〕 2 秒**开机（[PLAY]）。'));
       return;
     }
+    // 鼓轨上正按住亮着的一步时去碰右边 4 个旋钮（或 ALL）：那是要转它，方键继续按着。旋钮 4（第 1 页）= 只改这一步的力度，别的模拟机没做
+    if (this.#heldDrumStep() !== null && (/^SD[1-4]$/.test(id) || id === 'ALL')) {
+      this.#consumed = id;
+      this.#armLatchTimeout();
+      this.#say(id === 'SD4' && this.sdPage === 0
+        ? this.#k('现在**上下拖**这个旋钮（或者用滚轮）：只改按住的这一步的力度。模拟机上往上拖是重、往下拖是轻（真机上往哪边是哪边，手册没写）。', '方键按着别松，按 〔↑〕 / 〔↓〕：只改按住的这一步的力度。模拟机上 〔↑〕 是重、〔↓〕 是轻（真机上往哪边是哪边，手册没写）。')
+        : this.#drumStepHint(id));
+      return;
+    }
+    // 采样器步进输入里按住一步去碰旋钮 2：同样是要转它（只给这一步锁一个音高），步进键继续按着。
+    // （以前这一下会被当成“组合键”把步进键松开，结果只有滚轮能锁、用鼠标拖反而改了整个采样位的音高）
+    if (isStepKey(this.held) && this.stepMode === 'SAMPLER' && this.sel === 'SAMPLER' && id === 'SD2' && this.sdPage === 0) {
+      this.#consumed = id;
+      this.#armLatchTimeout();
+      this.#say(this.#k('现在**上下拖**这个旋钮（或者用滚轮）：只给按住的这一步锁一个音高。', '步进键按着别松，按 〔↑〕 / 〔↓〕：只给按住的这一步锁一个音高。'));
+      return;
+    }
+    // 按住 [PAGE] 时去碰一条鼓轨的旋钮：那是要转它来改这条鼓轨的乐句有几步（手册 3.7.4 的方法 B），[PAGE] 继续按着
+    if (this.held === 'PAGE' && DRUMS.includes(id) && !this.songMode) {
+      this.#consumed = id;
+      this.#lenTap = { id, was: this.#lenTurned, turned: false };
+      this.#lenTrack = id;
+      this.#armLatchTimeout();
+      const label = TRACK[id].label;
+      const what = `改 ${label} 这段乐句有几步，一格一步，往上是长、往下是短（现在 ${this.#lenOfTrack(id)} 步）。方键上白色亮着的是步数，右边那列小灯是小节数。`;
+      this.#say(this.#k(`现在**上下拖**这个 ${label} 旋钮（或者用滚轮）：${what}`, `[PAGE] 和 ${label} 都按着别松，按 〔↑〕 / 〔↓〕：${what}`));
+      return this.#render();
+    }
+    // 真机上转完松手就行；模拟机上鼠标的“按住”是锁着的：用 [PAGE] 改完长度直接去按别的键，就当已经松开了 [PAGE]，那个键照常起作用。
+    // 电脑键盘上 [PAGE] 还真的按着的时候不算（那就是组合键）
+    if (this.held === 'PAGE' && this.#lenTurned && id !== 'PAGE' && !this.#kbd.has('PAGE')) this.#release();
     // 正按住一个步进键（步进输入里的某一步）时去碰 ALL 旋钮：那是要转它来改音长，步进键继续按着
     if (isStepKey(this.held) && id === 'ALL') {
       this.#consumed = id;
@@ -1035,6 +1263,17 @@ class Simulator extends Emitter {
       }
       return this.#render();
     }
+    // 按住 [PAGE] 时按下去的鼓轨旋钮松手了。鼠标的 [PAGE] 是锁着的：已经改过长度、这一下又没转，就是“改完了，点一下这条轨道”——
+    // 当 [PAGE] 已经松开，照常选中它（和改完直接去按别的键一样）。还没改过长度的头一下不算（那是按下去准备拖）；电脑键盘上 [PAGE] 真按着时也不算
+    if (this.#lenTap?.id === id) {
+      const tap = this.#lenTap;
+      this.#lenTap = null;
+      if (!tap.turned && tap.was && !kbd && this.held === 'PAGE' && !this.#kbd.has('PAGE')) {
+        this.#release();
+        this.#single(id);
+        return this.#render();
+      }
+    }
     if (id === 'PLAY') {
       clearTimeout(this.#timers.power);
       if (!this.#powerToggled && this.#consumed !== id) {
@@ -1072,7 +1311,9 @@ class Simulator extends Emitter {
     clearTimeout(this.#timers.octave); // 新按住的，不受上一次转八度留下的“自己松开”影响
     this.held = id;
     this.panel?.setHeld([id]);
-    this.#say(isStepKey(id)
+    this.#say(isStepKey(id) && DRUMS.includes(this.sel)
+      ? `已按住 ${TRACK[this.sel].label} 的第 ${this.page * 16 + Number(id.slice(2))} 步（黑圈）。现在**上下拖右边从上往下第 4 个旋钮**（VOLUME；也可以用滚轮）：只改这一步的力度，模拟机上往上是重、往下是轻。想放开就再点它一下；想把它按灭，放开以后再短按一下。`
+      : isStepKey(id)
       ? `已按住第 ${this.page * 16 + Number(id.slice(2))} 步（黑圈）。现在可以：**上下拖左上角的 ALL 旋钮** = 改这个音有多长；**点一个 Synth key** = 把这一步换成那个键的音。想放开就再点它一下。`
       : id === 'OCTAVE' ? '已按住 [OCTAVE]（黑圈）。现在**上下拖 ALL 旋钮**（或用滚轮）升降八度；想放开就再点它一下。'
         : `已按住 ${nameOf(id)}（黑圈）。现在点第二个键；想放开就再点它一下。`);
@@ -1095,6 +1336,9 @@ class Simulator extends Emitter {
     this.held2 = null;
     if (this.#lenShow) this.#meter = null; // 调音长时亮着的那几个小灯，松手就灭
     this.#lenShow = null;
+    this.#lenTrack = null; // 按住 [PAGE] 改鼓轨长度时方键上的步数、小灯上的小节数，松手就换回平时的样子
+    this.#lenTurned = false;
+    this.#lenTap = null;
     clearTimeout(this.#timers.latch);
     // 转完八度留下的“停 1.2 秒自己松开”也作废：不然很快地放完几个音、又按住 [OCTAVE] 时，它才到点，把新按住的也松开了，
     // 接着转 ALL 就成了“11 条轨道一起换乐句”（2026-11-11 走查 One Kiss 等四首时踩到的）
@@ -1107,6 +1351,14 @@ class Simulator extends Emitter {
   /** 电脑键盘上现在按着的（控件 id，先按的在前） */
   get kbdHeld() {
     return [...this.#kbd.keys()];
+  }
+
+  /**
+   * 电脑键盘上按着步进键（或 [OCTAVE]、[PAGE]）按 ↑ ↓ 时转的是哪个旋钮（keyboard.js 问）：
+   * 选中的是鼓轨、按着的是方键 → 右边第 4 个旋钮（按住亮着的一步改它的力度）；别的时候是 ALL（升降八度、改音长、改 scene 的长度）
+   */
+  get kbdArrowKnob() {
+    return DRUMS.includes(this.sel) && !this.songMode && this.held !== 'PAGE' && this.held !== 'OCTAVE' && [...this.#kbd.keys()].some(isStepKey) ? 'SD4' : 'ALL';
   }
 
   /** 悄悄地把一个键算成按住的（黑圈），不说话：电脑键盘上按下去、或者组合键做完它还按着 */
@@ -1126,10 +1378,12 @@ class Simulator extends Emitter {
       const k = this.#kbd.get(id);
       if (!k || k.used || this.held !== id) return;
       if (TRACK[id]) return this.#say(`按着 **${TRACK[id].label} 旋钮**：按 〔↑〕 / 〔↓〕 是转它（${this.mixer ? `调它的${MIX_PARAMS[this.mixParam][2]}` : '换一段乐句'}）；按着它再按别的键是组合键；什么都不按就松手 = 按一下（选中它）。`);
-      this.#say(isStepKey(id)
+      this.#say(isStepKey(id) && DRUMS.includes(this.sel)
+        ? `按着 ${TRACK[this.sel].label} 的第 ${this.page * 16 + Number(id.slice(2))} 步：按 〔↑〕 重一点、〔↓〕 轻一点，只改这一步的力度（改过的步亮紫色）。松手就放开；想把它按灭，松手以后再短按一下。`
+        : isStepKey(id)
         ? `按着第 ${this.page * 16 + Number(id.slice(2))} 步：按 〔↑〕 / 〔↓〕 改这个音有多长；再按一个 Synth key，把这一步换成那个音${this.stepMode === 'SAMPLER' ? '；鼠标指着旋钮 2 按 〔↑〕 / 〔↓〕，只给这一步锁一个音高' : ''}。松手就放开。`
         : id === 'OCTAVE' ? '按着 [OCTAVE]：按 〔↑〕 / 〔↓〕 一格一格升降八度。（单按一下 [OCTAVE] 是升一格，到 +2 绕回 −3。）'
-          : '按着 [PAGE]：再按合成器轨的轨道键（〔,〕〔.〕〔/〕〔\\〕），进 / 出它的步进输入。（单按一下 [PAGE] 是翻页。）');
+          : '按着 [PAGE]：再按合成器轨的轨道键（〔,〕〔.〕〔/〕〔\\〕），进 / 出它的步进输入；再按住一条鼓轨的键（〔Z〕–〔M〕）按 〔↑〕 / 〔↓〕，改那条鼓轨这段乐句有几步。（单按一下 [PAGE] 是翻页。）');
     }, 600);
   }
 
@@ -1365,13 +1619,14 @@ class Simulator extends Emitter {
     const tr = this.sel;
     const pat = p.pat[tr];
     const was = p.bars[tr][pat];
-    const next = was >= 8 ? 1 : was * 2;
+    // 跳到比现在长的下一个 1 / 2 / 4 / 8 小节，已经满 8 小节就回到 1 小节。整小节的时候就是原来的 1 → 2 → 4 → 8 → 1；
+    // 鼓轨按步改过（12 步、20 步、3 小节……）的时候先补满到下一档，步数的零头清掉（这一条手册没写，是模拟机定的）
+    const stepped = p.stepLen[tr]?.[pat] || null;
+    const next = [1, 2, 4, 8].find((b) => b * 16 > this.#lenOfTrack(tr)) || 1;
     if (next > was) {
       const from = was * 16;
       if (DRUMS.includes(tr)) {
-        const set = p.drums[tr][pat];
-        const hasMore = [...set].some((s) => s >= from && s < next * 16);
-        if (!hasMore) for (const s of [...set]) if (s < from) for (let k = 1; k < next / was; k++) set.add(s + k * from);
+        this.#copyDrumBars(tr, pat, was, next);
       } else {
         const map = p.synth[tr][pat];
         const hasMore = [...map.keys()].some((s) => s >= from && s < next * 16);
@@ -1380,8 +1635,11 @@ class Simulator extends Emitter {
     }
     if (this.page >= next) this.page = 0;
     p.bars[tr][pat] = next;
+    if (p.stepLen[tr]) p.stepLen[tr][pat] = null;
     this.#showBar(next);
-    this.#say(next > was
+    this.#say(stepped && next >= was
+      ? `${TRACK[tr].label} 这段乐句原来是 ${stepped} 步，现在补满到了 **${next} 小节**（${next * 16} 步）；原来就在那些格子里的内容都还在。再按 [BAR LENGTH] 接着在 1、2、4、8 小节之间换。`
+      : next > was
       ? `${TRACK[tr].label} 这段乐句加长到了 **${next} 小节**（${next * 16} 步）。新加的 ${next - was} 小节先照着前面抄了一份。步进键一页只显示 16 步：按一下 [PAGE] 翻到下一页。${next < 8 ? '再按 [BAR LENGTH] 还会接着加长（1、2、4、8 小节轮着换）。' : '再按一次就变回 1 小节。'}`
       : `${TRACK[tr].label} 这段乐句变回了 **1 小节**。后面几小节里的内容没有丢，再加长回来还在。`);
     this.#event('length', { track: tr, bars: next, steps: next * 16 });
@@ -1391,10 +1649,12 @@ class Simulator extends Emitter {
   #pageTap() {
     const tr = this.sel;
     const bars = this.barsOf(tr) || 1;
-    if (bars < 2) return this.#say(`${TRACK[tr].label} 这段乐句只有 16 步，一页就放得下。乐句加长到 2 小节以后，[PAGE] 才用来翻页。它更常用的是当“功能键”：长按把它按住，再点合成器轨的旋钮，进入步进输入。`);
+    const len = this.#lenOfTrack(tr); // 鼓轨按步改过长度的话，最后一页可以不满 16 步
+    if (bars < 2) return this.#say(`${TRACK[tr].label} 这段乐句只有 ${len} 步，一页就放得下。乐句加长到 2 小节以后，[PAGE] 才用来翻页。它更常用的是当“功能键”：长按把它按住，再点合成器轨的旋钮，进入步进输入。`);
     this.page = (this.page + 1) % bars;
     this.#showDots([this.page + 1]);
-    this.#say(`${DRUMS.includes(tr) ? '方键' : '步进键'}翻到了**第 ${this.page + 1} 页**：现在这 16 个键是第 ${this.page * 16 + 1}–${this.page * 16 + 16} 步（第 ${this.page + 1} 小节）。${this.page + 1 < bars ? '再按一次 [PAGE] 翻到下一页。' : '再按一次 [PAGE] 回到第 1 页。'}`);
+    const last = Math.min(len, this.page * 16 + 16);
+    this.#say(`${DRUMS.includes(tr) ? '方键' : '步进键'}翻到了**第 ${this.page + 1} 页**：现在${last < this.page * 16 + 16 ? `这一页上只有前 ${last - this.page * 16} 个键在乐句里，` : '这 16 个键'}是第 ${this.page * 16 + 1}–${last} 步（第 ${this.page + 1} 小节）。${this.page + 1 < bars ? '再按一次 [PAGE] 翻到下一页。' : '再按一次 [PAGE] 回到第 1 页。'}`);
     this.#event('page', { page: this.page });
   }
 
@@ -1412,10 +1672,15 @@ class Simulator extends Emitter {
     if (DRUMS.includes(tr)) {
       const set = p.drums[tr][p.pat[tr]];
       const st = this.page * 16 + i;
+      // 按步改短了的乐句：范围以外的方键不亮，也不往里填（里面原来的内容留着，加长回来还在）
+      const len = this.#lenOfTrack(tr);
+      if (st >= len) return this.#say(`${TRACK[tr].label} 这段乐句现在只有 **${len} 步**，这个方键在范围以外：模拟机上它不亮，也填不进去。想用它，先把乐句加长（按住 [PAGE] 转 ${TRACK[tr].label} 旋钮，或者按 [BAR LENGTH] 补满一小节）。`);
       const on = !set.has(st);
       if (on) set.add(st);
       else set.delete(st);
-      this.#say(on ? `在 ${TRACK[tr].label} 的**第 ${st + 1} 步**放了一个音（黄灯）。${this.playing ? '' : '短按 [PLAY] 听听看。'}` : `拿掉了 ${TRACK[tr].label} 第 ${st + 1} 步的音。`);
+      // 把这一步关掉，它的参数锁（力度）一起清掉（手册 3.6.2）
+      const hadLock = p.vel[tr][p.pat[tr]].delete(st);
+      this.#say(on ? `在 ${TRACK[tr].label} 的**第 ${st + 1} 步**放了一个音（黄灯）。${this.playing ? '' : '短按 [PLAY] 听听看。'}` : `拿掉了 ${TRACK[tr].label} 第 ${st + 1} 步的音。${hadLock ? '这一步单独改过的力度也跟着清掉了：再按亮，它又和别的步一样重。' : ''}`);
       return this.#event('step', { track: tr, step: st, on, steps: this.stepsOf(tr) });
     }
     if (this.stepMode === tr) {
@@ -1506,6 +1771,21 @@ class Simulator extends Emitter {
     if (!this.power) return;
     const p = this.proj;
     this.emit('info', id);
+    // 鼓轨：按住一个亮着的方键，转第 1 页的旋钮 4（VOLUME）= 只改这一步的力度（参数锁）。按住时转别的旋钮：说一句该转哪个，不去动别的
+    const drumStep = this.#heldDrumStep();
+    if (drumStep !== null && (/^SD[1-4]$/.test(id) || id === 'ALL')) {
+      if (id === 'SD4' && this.sdPage === 0) return this.#lockVel(drumStep, dir);
+      this.#armLatchTimeout();
+      this.#say(this.#drumStepHint(id));
+      return this.#render();
+    }
+    // 电脑键盘上按着一个刚按亮（或还没亮）的鼓轨方键就按 ↑ ↓：没有“按住亮着的一步”，不改东西，说一句
+    if (id === 'SD4' && this.sdPage === 0 && DRUMS.includes(this.sel) && !this.songMode && [...this.#kbd.keys()].some(isStepKey)) {
+      this.#say('要改一步的力度，得**按住一个已经亮着的方键**再转。这个方键是刚按亮的（或者现在没亮）：先松手，再按住它，然后按 〔↑〕 / 〔↓〕。');
+      return this.#render();
+    }
+    // 按住 [PAGE] 转一条鼓轨的旋钮：改这条鼓轨当前这段乐句有几步（手册 3.7.4 的方法 B）。排在混音台前面：按住 [PAGE] 时它不是调混音
+    if (this.held === 'PAGE' && DRUMS.includes(id) && !this.songMode) return this.#drumLength(id, dir);
     // 按住步进输入里的一步，再转 ALL：改这一步的音有多长
     if (id === 'ALL' && isStepKey(this.held) && this.stepMode) return this.#stepLength(dir);
     // 第 5 章：按住采样器步进输入里亮着的一步，再转第 1 页的旋钮 2 = 只给这一步锁一个音高（紫色）
@@ -1567,7 +1847,7 @@ class Simulator extends Emitter {
       const param = { SD2: ['PITCH', '音高'], SD3: ['PAN', '声像（偏左还是偏右）'], SD4: ['VOLUME', '这条轨道的音量'] }[id];
       this.#index = param[0];
       this.#meterLater();
-      this.#say(`这个旋钮现在调的是**${param[1]}**，所以“${param[0]}”亮了。模拟机里只做演示。`);
+      this.#say(`这个旋钮现在调的是**${param[1]}**，所以“${param[0]}”亮了。模拟机里只做演示。${id === 'SD4' && DRUMS.includes(this.sel) ? '（想只改某一步的轻重：**按住**一个亮着的方键，再转它。）' : ''}`);
     } else if (id === 'FX') {
       this.#turnFx(dir);
     }
@@ -1852,8 +2132,19 @@ class Simulator extends Emitter {
     }
     // 步进输入里：按住一步，再按 Synth key = 把那个键的音加进这一步 / 拿掉；CHORD 状态下是整个换成那个和弦（手册 7.9）
     if (isStepKey(mod) && /^SK\d$/.test(id) && this.stepMode) return this.#stepAssign(this.page * 16 + Number(mod.slice(2)) - 1, Number(id.slice(2)));
+    // 鼓轨上按住一步又去按别的方键：模拟机上一次只按住一步（手册：同时按住几个方键再转是一起锁，模拟机没做）
+    if (isStepKey(mod) && isStepKey(id) && DRUMS.includes(this.sel) && !this.songMode) {
+      const a = this.page * 16 + Number(mod.slice(2));
+      const b = this.page * 16 + Number(id.slice(2));
+      return this.#say(this.#k(
+        `松开了第 ${a} 步。模拟机上一次只能按住一步（真机上可以同时按住几个方键一起改，模拟机没做）：第 ${b} 个方键这一下没有动，要按它就再按一次。`,
+        `按着第 ${a} 步的时候又按了第 ${b} 个方键：模拟机上一次只能按住一步（真机上可以同时按住几个方键一起改，模拟机没做），第 ${b} 个这一下没有动。先松开第 ${a} 步再按它。`));
+    }
+    // 按住 [DELETE] 再按第 1 页的旋钮 4：清掉这条鼓轨这段乐句里所有步的力度锁（手册 3.6.2）
+    if (mod === 'DELETE' && id === 'SD4' && DRUMS.includes(this.sel) && this.sdPage === 0) return this.#clearVel();
     if (mod === 'DELETE' && TRACK[id]) {
       (DRUMS.includes(id) ? p.drums[id] : p.synth[id])[p.pat[id]].clear();
+      p.vel[id]?.[p.pat[id]].clear(); // 清空了：哪几步锁过力度也不作数了
       this.#red = id;
       setTimeout(() => {
         this.#red = null;
@@ -1863,7 +2154,10 @@ class Simulator extends Emitter {
       return this.#event('delete', { track: id });
     }
     if (mod === 'DELETE' && id === 'ALL') {
-      for (const t of ALL_TRACKS) (DRUMS.includes(t) ? p.drums[t] : p.synth[t])[p.pat[t]].clear();
+      for (const t of ALL_TRACKS) {
+        (DRUMS.includes(t) ? p.drums[t] : p.synth[t])[p.pat[t]].clear();
+        p.vel[t]?.[p.pat[t]].clear();
+      }
       this.#say('清空了全部轨道当前的乐句。');
       return this.#event('delete', { track: 'ALL' });
     }
@@ -2052,7 +2346,8 @@ class Simulator extends Emitter {
     const tracks = mod === 'ALL' ? ALL_TRACKS : [mod];
     const pat = n - 1;
     if (pat >= p.slots) return this.#say('方键 4–6 是蓝色的：现在每条轨道只有 3 段，只能复制第 1–3 段。');
-    this.clip = { tracks, data: tracks.map((tr) => (DRUMS.includes(tr) ? { tr, drums: new Set(p.drums[tr][pat]), bars: p.bars[tr][pat] } : { tr, synth: new Map([...p.synth[tr][pat]].map(([k, v]) => [k, { ...v, notes: [...v.notes] }])), bars: p.bars[tr][pat] })) };
+    // 鼓轨连每一步的力度锁、按步改过的长度一起带上（手册 3.7.7：参数锁会一起复制）
+    this.clip = { tracks, data: tracks.map((tr) => (DRUMS.includes(tr) ? { tr, drums: new Set(p.drums[tr][pat]), bars: p.bars[tr][pat], vel: new Map(p.vel[tr][pat]), stepLen: p.stepLen[tr][pat] } : { tr, synth: new Map([...p.synth[tr][pat]].map(([k, v]) => [k, { ...v, notes: [...v.notes] }])), bars: p.bars[tr][pat] })) };
     this.#meter = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`METER.${i + 1}`, 'white']));
     this.#meterLater();
     this.#say(`**复制好了**：${mod === 'ALL' ? '11 条轨道' : TRACK[mod].label}的第 ${n} 段乐句（小灯白色闪一下）。接下来：按住这个旋钮，**再按住 [PAGE]**，按目标方键 = 粘贴过去。`);
@@ -2072,6 +2367,8 @@ class Simulator extends Emitter {
       if (d.drums) {
         p.drums[tr][pat] = new Set(d.drums);
         p.bars[tr][pat] = d.bars || 1;
+        p.vel[tr][pat] = new Map(d.vel || []);
+        p.stepLen[tr][pat] = d.stepLen ?? null;
       } else {
         p.synth[tr][pat] = new Map([...d.synth].map(([k, v]) => [k, { ...v, notes: [...v.notes] }]));
         p.bars[tr][pat] = d.bars;
@@ -2091,10 +2388,13 @@ class Simulator extends Emitter {
   /** 这个 scene 有多长（步）：自己设过就是设的那么长，AUTO = 里面最长的那段乐句（手册 3.14.8） */
   #sceneLen() {
     const sc = this.proj.scenes[this.proj.scene];
-    return sc?.len || (sc ? this.#autoLen(sc) : Math.max(16, ...ALL_TRACKS.map((tr) => this.#lenOfTrack(tr))));
+    return sc?.len || (sc ? this.#autoLen(sc) : Math.max(16, ...ALL_TRACKS.map((tr) => (this.barsOf(tr) || 1) * 16)));
   }
 
-  /** AUTO：这个 scene 里 11 条轨道各放的那一段，最长的那段有几步（静音的也算：静音只是不出声，乐句还在走） */
+  /**
+   * AUTO：这个 scene 里 11 条轨道各放的那一段，最长的那段有几步（静音的也算：静音只是不出声，乐句还在走）。
+   * 按小节数算：鼓轨按步改成了 12 步、20 步，在这里算 1 小节、2 小节（真机上 AUTO 遇到不满整小节的乐句怎么算，手册没写）
+   */
   #autoLen(sc) {
     const p = this.proj;
     return Math.max(16, ...ALL_TRACKS.map((tr) => (p.bars[tr]?.[sc.pat[tr] ?? 0] || 1) * 16));
@@ -2422,6 +2722,7 @@ class Simulator extends Emitter {
       else lit[`${t}.${n}`] = t === this.sel ? 'white' : col;
     }
     const onPage = (s) => Math.floor(s / 16) === this.page;
+    let lenBars = 0; // 正按住 [PAGE] 改鼓轨长度时：右边那列小灯要亮几个（小节数）
     if (this.held === 'PROJECT') {
       for (let i = 0; i < 8; i++) lit[`DK${i + 1}`] = i === this.project ? 'yellow' : 'white';
       if (this.#tempSave?.project === this.project) lit[`DK${this.project + 9}`] = 'cyan'; // 临时保存过：正下方那个亮青蓝
@@ -2438,12 +2739,24 @@ class Simulator extends Emitter {
       // 按住轨道旋钮（或 ALL）：方键 1–6 是乐句，黄色是现在这一段，白色是别的（4–6 没开时是蓝色）
       const cur = this.held === 'ALL' ? p.pat.KICK : p.pat[this.held];
       for (let i = 0; i < 6; i++) lit[`DK${i + 1}`] = i < p.slots ? (i === cur ? 'yellow' : 'white') : 'blue';
+    } else if (this.held === 'PAGE' && this.#lenTrack) {
+      // 按住 [PAGE] 改一条鼓轨的乐句长度：方键上是步数（白色；超过一页时是最后一页有几步），右边那列小灯是小节数（手册 3.7.4 的“显示”）
+      const len = this.#lenOfTrack(this.#lenTrack);
+      for (let i = 0; i < (len % 16 || 16); i++) lit[`DK${i + 1}`] = 'count'; // 白灯，带一圈边：要数得清（device-panel.js）
+      lenBars = Math.ceil(len / 16);
     } else if (this.#lenShow) {
       // 正在调音长：只亮这个音占的那一串
       for (let i = 0; i < this.#lenShow.len; i++) if (onPage(this.#lenShow.step + i)) lit[`DK${((this.#lenShow.step + i) % 16) + 1}`] = 'cyan';
     } else {
-      if (DRUMS.includes(this.sel)) for (const s of this.stepsOf(this.sel)) if (onPage(s)) lit[`DK${(s % 16) + 1}`] = 'yellow';
-      else if (this.stepMode === this.sel) for (const s of this.stepsOf(this.sel)) if (onPage(s)) lit[`DK${(s % 16) + 1}`] = p.synth[this.sel][p.pat[this.sel]].get(s)?.lock !== undefined ? 'purple' : 'cyan';
+      if (DRUMS.includes(this.sel)) {
+        // 鼓轨：亮着的步是黄色，单独锁过力度的是紫色（手册 4.3）；按步改短了的乐句，范围以外的不亮（stepsOf 只给范围以内的）
+        const vel = p.vel[this.sel][p.pat[this.sel]];
+        for (const s of this.stepsOf(this.sel)) if (onPage(s)) lit[`DK${(s % 16) + 1}`] = vel.has(s) ? 'purple' : 'yellow';
+      } else if (this.stepMode === this.sel) {
+        // 步进输入里的合成器轨 / 采样器：有音的步青蓝色，锁过音高的紫色。
+        // （这一句原来没加花括号，else 跟错了 if，合成器轨这一支从来没跑到过：步进输入里的格子一直不亮。2026-11-18 改鼓轨这一支时一起改对了）
+        for (const s of this.stepsOf(this.sel)) if (onPage(s)) lit[`DK${(s % 16) + 1}`] = p.synth[this.sel][p.pat[this.sel]].get(s)?.lock !== undefined ? 'purple' : 'cyan';
+      }
       if (this.playing && this.step >= 0) {
         const pos = this.step % this.#lenOfTrack(this.sel);
         if (onPage(pos)) lit[`DK${(pos % 16) + 1}`] = 'white';
@@ -2458,11 +2771,12 @@ class Simulator extends Emitter {
       lit[`INDEX.${MIX_PARAMS[this.mixParam][1]}`] = 'white';
     }
     for (const k of Object.keys(this.#flash)) lit[k] = 'yellow';
-    Object.assign(lit, this.#meter || {});
+    if (lenBars) for (let i = 0; i < lenBars; i++) lit[`METER.${i + 1}`] = 'white'; // 最下 = 1 小节，往上到 8 小节
+    else Object.assign(lit, this.#meter || {});
     if (this.#index) lit[`INDEX.${this.#index}`] = 'white';
     this.panel.setLit(lit);
   }
 }
 
 export const simulator = new Simulator();
-export { DRUMS as SIM_DRUMS, SYNTHS as SIM_SYNTHS };
+export { DRUMS as SIM_DRUMS, SYNTHS as SIM_SYNTHS, VEL_DEFAULT as SIM_VEL_DEFAULT };

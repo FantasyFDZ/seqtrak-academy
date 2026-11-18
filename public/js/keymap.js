@@ -5,6 +5,7 @@
 //   数字行     = 机器边上那一圈功能键；` 是 ALL（机器上 ALL 在左上角，键盘上 ` 也在左上角）；⌫ 是 DELETE
 //   空格 = [PLAY]；← / → = 两条触摸条 [HIGH PASS] / [REPEATER]（按着 = 手指按在上面，同时按 ↑ ↓ 往上推 / 往下拉）
 //   ↑ ↓ = 转旋钮：按着轨道键（或 `）时转它；按着 [OCTAVE]、步进键时转 ALL；别的旋钮用鼠标指着它（或按 Tab 选中）再按
+//         鼓轨上按着一个亮着的步进键时，↑ ↓ 转的是右边第 4 个旋钮（只改这一步的力度）；按着 [PAGE] 再按着一条鼓轨的键，↑ ↓ 改它这段乐句有几步
 // 没有专门键的（[VOL+] [VOL−] [REC SAMPLE] [UNDO] [CLEAR FX] [MASTER/SINGLE] [FX PAGE]、右边 4 个旋钮和 [FX]、[FX LEVEL]）：
 // 用鼠标点，或者按 Tab 选中再按回车（按住回车 = 按住它）；旋钮、[FX LEVEL] 选中或指着时按 ↑ ↓。
 // 用的是 event.code（按键的位置），和输入法、大小写、Shift 都没关系。
@@ -388,6 +389,7 @@ export const KEYMAP_LINES = [
   '` = ALL；1 MUTE · 2 SOLO · 3 PAGE · 4 BAR LENGTH · 5 OCTAVE · 6 SCALE · 7 KEY · 8 SWING · 9 音色翻页 · 0 PROJECT↑ · - BPM− · = BPM+ · ⌫ DELETE',
   '← = 手指按在 [HIGH PASS] 上，→ = 手指按在 [REPEATER] 上（按着时按 ↑ ↓ 往上推 / 往下拉，松开 = 手离开）',
   '↑ ↓ = 转旋钮：按着轨道键（或 `）时转那个旋钮；按着 5 OCTAVE 或步进键时转 ALL；别的旋钮用鼠标指着它（或按 Tab 选中）再按',
+  '鼓轨上：按着一个亮着的步进键再按 ↑ ↓ = 只改这一步的力度（它变紫色）；按着 3 PAGE 再按着一条鼓轨的键（Z–M）按 ↑ ↓ = 改它这段乐句有几步',
   '按住电脑上的键 = 按住机器上的键：组合键就是按着第一个、再按第二个',
   '没有专门键的（VOL+ VOL− REC SAMPLE UNDO CLEAR FX MASTER/SINGLE FX PAGE、右边 4 个旋钮、FX 旋钮、FX LEVEL）：用鼠标点，或按 Tab 选中再按回车',
   '? = 弹出整张键位图',

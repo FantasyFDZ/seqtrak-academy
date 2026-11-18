@@ -721,6 +721,8 @@ Data List 的 Arpeggio Preset List 列了 16 项：Off、Up、Up 2Octave、Down�
 - 给 VOLUME 做 Parameter Lock，改的是该音符的**力度（velocity）**。
 - 哪些参数可以锁，看 3.11.2 各表的"可锁"一列（SOUND SELECT 等不能锁）。
 
+> **应用里的模拟机**（`public/js/simulator.js`，2026-11-18 起）：鼓轨上只做了 VOLUME 这一样 Parameter Lock——按住一个亮着的 Drum key，转第 1 页的旋钮 4，只改这一步的力度，这一步亮紫色；把这一步关掉、清空 pattern、按住 [DELETE] 按旋钮 4（3.6.2 的第一条）都会清掉它；复制粘贴 pattern 时带着走。手册没写、模拟机自己定的：往上转（顺时针）是重、往下是轻；没锁过的步按力度 100 放；一格 9；范围 1–127。没做的：别的参数的锁、同时按住几个 Drum key 一起锁、[FX LEVEL] 的锁、只删某一步的锁（3.6.2 的第二条）、Motion Recording。（SAMPLER 轨在 Step Input mode 里锁 PITCH 是以前就有的。）
+
 #### 3.6.2 删除 Parameter Lock
 - 删整个 pattern 里某个参数的锁：**按住 [DELETE] 的同时按**对应的 **Sound Design knob**（或 **[FX] 旋钮**）。
 - 只删某一个 step 的 `[OS V1.10]`：**按住该 Drum key 和 [DELETE]，同时按**对应的 **Sound Design knob**（或 **[FX] 旋钮**）。
@@ -793,6 +795,8 @@ Data List 的 Arpeggio Preset List 列了 16 项：Off、Up、Up 2Octave、Down�
 | 第 8 小节 | 第 4 小节 |
 
 **缩短不丢数据**：超出范围的音符和 Motion 数据会保留，再加长回来就恢复。
+
+> **应用里的模拟机**（2026-11-18 起）：方法 B 做了“按住 [PAGE] 转鼓轨的 Track knob，一步一步改”这一条（1–128 步；按住 [PAGE] 转的时候，小节数显示在 Global Meter 上，步数用白灯显示在 Drum keys 上，超过 16 步时是最后一页有几步；缩短不丢数据；加长跨进新的一小节时照上面那张表复制）。没做的：按下并转动（16 步一档）、方法 A 里按住 [BAR LENGTH] 转 Track knob 的两条、Synth 轨和 SAMPLER 轨按步改。手册没写、模拟机自己定的：往上转（顺时针）是加长；乐句不满一页时，范围以外的 Drum key 平时不亮，也不能往里填；长度不是整小节时按 [BAR LENGTH]，跳到比现在长的下一个 1 / 2 / 4 / 8 小节（比如 12 步 → 1 小节，20 步 → 2 小节），已经 128 步就回到 1 小节；Song mode 里 scene 长度的 AUTO 遇到不满整小节的 pattern，按凑成整小节以后的长度算。
 
 > 注意手册内部的不一致：第 2 章对 [BAR LENGTH] 的说明只提到 Synth 轨和 SAMPLER 轨；5.2 节没有限定轨道类型。官方固件页写明 V2.00 把 [BAR LENGTH] 的功能扩展到了鼓轨；Yamaha USA 产品页也写明 OS v2.0 之前 [BAR LENGTH] 只适用于 Synth 轨和 Sampler 轨。所以：固件早于 V2.00 时，鼓轨改长度只能用方法 B。
 

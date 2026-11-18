@@ -35,7 +35,8 @@ const C = {
   orangeDeep: '#84270c',
   hl: '#00b8d9',
 };
-const LED = { yellow: '#ffd21f', white: '#ffffff', cyan: '#18d7e0', blue: '#3d7bff', purple: '#b56bff', red: '#ff3b30', green: '#34d058', orange: '#ff8a3d' };
+// count 也是白灯：数个数用的（方键上显示乐句有几步）。白灯在浅色键帽上不显眼，要一眼数得清，所以画的时候多一圈深色的边（见 setLit）
+const LED = { yellow: '#ffd21f', white: '#ffffff', cyan: '#18d7e0', blue: '#3d7bff', purple: '#b56bff', red: '#ff3b30', green: '#34d058', orange: '#ff8a3d', count: '#ffffff' };
 
 const TRACK_KNOBS = [
   ['ALL', 78, 47, 'ALL'], ['KICK', 172, 47, 'KICK'], ['SNARE', 266, 47, 'SNARE'], ['CLAP', 361, 47, 'CLAP'],
@@ -342,7 +343,7 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
     setTimeout(() => nodes.forEach((n) => n.remove()), ms);
   }
 
-  /** 点亮指示灯：{ DK1: 'yellow', 'KICK.1': 'yellow', 'METER.8': 'white', 'INDEX.SOUND': 'white' } */
+  /** 点亮指示灯：{ DK1: 'yellow', 'KICK.1': 'yellow', 'METER.8': 'white', 'INDEX.SOUND': 'white' }（颜色的名字见上面的 LED） */
   function setLit(map) {
     for (const [id, node] of leds) {
       const color = LED[map?.[id]] || null;
@@ -351,6 +352,14 @@ export function createPanel({ highlight = [], lit = {}, onPick, onDown, onUp, on
       node.setAttribute('fill', color ? (isText ? '#ffffff' : color) : base);
       if (isText) node.setAttribute('font-weight', color ? 900 : 700);
       else node.style.filter = color ? `drop-shadow(0 0 3.5px ${color})` : '';
+      // 数个数用的白灯（count）：加一圈深色的边；别的灯没有边
+      if (map?.[id] === 'count') {
+        node.setAttribute('stroke', '#2b2e34');
+        node.setAttribute('stroke-width', '1.4');
+      } else if (node.hasAttribute('stroke') && !isText) {
+        node.removeAttribute('stroke');
+        node.removeAttribute('stroke-width');
+      }
     }
   }
 

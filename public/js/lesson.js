@@ -1658,6 +1658,9 @@ export function lessonView(view, lessonId) {
   // 曲目的课（simFresh）从第 1 步开始时，模拟机上那个工程先清空：几首歌共用 5 号工程，上一首搭的东西别带进来
   if (Number.isInteger(lesson.simProject) && lesson.simFresh && index === 0) simulator.blankProject(lesson.simProject);
   if (Number.isInteger(lesson.simProject)) simulator.gotoProject(lesson.simProject);
+  // 在小课堂或面板页上把这个工程里哪条鼓轨按步改短过、给哪一步单独改过力度：从第 1 步开始时清回原样（格子不动）。
+  // 不然鼓轨还留着 3 步的话，这节课要往后面的格子里填就填不进去
+  if (Number.isInteger(lesson.simProject) && index === 0) simulator.resetStepEdits(lesson.simProject);
   // 第 4 章：模拟机上这个工程还是空的（没在这一次打开页面时学过第 3 章），先把第 3 章最后那段循环摆进去，拧音色的时候才有东西听
   if (Number.isInteger(lesson.simProject) && lesson.simSeed) simulator.seedProject(lesson.simProject, typeof lesson.simSeed === 'function' ? lesson.simSeed(index) : lesson.simSeed);
 

@@ -6,11 +6,16 @@
 // 认不认得出“这一步做到了”，各种条件见 watch()。认不出的（以及怕认错的）每一项都留着“我做了”的按钮。
 // 2026-11-15：效果模拟机的 [HIGH PASS]、[REPEATER] 两条触摸条会响了（按着才有，松手复原），[FX] 旋钮的失真、调制、躲闪、压缩几类也会响；
 // 右边第 2 页第 4 个旋钮（共鸣）也会响。createBench 多了 tier（动手关的铜银金：银、金不给蓝圈，金只给一句目标）和“是不是全靠自动认出来的”。
+// 2026-11-18：多了两种条件（只有模拟机认得出；真机镜像读不到鼓轨的长度和每一步的力度，接着真机时这两项自己点）：
+//   steplen { track, steps }        这条鼓轨当前这段乐句正好 steps 步（按住 [PAGE] 转它的旋钮）
+//   stepvel { track, step, dir }    这条鼓轨第 step 步（从 0 起）单独锁过力度；dir: 'up' 还要比没改过的重、'down' 还要比没改过的轻，不写 = 改过就算
+// 任务上多了 kbdText：键盘学习方式下（电脑键盘按模拟机）换用的说法，没写就用 simText。
 import { h, rich, clamp, Emitter } from './util.js';
 import { midi } from './midi.js';
 import { seqtrak } from './seqtrak.js';
 import { mirror } from './mirror.js';
-import { simulator } from './simulator.js';
+import { simulator, SIM_VEL_DEFAULT } from './simulator.js';
+import { learn } from './learn-mode.js';
 import { createPanel, GROUPS } from './device-panel.js';
 import { controlInfo } from './controls.js';
 import { TRACK } from './tracks.js';
@@ -342,6 +347,13 @@ function stateOf(model, d) {
     }
     case 'master': return model === fxsim ? fxsim.master : null;
     case 'sdpage': return model === fxsim ? fxsim.sdPage === d.page : model === mirror ? mirror.v.get('sdPage') === d.page : null;
+    // 鼓轨的乐句正好这么多步 / 这一步单独锁过力度：只有模拟机有这两个读数
+    case 'steplen': return model.lengthOf ? model.lengthOf(d.track) === d.steps : null;
+    case 'stepvel': {
+      if (!model.velOf) return null;
+      const v = model.velOf(d.track, d.step);
+      return v !== null && (d.dir === 'up' ? v > SIM_VEL_DEFAULT : d.dir === 'down' ? v < SIM_VEL_DEFAULT : true);
+    }
     default: return null;
   }
 }
@@ -374,7 +386,7 @@ function matches(d, e) {
 /** 真机上这一类条件有没有办法认。认不了的只显示“我做了” */
 function canWatch(model, d) {
   if (!d) return false;
-  if (model === fxsim) return !['key', 'mute', 'steps', 'note', 'chord', 'polymode', 'scale', 'tempo', 'swing', 'octave', 'metronome'].includes(d.kind);
+  if (model === fxsim) return !['key', 'mute', 'steps', 'note', 'chord', 'polymode', 'scale', 'tempo', 'swing', 'octave', 'metronome', 'steplen', 'stepvel'].includes(d.kind);
   if (model !== mirror) return !(model === simulator && ['master', 'sdpage', 'filter', 'fxlevel', 'clearfx', 'fxtype', 'highpass', 'repeater', 'reso'].includes(d.kind));
   if (['scale', 'key', 'tempo', 'sdpage', 'fxlevel', 'filter', 'clearfx'].includes(d.kind)) return true;
   if (['highpass', 'repeater', 'reso', 'mute'].includes(d.kind)) return false;
@@ -435,6 +447,21 @@ function hintFor(model, d, e) {
     return `${[missing.length ? `还差第 ${missing.join('、')} 个` : '', extra.length ? `第 ${extra.join('、')} 个是多出来的，按一下把它按灭` : ''].filter(Boolean).join('；')}。`;
   }
   if (!e) return null;
+  if (d.kind === 'steplen') {
+    if (e.type === 'length' && e.track !== d.track) return `刚才改的是 ${name(e.track)} 的长度，这一步要改的是 **${name(d.track)}**：按住 [PAGE]，转 ${name(d.track)} 旋钮。`;
+    if (e.type === 'length' && e.steps !== d.steps) return `${name(d.track)} 现在 **${e.steps} 步**，要的是 **${d.steps} 步**：接着往${e.steps > d.steps ? '短' : '长'}转 ${Math.abs(e.steps - d.steps)} 格。`;
+    // 没按住 [PAGE] 就转了轨道旋钮：那是换了一段乐句
+    if (e.type === 'pattern' && e.track !== 'ALL') return e.pattern ? `${name(e.track)} 换到了第 ${e.pattern + 1} 段乐句：转旋钮的时候 [PAGE] 没按住。先把它转回第 1 段，再按住 [PAGE] 转。` : `${name(e.track)} 回到第 1 段了。现在先按住 [PAGE]，再转 ${name(d.track)} 旋钮。`;
+    return null;
+  }
+  if (d.kind === 'stepvel') {
+    if (e.type === 'track' && e.track !== d.track) return `现在选中的是 ${name(e.track)}。先按一下 **${name(d.track)} 旋钮**，方键上才是它的格子。`;
+    if (e.type === 'vel' && e.step !== undefined && (e.track !== d.track || e.step !== d.step)) return `刚才改的是 ${name(e.track)} 第 ${e.step + 1} 步的力度，这一步要改的是 **${name(d.track)} 的第 ${d.step + 1} 步**。`;
+    if (e.type === 'vel' && e.step === d.step && d.dir === 'up' && e.value <= SIM_VEL_DEFAULT) return `第 ${d.step + 1} 步现在的力度是 ${e.value}，没改过的步是 ${SIM_VEL_DEFAULT}：往另一边转，让它**更重**。`;
+    if (e.type === 'vel' && e.step === d.step && d.dir === 'down' && e.value >= SIM_VEL_DEFAULT) return `第 ${d.step + 1} 步现在的力度是 ${e.value}，没改过的步是 ${SIM_VEL_DEFAULT}：往另一边转，让它**更轻**。`;
+    if (e.type === 'step' && e.track === d.track && e.step === d.step && !e.on) return `第 ${d.step + 1} 个方键被按灭了（短按一下是按灭）。先把它再按亮，然后**按住**它不放，再转第 4 个旋钮。`;
+    return null;
+  }
   if (d.kind === 'track' && d.track && e.type === 'track' && e.track !== d.track) return `你选中的是 ${name(e.track)}，要找的是 **${name(d.track)}**（蓝圈那个）。`;
   if (d.kind === 'tempo' && e.type === 'tempo') return `现在 **${e.bpm} BPM**，目标是 ${d.min}–${d.max}：${e.bpm < d.min ? '接着按 [BPM+]' : e.bpm > d.max ? '按 [BPM-] 往回调' : '到了。'}`;
   if (d.kind === 'scale' && e.type === 'scalekey' && e.scale !== d.scale) return `现在是从上往下第 ${e.scale + 1} 盏，要的是**第 ${d.scale + 1} 盏**：接着按 [SCALE]。`;
@@ -478,7 +505,8 @@ export function createBench(level, { onDone, onStep, actions = null, tier = 0, m
       text,
       h('div', { class: 'cl-bench-foot' }, status, h('span', { class: 'spacer' }), actions)));
 
-  const wording = (t) => (live() ? t.liveText : t.simText) || t.text;
+  // 接着真机用 liveText；模拟机上用 simText（键盘学习方式下先看 kbdText：电脑键盘上“按住”就是真的按住，没有黑圈）；都没写就是 text
+  const wording = (t) => (live() ? t.liveText : (learn.keyboard && t.kbdText) || t.simText) || t.text;
 
   /** 模拟机上把面板滑到要按的那几个键 */
   function focus(ids) {
@@ -499,7 +527,12 @@ export function createBench(level, { onDone, onStep, actions = null, tier = 0, m
     stopWatching();
     model?.unmount();
     model = pick();
-    if (model === simulator) simulator.gotoProject(3); // 4 号工程：空白的练习本
+    if (model === simulator) {
+      simulator.gotoProject(3); // 4 号工程：空白的练习本
+      // 上一关（或者在面板页上）给哪一步单独改过力度、把哪条鼓轨按步改短过：先清回原样，格子不动。
+      // 不然 HAT 1 还留着 3 步的话，这一关往它后面的格子里填不进去；改力度的那一项也会一进来就算做过了
+      simulator.resetStepEdits();
+    }
     host.replaceChildren(model === fxsim ? model.mount() : model.mount({ tips: false }), slide);
     el.classList.toggle('live', live());
     const wrap = host.querySelector('.panel-wrap');

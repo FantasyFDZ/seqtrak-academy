@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN" data-skin="body" data-fx="calm" data-still>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>开发用：模拟机的每步力度、按步改长度</title>
+  <script>
+    // 开发用的页面，应用里没有地方链到这里（用法见 tools/sim-step-check.sh）。?skin=neon 换成霓虹配色，做法和 index.html 开头一样
+    if (new URLSearchParams(location.search).get('skin') === 'neon') {
+      document.documentElement.dataset.skin = 'neon';
+      document.querySelector('meta[name="color-scheme"]').content = 'dark';
+    } else {
+      document.querySelector('meta[name="color-scheme"]').content = 'light';
+    }
+  </script>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/classroom.css">
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { display: block; overflow: auto; }
+    #view { box-sizing: border-box; height: 100%; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; container-type: size; }
+    #title { font: 700 14px/1.4 var(--mono, ui-monospace, monospace); color: var(--muted); }
+    #host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  </style>
+</head>
+<body>
+  <main id="view">
+    <div id="title">开发用：模拟机的每步力度、按步改长度（tools/sim-step-check.sh）</div>
+    <div id="host"></div>
+  </main>
+  <script type="module" src="/js/dev/sim-step-check.js"></script>
+</body>
+</html>
