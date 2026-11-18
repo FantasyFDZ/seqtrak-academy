@@ -171,16 +171,29 @@ done
 
 # 小课堂（乐理、节奏、效果、DJ 四条线的小关）：2026-11-15 起列表上的关全部开放（2026-11-17 节奏线加了 R9、乐理线加了 T18–T27；
 # 2026-11-18 乐理线第三期又加了 T28–T36，节奏线第二批把乐理线的 T1、T2 并进了 R1、R2、又加了 R10、R11；节奏线第三批加了 R12、R13、R14，一共 66 关：
-# 乐理 32（其中 6 关是选学）、节奏 15、效果 12、DJ 7；open=66 soon=0 optional=6）；每关各打开一次，看能玩的东西摆出来没有。
-# 另有推荐路线（9 站、60 个关的小牌子，最下面 2 段选学的岔路上另有 6 个，一共 chips=66）、卡册（66 张卡，6 张带“选学”的角标）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
+# 乐理 32（其中 6 关是选学）、节奏 15、效果 12、DJ 7）；每关各打开一次，看能玩的东西摆出来没有。
+# 2026-11-18 进门那一页改成了“选曲台”（public/js/views/classroom-select.js）：一次只摆一条线的关，所以四条线各开一次
+# （?clline=theory|rhythm|fx|dj 是开发用的参数），加起来还是 66 关（levels=66 theory=32 rhythm=15 fx=12 dj=7），其中 6 关选学（optional=6）；
+# “接着学”的小标四条线里一共 1 个（next=1：全新的进度是节奏线的 R1）；四条线的大切换 4 个（lines=4），每开一次右边一个舞台（stages=4）。
+# 另有推荐路线（同一天改成了一条路：9 站、最下面 2 段选学的岔路、66 个节点 = 大路 60 + 岔路 6、1 个下一关、右边 1 张卡片）、
+# 卡册（66 张卡，6 张带“选学”的角标）、每日五分钟（5 个小圆点、一样能玩的东西）三页。
 # 再看“试一试”和“用在机器上”那两屏：?clstep=quiz / machine 是开发用的参数，直接从那一步开始（public/js/views/classroom.js）。
 # “用在机器上”有三种样子：模拟机、效果关用的效果模拟机、接着假真机时的真机镜像（class 里带 live）。窗口按最小的平板 1024 × 768 开。
 # 把每一关真的从头走到尾（要点、要拍、要等声音）在无界面的浏览器里做不了：那是 public/js/dev/walk-classroom2.js，在开着的浏览器里跑。
 classroom() {
   "$CHROME" --headless=new --disable-gpu --no-first-run --user-data-dir=$D/profile --window-size=1024,768 --virtual-time-budget=${2:-5000} --dump-dom "$BASE/$1" 2>/dev/null > $D/dom.html
 }
-classroom '#/classroom'
-echo "classroom -> levels=$(count 'class="cl-node[ "]') open=$(count '<a class="cl-node') soon=$(count 'class="cl-node soon"') optional=$(count 'class="cl-node [^"]*optional') errors=$(count '这一页出错了')"
+cl_rows=0; cl_per=''; cl_opt=0; cl_next=0; cl_stage=0; cl_err=0
+for line in theory rhythm fx dj; do
+  classroom "?clline=$line#/classroom"
+  n=$(count 'class="cs-row[ "]')
+  cl_rows=$((cl_rows + n)); cl_per="$cl_per $line=$n"
+  cl_opt=$((cl_opt + $(count 'class="cs-row [^"]*optional')))
+  cl_next=$((cl_next + $(count 'class="cs-row [^"]*next')))
+  cl_stage=$((cl_stage + $(count 'class="cs-stage"')))
+  cl_err=$((cl_err + $(count '这一页出错了')))
+done
+echo "classroom -> lines=$(count 'class="cs-line"') levels=$cl_rows$cl_per optional=$cl_opt next=$cl_next stages=$cl_stage errors=$cl_err"
 playable=0
 broken=''
 # 2026-11-17 乐理线重做第二期：多了 T18–T27 这 10 关（单元 3「旋律」、单元 4「和声」）；推荐路线多一站（8 站），多一页小本子。
@@ -197,7 +210,7 @@ echo "classroom toys -> $(node tools/toy-check.mjs | head -1 | sed 's/^toy-check
 classroom '#/classroom/works'
 echo "classroom works -> page=$(count 'tw-page') empty=$(count 'class="tw-empty"') tabs=$(count 'class="cl-tab[ "]') errors=$(count '这一页出错了')"
 classroom '#/classroom/route'
-echo "classroom route -> stops=$(count 'class="cl-stop[ "]') side=$(count 'class="cl-side-stop') chips=$(count 'class="cl-chip[ "]') next=$(count 'class="cl-next"') errors=$(count '这一页出错了')"
+echo "classroom route -> stops=$(count 'class="cr-stop[ "]') side=$(count 'class="cr-stop-side') nodes=$(count 'class="cr-node[ "]') next=$(count 'class="cr-node[^"]* next"') card=$(count 'class="cr-card"') errors=$(count '这一页出错了')"
 classroom '#/classroom/cards'
 echo "classroom cards -> cards=$(count 'class="cl-kcard[ "]') locked=$(count 'cl-kcard locked') optional=$(count 'class="cl-opt-tag"') errors=$(count '这一页出错了')"
 classroom '#/classroom/daily'

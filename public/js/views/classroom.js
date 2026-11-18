@@ -1,6 +1,6 @@
 // 小课堂：乐理、节奏、效果、DJ 四条线的小关。路由（都走 main.js 里那两条 #/classroom 的路由）：
-//   #/classroom          四条线的列表
-//   #/classroom/route    推荐路线：跨四条线的一条路，每一站配一段主线课程
+//   #/classroom          选曲台：四条线的大切换、这条线的关、选中那一关的舞台（classroom-select.js）
+//   #/classroom/route    推荐路线：跨四条线的一条路，每一站配一段主线课程（也在 classroom-select.js）
 //   #/classroom/cards    知识卡册：学完一关拿一张卡，铜 / 银 / 金三种边；金卡 = 啾啾窝里一根羽毛
 //   #/classroom/daily    每日五分钟：间隔复习（classroom-review.js），做完算当天练过
 //   #/classroom/works    小本子：乐理线的小作品，能重放、能删、能送到模拟机上（theory-works.js）
@@ -16,7 +16,7 @@ import { coachFace } from '../coach-face.js';
 import { quizPerfect } from '../jiu-eggs.js';
 import { sfx } from '../sfx.js';
 import { confetti, pop, typeOut } from '../fx.js';
-import { LINES, LEVELS, OPEN_LEVELS, KINDS, ROUTE, ROUTE_SIDE, UNITS, levelById, isOpen, nextOpen, stepsOf, routeNext, stopOf, lineOf } from '../content/classroom.js';
+import { LINES, LEVELS, OPEN_LEVELS, KINDS, levelById, isOpen, nextOpen, stepsOf, routeNext, lineOf } from '../content/classroom.js';
 import { findLesson } from '../content/curriculum.js';
 import { chartById } from '../content/charts.js';
 import { SONGS } from '../content/songs.js';
@@ -28,6 +28,7 @@ import { createGuide } from '../theory-guide.js';
 import { worksPage } from '../theory-works.js';
 import { firstReview, afterReview, dailyPlan, dailyDone, dailyCount } from '../classroom-review.js';
 import { streaks } from '../levels.js';
+import { selectPage, routePage, rememberPick } from './classroom-select.js';
 
 // 样式是这一页自己带来的（public/css/classroom.css），不用改 index.html
 if (!document.querySelector('link[data-classroom]')) {
@@ -44,8 +45,6 @@ const MEDAL = ['', '铜', '银', '金'];
 const saved = () => store.data.classroom || {};
 const starText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
 const medalChip = (n) => h('span', { class: ['cl-medal', `m${n}`], 'aria-label': n ? `${MEDAL[n]}牌，${n} 颗星` : '学完了，还没拿牌' }, n ? `${starText(n)}` : '☆☆☆');
-/** 列表上用的小圆牌：一个字（铜 / 银 / 金），学完了没拿牌是 ✓ */
-const medalDot = (n) => h('span', { class: ['cl-mdot', `m${n}`], 'aria-label': n ? `${MEDAL[n]}牌` : '学完了，还没拿牌' }, MEDAL[n] || '✓');
 const DEV = new URLSearchParams(location.search);
 
 /**
@@ -91,114 +90,33 @@ function linkChips(level, { max = 6 } = {}) {
   return out.slice(0, max);
 }
 
-// ───────────── 页头：四个入口 ─────────────
+// ───────────── 页头：几个入口 ─────────────
 
+/**
+ * 选关、推荐路线、卡册、小本子共用的页头：标题、一排入口、一共学了几关。
+ * “今天做没做每日五分钟”是那个入口上的一颗小灯；连续练了几天写在它旁边的小字和提示里。
+ */
 function head(now) {
   const done = saved();
   const lit = OPEN_LEVELS.filter((l) => done[l.id]?.done);
   const stars = lit.reduce((n, l) => n + (done[l.id].stars || 0), 0);
   const gold = lit.filter((l) => done[l.id].stars >= 3).length;
   const daily = dailyDone(store.data.classroomDaily, today());
-  const tab = (id, href, label, extra) => h('a', { class: ['cl-tab', now === id && 'on'], href, 'data-sfx': 'press' }, label, extra);
+  const st = streaks(store.data.practiceDays || [], today());
+  const dayTip = `每日五分钟：${daily ? '今天做过了' : '今天还没做，做完算今天练过'}${st.current ? `；已经连续练了 ${st.current} 天` : ''}`;
+  const tab = (id, href, label, extra, more = {}) => h('a', { class: ['cl-tab', now === id && 'on'], href, 'data-sfx': 'press', 'aria-current': now === id ? 'page' : null, ...more }, label, extra);
   return h('header', { class: 'cl-list-head' },
-    h('div', { class: 'cl-head-words' }, h('h1', {}, '小课堂'), h('p', {}, '每关三五分钟，只讲一件事。挑战分铜、银、金三档。')),
+    h('h1', {}, '小课堂'),
     h('nav', { class: 'cl-tabs', 'aria-label': '小课堂的几个入口' },
-      tab('lines', '#/classroom', '四条线'),
+      tab('lines', '#/classroom', '选关'),
       tab('route', '#/classroom/route', '推荐路线'),
       tab('cards', '#/classroom/cards', '卡册', h('b', {}, String(lit.length))),
       tab('works', '#/classroom/works', '小本子', (store.data.works || []).length ? h('b', {}, String(store.data.works.length)) : null),
-      tab('daily', '#/classroom/daily', '每日五分钟', h('i', { class: ['cl-dot', daily && 'on'], 'aria-label': daily ? '今天做过了' : '今天还没做' }))),
+      tab('daily', '#/classroom/daily', '每日五分钟', [
+        st.current > 1 && h('small', {}, `连 ${st.current} 天`),
+        h('i', { class: ['cl-dot', daily && 'on'], 'aria-label': daily ? '今天做过了' : '今天还没做' }),
+      ], { title: dayTip })),
     h('div', { class: 'cl-total' }, h('b', {}, String(lit.length)), ` / ${OPEN_LEVELS.length} 关`, h('span', { class: 'stars' }, `★ ${stars}`), gold ? h('span', { class: 'cl-gold' }, `金 ${gold}`) : null));
-}
-
-/** 列表和路线页顶上那一条：路线上的下一关 + 今天的五分钟 */
-function nextBar() {
-  const done = saved();
-  const [nx] = routeNext((id) => !!done[id]?.done, 1);
-  const day = dailyDone(store.data.classroomDaily, today());
-  const st = streaks(store.data.practiceDays || [], today());
-  return h('div', { class: 'cl-nextbar' },
-    nx ? h('a', { class: 'cl-next', href: `#/classroom/${nx.id}`, 'data-sfx': 'press', style: { '--c': `var(--${lineOf(nx).color})` } },
-      h('span', { class: 'label' }, '按路线，下一关'), h('span', { class: 'no' }, nx.id), h('b', {}, nx.title), h('span', { class: 'muted' }, `${stopOf(nx.id)?.name} · ${KINDS[nx.kind].label}`), h('span', { class: 'go' }, '→'))
-      : h('div', { class: 'cl-next' }, h('b', {}, '路线上的关都学完了，啾！'), h('span', { class: 'muted' }, '去卡册把铜卡、银卡升成金卡吧。')),
-    h('a', { class: ['cl-daily-mini', day && 'done'], href: '#/classroom/daily', 'data-sfx': 'press' },
-      h('span', { class: 'label' }, '每日五分钟'),
-      h('b', {}, day ? '今天做完了 ✓' : '今天还没做'),
-      h('span', { class: 'muted' }, st.current ? `连续 ${st.current} 天` : '做完算今天练过')));
-}
-
-// ───────────── 列表：四条线 ─────────────
-
-function listPage(view) {
-  const done = saved();
-  const lit = OPEN_LEVELS.filter((l) => done[l.id]?.done);
-  ctx.set('小课堂（乐理、节奏、效果、DJ 四条线的小关）', `一共 ${OPEN_LEVELS.length} 关，学完了 ${lit.length} 关${lit.length ? `：${lit.map((l) => `${l.id}「${l.title}」${MEDAL[done[l.id].stars || 0] || ''}`).join('、')}` : ''}。挑战分铜银金三档；另有推荐路线、知识卡册、每日五分钟复习。`);
-
-  const column = (line) => {
-    const levels = LEVELS.filter((l) => l.line === line.id);
-    const got = levels.filter((l) => done[l.id]?.done).length;
-    const nodes = [];
-    let unit = null;
-    for (const l of levels) {
-      // 乐理线按单元分组（关上写 unit）：换了单元先摆一行小标题
-      if (l.unit && l.unit !== unit) {
-        unit = l.unit;
-        const u = UNITS.find((x) => x.id === unit);
-        if (u) nodes.push(h('div', { class: ['cl-unit', u.optional && 'optional'] }, u.name, u.sub && h('small', {}, u.sub)));
-      }
-      const rec = done[l.id];
-      nodes.push(h('a', { class: ['cl-node', `kind-${l.kind}`, rec?.done && 'done', l.kind === 'boss' && 'boss', l.optional && 'optional'], href: `#/classroom/${l.id}`, 'data-sfx': 'press' },
-        h('span', { class: 'no' }, l.id),
-        h('div', { class: 'words' }, h('b', {}, l.title), h('span', {}, `${l.optional ? '选学 · ' : ''}${KINDS[l.kind].label} · ${l.about}`)),
-        rec?.done ? medalDot(rec.stars || 0) : h('span', { class: 'go' }, `${l.minutes || 3}′`)));
-    }
-    return h('section', { class: 'cl-line', style: { '--c': `var(--${line.color})` } },
-      h('header', {},
-        h('div', { class: 'cl-line-name' }, h('h2', {}, line.name), h('span', { class: 'count' }, `${got} / ${levels.length}`)),
-        h('p', {}, line.sub),
-        h('div', { class: 'cl-line-bar' }, h('i', { style: { width: `${levels.length ? (got / levels.length) * 100 : 0}%` } }))),
-      h('div', { class: 'cl-nodes' }, nodes));
-  };
-
-  view.append(h('div', { class: 'cl-page cl-list' }, head('lines'), nextBar(), h('div', { class: 'cl-lines' }, LINES.map(column))));
-  return null;
-}
-
-// ───────────── 推荐路线 ─────────────
-
-function routePage(view) {
-  const done = saved();
-  const [nx] = routeNext((id) => !!done[id]?.done, 1);
-  ctx.set('小课堂 · 推荐路线', `跨四条线的一条路，一共 ${ROUTE.length} 站：${ROUTE.map((s) => `${s.name}（${s.with}）`).join('、')}。下一关：${nx ? `${nx.id}「${nx.title}」` : '都学完了'}。`);
-  const stops = ROUTE.map((s, si) => {
-    const got = s.ids.filter((id) => done[id]?.done).length;
-    const f = findLesson(s.lesson);
-    return h('section', { class: ['cl-stop', got === s.ids.length && 'done'] },
-      h('div', { class: 'cl-stop-name' },
-        h('span', { class: 'n' }, String(si + 1)),
-        h('div', {}, h('b', {}, s.name), h('span', {}, `${s.with} · ${got} / ${s.ids.length}`)),
-        f && h('a', { class: 'cl-link k-lesson', href: `#/lesson/${s.lesson}` }, h('small', {}, '课程'), `${s.lesson.replace('-', '.')} ${f.lesson.title}`)),
-      h('ol', { class: 'cl-stop-path' }, s.ids.map((id) => {
-        const l = levelById(id);
-        const rec = done[id];
-        return h('li', {}, h('a', {
-          class: ['cl-chip', rec?.done && 'done', nx?.id === id && 'next', l.kind === 'boss' && 'boss'],
-          href: `#/classroom/${id}`, 'data-sfx': 'press', style: { '--c': `var(--${lineOf(l).color})` },
-        }, h('span', { class: 'no' }, id), h('b', {}, l.title), rec?.done ? medalChip(rec.stars || 0) : nx?.id === id ? h('span', { class: 'tag' }, '下一关') : null));
-      })));
-  });
-  // 选学的关不在这条路上：单独摆在最下面当岔路（不编号，“下一关”不会指到它们）
-  const sides = ROUTE_SIDE.map((s) => h('section', { class: ['cl-side-stop', s.ids.every((id) => done[id]?.done) && 'done'] },
-    h('div', { class: 'cl-stop-name' }, h('span', { class: 'n' }, '选'), h('div', {}, h('b', {}, s.name), h('span', {}, `${s.with} · ${s.ids.filter((id) => done[id]?.done).length} / ${s.ids.length}`))),
-    h('ol', { class: 'cl-stop-path' }, s.ids.map((id) => {
-      const l = levelById(id);
-      const rec = done[id];
-      return h('li', {}, h('a', { class: ['cl-chip', 'optional', rec?.done && 'done'], href: `#/classroom/${id}`, 'data-sfx': 'press', style: { '--c': `var(--${lineOf(l).color})` } }, h('span', { class: 'no' }, id), h('b', {}, l.title), rec?.done ? medalChip(rec.stars || 0) : null));
-    }))));
-  view.append(h('div', { class: 'cl-page cl-list cl-route' }, head('route'), nextBar(),
-    h('div', { class: 'cl-stops' }, h('p', { class: 'cl-route-tip' }, '不用照着走：想学哪关点哪关。这条路是把四条线穿起来的一种顺序，每一站和主线的一段课配着学最顺。'), stops,
-      h('p', { class: 'cl-route-tip cl-side-tip' }, '岔路：选学的关。不在这条路上，大关也不考；想学的时候再拐进来。'), sides)));
-  return null;
 }
 
 // ───────────── 知识卡册 ─────────────
@@ -416,6 +334,7 @@ function dailyPage(view) {
 // ───────────── 一关 ─────────────
 
 function lessonPage(view, level) {
+  rememberPick(level); // 回选曲台的时候，停在这一关上
   const line = lineOf(level);
   const STEPS = stepsOf(level);
   const QUIZ = STEPS.findIndex(([k]) => k === 'quiz');
@@ -706,8 +625,8 @@ export function classroomView(view, id) {
       leave();
     },
   });
-  if (!id) return wrap(listPage(view));
-  if (id === 'route') return wrap(routePage(view));
+  if (!id) return wrap(selectPage(view, head('lines')));
+  if (id === 'route') return wrap(routePage(view, head('route')));
   if (id === 'cards') return wrap(cardsPage(view));
   if (id === 'daily') return wrap(dailyPage(view));
   if (id === 'works') return wrap(worksPage(view, head('works'))); // 小本子：乐理线的小作品（theory-works.js）

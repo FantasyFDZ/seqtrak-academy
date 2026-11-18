@@ -1,0 +1,294 @@
+/* 小课堂进门的两页（public/js/views/classroom-select.js）：
+     选曲台   #/classroom         上面四条线的大切换，左边这条线的关，右边选中这一关的“舞台”
+     一条路   #/classroom/route   推荐路线：蜿蜒的一条路，9 站 + 最下面两段选学的岔路，旁边是选中那一关的卡片
+   还有每一关的封面（public/js/classroom-covers.js）会动的那几种动法。
+   按平板横屏做：最小 1024 × 768，整页不滚动（列表、路线图自己滚）；能点的东西至少 44 像素；不靠悬停。
+   颜色只用 app.css 里的变量，机身和霓虹两套配色都跟着走。每条线自己的颜色放在 --c 里。
+   类名：cs- 选曲台，cr- 路线，cva- 封面的动效；页头（cl-list-head、cl-tabs）和牌的三种颜色（--medal-1/2/3）在 classroom.css。 */
+
+/* 从这条线的颜色（--c）调出来的几样：--c 设在哪个元素上，就得在哪个元素上算（变量是在定义它的地方代入的） */
+.cl-select, .cr-card, .cr-node {
+  --cs-pick: var(--bubble);                                    /* 选中的那一行、那张牌的底：比卡片亮一档 */
+  --cs-art: radial-gradient(120% 90% at 86% 42%, color-mix(in srgb, var(--c) 44%, transparent), transparent 64%), radial-gradient(var(--resume-cell) 1.2px, transparent 1.7px) 0 0 / 16px 16px, linear-gradient(160deg, var(--resume-a), var(--resume-b)); /* 封面区：深色的台面，透一点这条线的颜色 */
+  --cs-ink: color-mix(in srgb, var(--c) 56%, var(--inv-text));  /* 深色台面上的封面图 */
+  --cs-deep: color-mix(in srgb, var(--c) 64%, var(--ink-0));    /* 线的颜色压深一档：实色键帽的厚度 */
+}
+
+/* ───────── 封面 ───────── */
+.cl-cover { display: block; width: 100%; height: 100%; overflow: visible; }
+.cl-cover.anim [class^="cva-"] { transform-box: fill-box; transform-origin: center; }
+.cl-cover.anim .cva-spinc { transform-box: view-box; transform-origin: 50% 50%; }
+/* 只有大封面会动；克制档、系统开了减少动态、地址带 ?still 的时候都不动 */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-fx="rich"]:not([data-still]) .cl-cover.anim .cva-step { animation: cva-step calc(var(--beat) * 4) linear calc(var(--beat) * 4 * var(--i, 0) / var(--n, 16)) infinite; }   /* 一小节走一圈，一格一格亮 */
+  :root[data-fx="rich"]:not([data-still]) .cl-cover.anim .cva-pulse { animation: cva-pulse calc(var(--beat) * 2) ease-in-out calc(var(--beat) * var(--i, 0) / 2) infinite; }
+  :root[data-fx="rich"]:not([data-still]) .cl-cover.anim .cva-ring { animation: cva-ring calc(var(--beat) * 2) var(--out) calc(var(--beat) * var(--i, 0) / 2) infinite; }
+  :root[data-fx="rich"]:not([data-still]) .cl-cover.anim .cva-bob { animation: cva-bob var(--beat) ease-in-out calc(var(--beat) * var(--i, 0) * -1) infinite alternate; }
+  :root[data-fx="rich"]:not([data-still]) .cl-cover.anim .cva-slide { animation: cva-slide var(--beat) ease-in-out calc(var(--beat) * var(--i, 0) * -.5) infinite alternate; }
+  :root[data-fx="rich"]:not([data-still]) .cl-cover.anim .cva-wig { animation: cva-wig calc(var(--beat) * 2) ease-in-out infinite alternate; }
+  :root[data-fx="rich"]:not([data-still]) .cl-cover.anim :is(.cva-spin, .cva-spinc) { animation: cva-spin calc(var(--beat) * 8) linear infinite; }
+  :root[data-fx="rich"]:not([data-still]) .cl-cover.anim .cva-flow { animation: cva-flow var(--beat) linear infinite; }
+}
+@keyframes cva-step { 0% { transform: scale(1.2); filter: brightness(1.35) drop-shadow(0 0 3px currentColor); } 11%, 100% { transform: none; filter: none; } }
+@keyframes cva-pulse { 50% { fill-opacity: .32; stroke-opacity: .32; } }
+@keyframes cva-ring { 0% { transform: scale(.86); stroke-opacity: 1; } 100% { transform: scale(1.14); stroke-opacity: 0; } }
+@keyframes cva-bob { from { transform: translateY(3px); } to { transform: translateY(-3px); } }
+@keyframes cva-slide { from { transform: translateX(-4px); } to { transform: translateX(4px); } }
+@keyframes cva-wig { from { transform: rotate(-42deg); } to { transform: rotate(42deg); } }
+@keyframes cva-spin { to { transform: rotate(360deg); } }
+@keyframes cva-flow { to { stroke-dashoffset: -18; } }
+
+/* ───────── 两页共用的小件 ───────── */
+.cs-no { font: 800 12px/1 var(--mono); letter-spacing: .02em; }
+.cs-flag { display: inline-flex; align-items: center; height: 19px; padding: 0 8px; border-radius: 8px; font: 800 12px/1 var(--font); font-style: normal; white-space: nowrap; color: var(--yellow-ink); background: var(--yellow); box-shadow: 0 1px 0 var(--shade-3); }
+.cs-opt { display: inline-flex; align-items: center; height: 18px; margin-left: 6px; padding: 0 6px; border-radius: 6px; font: 700 12px/1 var(--font); font-style: normal; color: var(--muted); border: 1px dashed var(--line-3); vertical-align: 1px; }
+/* 铜、银、金三个小点：拿到哪一档亮到哪一档 */
+.cs-medals { display: inline-flex; align-items: center; gap: 4px; }
+.cs-medals i { width: 14px; height: 14px; border-radius: 50%; border: 1.5px dashed var(--line-2); }
+.cs-medals i.on { border: 0; box-shadow: 0 1px 0 var(--shade-3), 0 1px 0 var(--gloss) inset; }
+.cs-medals i.on:nth-of-type(1) { background: var(--medal-1); }
+.cs-medals i.on:nth-of-type(2) { background: var(--medal-2); }
+.cs-medals i.on:nth-of-type(3) { background: var(--medal-3); box-shadow: 0 1px 0 var(--shade-3), 0 0 8px var(--yellow-glow); }
+.cs-medals b { display: grid; place-items: center; width: 17px; height: 17px; margin-right: 2px; border-radius: 50%; font-size: 12px; line-height: 1; font-weight: 800; color: var(--on-bright); background: var(--lamp-ok); } /* 学完了、还没拿牌：一个勾 */
+/* 铜、银、金三个大槽：舞台和卡片上用 */
+.cs-tiers { display: grid; gap: 6px; justify-items: start; }
+.cs-tiers .row { display: flex; gap: 9px; }
+.cs-tier { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 800; color: var(--line-3); border: 2px dashed var(--line-2); }
+.cs-tier.got { border: 0; color: var(--on-bright); box-shadow: 0 3px 0 var(--shade-3), 0 2px 0 var(--gloss) inset; }
+.cs-tier.got.t1 { background: var(--medal-1); }
+.cs-tier.got.t2 { background: var(--medal-2); }
+.cs-tier.got.t3 { background: var(--medal-3); color: var(--yellow-ink); box-shadow: 0 3px 0 var(--shade-3), 0 2px 0 var(--gloss) inset, 0 0 16px var(--yellow-glow); }
+.cs-tiers small { font-size: 12.5px; color: var(--muted); }
+.cs-go { min-width: 168px; height: 56px !important; font-size: 18px !important; letter-spacing: .04em; }
+.cs-keys { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+@media (pointer: coarse) { .cs-keys { display: none; } } /* 平板上没有键盘：不写快捷键 */
+
+/* 页头瘦了：没有副标题，标题和入口排成一行 */
+.cl-select .cl-list-head, .cl-road .cl-list-head { align-items: center; margin-bottom: 12px; }
+
+/* ───────── 选曲台 ───────── */
+/* 四条线的大切换 */
+.cs-lines { flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.cs-line { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 11px; min-height: 62px; padding: 8px 14px 12px 9px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--card-elev); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: transform var(--t-press), background var(--t-move), border-color var(--t-move), box-shadow var(--t-move); }
+.cs-line .ic { width: 44px; height: 44px; padding: 6px; border-radius: 11px; background: color-mix(in srgb, var(--c) 14%, var(--field)); color: var(--c); transition: background var(--t-move), color var(--t-move); }
+.cs-line .w { min-width: 0; }
+.cs-line .w b { display: block; font-size: 16.5px; font-weight: 800; line-height: 1.25; }
+.cs-line .w small { display: block; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-line .n { font: 700 13px var(--mono); color: var(--muted); white-space: nowrap; }
+.cs-line .n em { font-style: normal; font-size: 20px; color: var(--text); }
+.cs-line .bar { position: absolute; left: 12px; right: 12px; bottom: 5px; height: 3px; border-radius: 2px; background: var(--panel-3); overflow: hidden; }
+.cs-line .bar i { display: block; height: 100%; border-radius: 2px; background: var(--c); transition: width var(--t-show) var(--out); }
+.cs-line:active { transform: translateY(2px); }
+.cs-line[aria-selected="true"] { background: color-mix(in srgb, var(--c) 7%, var(--cs-pick)); border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent), 0 8px 18px -10px color-mix(in srgb, var(--c) 60%, transparent); }
+.cs-line[aria-selected="true"] .ic { background: var(--c); color: var(--on-bright); }
+@media (hover: hover) { .cs-line:hover { border-color: color-mix(in srgb, var(--c) 60%, var(--line)); } }
+
+.cs-body { flex: 1; min-height: 0; display: grid; grid-template-columns: clamp(300px, 34%, 430px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 14px; }
+
+/* 左边：这条线的关。自己滚，底下淡出去 */
+.cs-list { position: relative; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 14px 34px 4px; outline: none; scrollbar-width: none; -webkit-mask-image: linear-gradient(transparent, #000 10px, #000 calc(100% - 38px), transparent); mask-image: linear-gradient(transparent, #000 10px, #000 calc(100% - 38px), transparent); }
+.cs-list::-webkit-scrollbar { display: none; }
+.cs-unit { display: flex; align-items: baseline; gap: 8px; margin: 16px 6px 7px; font-size: 13px; font-weight: 800; color: var(--text-2); letter-spacing: .03em; white-space: nowrap; }
+.cs-unit:first-child { margin-top: 0; }
+.cs-unit small { font-weight: 500; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.cs-unit::after { content: ""; flex: 1; min-width: 12px; height: 1px; align-self: center; background: var(--line); }
+.cs-unit.optional::after { height: 0; border-top: 1px dashed var(--line-2); background: none; }
+.cs-row { position: relative; display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-bottom: 6px; padding: 6px 12px 6px 7px; border-radius: 14px; border: 1px solid transparent; cursor: pointer; touch-action: manipulation; transition: transform var(--t-move) var(--out), background var(--t-move), box-shadow var(--t-move), padding var(--t-move) var(--out), border-color var(--t-move); }
+.cs-row .cv { width: 46px; height: 46px; padding: 6px; border-radius: 11px; background: color-mix(in srgb, var(--c) 13%, var(--field)); color: color-mix(in srgb, var(--c) 78%, var(--text)); transition: width var(--t-move) var(--out), height var(--t-move) var(--out), background var(--t-move), color var(--t-move); }
+.cs-row .t { min-width: 0; }
+.cs-row .t b { display: block; font-size: 15px; font-weight: 700; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-row .t b .cs-no { margin-right: 7px; color: color-mix(in srgb, var(--c) 76%, var(--text)); }
+.cs-row .t > span { display: block; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-row .min { font: 700 12px var(--mono); color: var(--muted); }
+.cs-row .cs-flag { position: absolute; right: 12px; top: -8px; z-index: 1; }
+/* 学过的：封面是这条线的实色 */
+.cs-row.done .cv { background: var(--c); color: var(--on-bright); box-shadow: 0 2px 0 var(--cs-deep); }
+/* 选学的、大关：封面的边不一样 */
+.cs-row.optional:not(.done):not([aria-selected="true"]) .cv { background: transparent; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--c) 40%, var(--line-2)) inset; }
+.cs-row.boss .cv { border-radius: 8px; }
+@media (hover: hover) { .cs-row:hover { background: color-mix(in srgb, var(--cs-pick) 55%, transparent); } }
+.cs-row:active .cv { transform: translateY(1px); }
+.cs-row[aria-selected="true"] { z-index: 1; grid-template-columns: 58px minmax(0, 1fr) auto; padding-top: 9px; padding-bottom: 9px; background: var(--cs-pick); border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 16%, transparent), 0 10px 20px -12px var(--shade-4); transform: translateX(10px); }
+.cs-row[aria-selected="true"] .cv { width: 58px; height: 58px; padding: 8px; background: linear-gradient(160deg, var(--resume-a), var(--resume-b)); color: var(--cs-ink); box-shadow: 0 2px 0 var(--knob-edge); }
+.cs-row[aria-selected="true"] .t b { font-size: 16.5px; font-weight: 800; }
+.cs-list:focus-visible .cs-row[aria-selected="true"] { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* 右边：选中这一关的舞台 */
+.cs-stage { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-radius: 22px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--card-elev), 0 18px 40px -26px var(--shade-4); overflow: hidden; container: cs-stage / size; }
+.cs-art { position: relative; flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 18px; padding: 58px 28px 22px 30px; color: var(--inv-text); background: var(--cs-art); overflow: hidden; }
+.cs-tag { position: absolute; left: 30px; right: 30px; top: 20px; display: flex; align-items: center; gap: 10px; }
+.cs-tag .cs-no { padding: 7px 10px; border-radius: 8px; font-size: 15px; background: var(--c); color: var(--on-bright); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 30%, transparent); }
+.cs-tag .kind { font-size: 13px; font-weight: 700; letter-spacing: .06em; color: var(--inv-muted); white-space: nowrap; }
+.cs-tag .mins { margin-left: auto; font: 700 12.5px var(--mono); letter-spacing: .05em; color: var(--inv-muted); white-space: nowrap; }
+.cs-words { min-width: 0; }
+.cs-flow { margin: 0 0 14px; padding: 0; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--inv-text); }
+.cs-flow li { margin: 0; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cs-flow li span { padding: 3px 10px; border-radius: 12px; font-weight: 650; background: var(--resume-cell); box-shadow: 0 0 0 1px var(--inv-line) inset; }
+.cs-flow li + li::before { content: "→"; opacity: .5; }
+.cs-art h2 { margin: 0 0 8px; font-size: clamp(26px, 5.4cqw, 40px); line-height: 1.14; font-weight: 800; letter-spacing: .01em; color: var(--inv-text); }
+.cs-art p { margin: 0; max-width: 30em; font-size: clamp(14.5px, 2.5cqw, 16px); line-height: 1.5; color: var(--inv-muted); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.cs-fig { align-self: center; width: clamp(130px, min(36cqw, 42cqh), 300px); aspect-ratio: 1; color: var(--cs-ink); }
+[data-skin="neon"] .cs-fig { filter: drop-shadow(0 0 14px color-mix(in srgb, var(--c) 50%, transparent)); }
+.cs-info { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px 20px; align-items: center; padding: 14px 22px 14px; }
+.cs-say { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; align-items: center; min-width: 0; }
+.cs-say .bubble { min-width: 0; padding: 9px 14px 10px; border-radius: 4px 16px 16px 16px; background: var(--bubble); border: 1px solid var(--line); transition: opacity .18s var(--out), filter .18s var(--out); }
+:root.jiu-talking .cs-say .bubble { opacity: .16; filter: blur(1.5px); }
+.cs-say .hint { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.cs-say .hint[hidden] { display: none; }
+.cs-say .hint small { font-size: 12.5px; font-weight: 650; color: var(--text-2); }
+.cs-say .bubble p { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--text); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.cs-start { display: grid; gap: 6px; justify-items: center; }
+.cs-foot { flex: none; display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 12px 0 22px; border-top: 1px solid var(--line); background: var(--panel-2); font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.cs-foot .where { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cs-foot a { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; border-radius: 8px; font-weight: 700; color: var(--accent-text); }
+.cs-foot a:hover { background: var(--accent-wash); color: var(--accent-text); }
+.cs-foot .cs-keys { margin-left: auto; padding-right: 10px; }
+
+/* 舞台窄的时候（1024、1180 的平板，或者教练的栏开着）：啾啾那句话占一整行，牌子和「开始」排第二行 */
+@container cs-stage (max-width: 760px) {
+  .cs-info { grid-template-columns: minmax(0, 1fr) auto; }
+  .cs-say { grid-column: 1 / -1; }
+  .cs-foot .cs-keys kbd + kbd { margin-left: 1px; }
+}
+@container cs-stage (max-width: 600px) {
+  .cs-art { padding: 56px 20px 18px 22px; gap: 12px; }
+  .cs-tag { left: 22px; right: 22px; }
+  .cs-info { padding: 12px 16px; }
+  .cs-foot { padding-left: 16px; }
+  .cs-foot .cs-keys .more { display: none; }
+}
+@container cs-stage (max-width: 430px) {
+  .cs-fig { display: none; }
+}
+/* 舞台矮的时候：四步的小胶囊先让出来，啾啾的话少一行 */
+@container cs-stage (max-height: 520px) {
+  .cs-flow { display: none; }
+  .cs-say .bubble p { -webkit-line-clamp: 2; }
+  .cs-art { padding-top: 52px; padding-bottom: 14px; }
+}
+/* 舞台再矮（内容区很窄、列表和舞台上下摞着的时候）：封面区只留一行——编号和名字 */
+@container cs-stage (max-height: 400px) {
+  .cs-art { flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 20px; }
+  .cs-tag { position: static; flex: none; }
+  .cs-tag .kind, .cs-tag .mins, .cs-art p, .cs-fig { display: none; }
+  .cs-words { flex: 1; }
+  .cs-art h2 { margin: 0; font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+/* 内容区很窄（不是平板横屏了）：列表在上、舞台在下，各占一半 */
+@container (max-width: 760px) {
+  .cs-lines { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cs-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 2fr) minmax(0, 3fr); }
+}
+@container (max-width: 1100px) {
+  .cs-line { gap: 9px; padding-right: 11px; }
+  .cs-line .w small { display: none; }
+}
+
+/* ───────── 推荐路线：一条路 ───────── */
+.cr-tip { flex: none; margin: -2px 2px 8px; font-size: 13px; line-height: 1.5; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cr-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(272px, 29%, 330px); grid-template-rows: minmax(0, 1fr); gap: 14px; }
+.cr-map { position: relative; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; margin: 0 -6px; padding: 26px 6px 40px; outline: none; scrollbar-width: none; -webkit-mask-image: linear-gradient(transparent, #000 16px, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(transparent, #000 16px, #000 calc(100% - 24px), transparent); }
+.cr-map::-webkit-scrollbar { display: none; }
+.cr-canvas { position: relative; }
+/* 一站是一块地：染一点这一站那条线的颜色（和首页地图的一章一个样子） */
+.cr-region { position: absolute; left: 0; right: 0; border-radius: 20px; border: 1px solid var(--line); background: radial-gradient(62% 95% at var(--gx, 10%) 0%, color-mix(in srgb, var(--c) var(--tint-a), transparent), transparent 72%), radial-gradient(var(--region-dots) 1.3px, transparent 1.6px) 0 0 / 14px 14px, var(--region); box-shadow: var(--card-elev); }
+.cr-region.side { border-style: dashed; border-color: var(--line-2); background: radial-gradient(var(--region-dots) 1.3px, transparent 1.6px) 0 0 / 14px 14px; box-shadow: none; }
+/* 站牌：骑在这块地的上边线上。左边是第几站、站名、配第几章、学了几关；右边是去那段课程的链接 */
+.cr-head { position: absolute; left: 14px; right: 14px; z-index: 2; display: flex; align-items: center; gap: 8px; height: 44px; margin-top: -22px; pointer-events: none; }
+.cr-head > * { pointer-events: auto; }
+.cr-stop { flex: none; display: flex; align-items: center; gap: 9px; height: 44px; padding: 0 16px 0 6px; border-radius: 999px; white-space: nowrap; background: var(--panel); border: 1px solid var(--line-2); box-shadow: 0 4px 12px var(--shade-1), 0 1px 0 var(--hilite) inset; }
+.cr-stop .n { position: relative; flex: none; width: 32px; height: 32px; padding-top: 3px; border-radius: 50%; display: grid; place-items: center; font: 800 13px var(--mono); color: var(--knob-ink); background: radial-gradient(circle at 50% 35%, var(--knob-top), var(--knob) 70%); box-shadow: 0 2px 0 var(--shade-3); }
+.cr-stop .n::before { content: ""; position: absolute; top: 3px; left: 50%; width: 2.5px; height: 6px; margin-left: -1.25px; border-radius: 2px; background: var(--knob-mark); }
+.cr-stop b { font-size: 16px; font-weight: 800; }
+.cr-stop .with { font-size: 13px; color: var(--muted); }
+.cr-stop .count { font: 700 12.5px var(--mono); letter-spacing: .04em; color: var(--muted); }
+.cr-stop.now { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring), 0 4px 12px var(--shade-1); }
+.cr-stop.now .n::before { background: var(--accent); }
+.cr-stop.done .n { background: var(--lamp-ok); color: var(--on-bright); padding-top: 0; }
+.cr-stop.done .n::before { display: none; }
+.cr-stop.done .count { color: var(--ok); }
+.cr-stop-side { padding-left: 14px; border-style: dashed; box-shadow: none; }
+.cr-head .cl-link { min-width: 0; min-height: 38px; background: var(--panel); box-shadow: 0 4px 12px var(--shade-1); position: relative; }
+.cr-head .cl-link::after { content: ""; position: absolute; inset: -3px 0; } /* 看着矮，能点到的范围有 44 像素高 */
+.cr-head .cl-link span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cr-note { position: absolute; left: 6px; right: 6px; margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+/* 路 */
+.cr-roads { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; overflow: visible; }
+.cr-roads path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.cr-bed { stroke: var(--road); stroke-width: 18; }
+.cr-mid { stroke: var(--road-line); stroke-width: 2.5; stroke-dasharray: 1 13; }
+.cr-walked { stroke: var(--road-done); stroke-width: 8; }
+[data-skin="neon"] .cr-walked { filter: drop-shadow(0 0 8px var(--accent-glow)); }
+.cr-sidebed { stroke: var(--road); stroke-width: 7; stroke-dasharray: 1 15; }
+/* 路上的一关 */
+.cr-node { position: absolute; z-index: 3; width: 108px; margin-left: -54px; padding: 0; border: 0; background: none; font: inherit; color: var(--text); display: flex; flex-direction: column; align-items: center; text-align: center; cursor: pointer; border-radius: 14px; outline-offset: 5px; touch-action: manipulation; }
+.cr-node .dot { position: relative; width: 54px; height: 54px; margin-top: -27px; border-radius: 50%; display: grid; place-items: center; font: 800 13px var(--mono); color: color-mix(in srgb, var(--c) 70%, var(--text)); border: 1px solid color-mix(in srgb, var(--c) 38%, var(--key-border)); background: linear-gradient(var(--key-top), var(--key-bot)); box-shadow: 0 4px 0 var(--key-edge), 0 9px 14px var(--shade-2); transition: transform var(--t-move) var(--pop), box-shadow var(--t-press); }
+.cr-node .ttl { margin-top: 10px; padding: 1px 5px; border-radius: 6px; max-width: 106px; font-size: 12.5px; font-weight: 650; line-height: 1.32; color: var(--text-2); background: var(--region); }
+/* 星：前面写上 .cl-road，是要压过 classroom.css 里那条 .cl-page .stars（它的样式表排在这一份后面） */
+.cl-road .cr-node .stars { height: 17px; font-size: 12.5px; letter-spacing: 1.5px; color: var(--star-off); }
+.cl-road .cr-node .stars b { font-weight: 400; color: var(--star); }
+.cl-road .cr-node .stars.none { letter-spacing: 0; font-size: 12px; font-weight: 700; color: var(--ok); }
+@media (hover: hover) { .cr-node:hover .dot { transform: translateY(-4px); } }
+.cr-node:active .dot { transform: translateY(4px); box-shadow: 0 0 0 var(--key-edge), 0 2px 4px var(--shade-2); }
+/* 学过的：这条线的实色，下面是星 */
+.cr-node.done .dot { color: var(--on-bright); border-color: var(--cs-deep); background: var(--c); box-shadow: 0 4px 0 var(--cs-deep), 0 9px 14px var(--shade-2); }
+.cr-node.done .ttl { color: var(--text); }
+/* 大关：方的、深色 */
+.cr-node.boss .dot { width: 60px; height: 60px; margin-top: -30px; border-radius: 16px; color: color-mix(in srgb, var(--c) 50%, var(--inv-text)); border-color: var(--knob-edge); background: linear-gradient(var(--knob-top), var(--knob)); box-shadow: 0 4px 0 var(--knob-edge), 0 9px 14px var(--shade-3); }
+.cr-node.boss.done .dot { color: var(--on-bright); border-color: var(--cs-deep); background: var(--c); box-shadow: 0 4px 0 var(--cs-deep), 0 9px 14px var(--shade-2); }
+/* 下一关：深色的大旋钮，外面一圈黄，上面一块“接着学” */
+.cr-node.next .dot { width: 72px; height: 72px; margin-top: -36px; padding-top: 6px; font-size: 16px; color: var(--knob-ink); border: 0; background: radial-gradient(circle at 50% 34%, var(--knob-top), var(--knob) 64%); box-shadow: 0 0 0 4px var(--yellow), 0 0 0 9px color-mix(in srgb, var(--yellow) 26%, transparent), 0 7px 0 var(--knob-edge), 0 16px 22px -8px var(--shade-4); }
+.cr-node.next.boss .dot { border-radius: 20px; }
+.cr-node.next .dot::after { content: ""; position: absolute; top: 6px; left: 50%; width: 4px; height: 11px; margin-left: -2px; border-radius: 2px; background: var(--yellow); }
+.cr-node.next .ttl { margin-top: 15px; font-size: 13.5px; font-weight: 800; color: var(--accent-text); }
+.cr-node .cs-flag { position: absolute; left: 50%; top: -66px; translate: -50%; z-index: 1; }
+.cr-node .cs-flag::after { content: ""; position: absolute; left: 50%; bottom: -3px; width: 8px; height: 8px; margin-left: -4px; background: var(--yellow); transform: rotate(45deg); z-index: -1; }
+[data-fx="rich"]:not([data-still]) .cr-node.next .dot { animation: hop var(--beat) var(--out) infinite; }
+[data-fx="rich"]:not([data-still]) .cr-node.next:hover .dot { animation: none; }
+/* 岔路上选学的关：虚线的边 */
+.cr-node.optional:not(.done) .dot { border-style: dashed; border-width: 1.5px; border-color: color-mix(in srgb, var(--c) 50%, var(--line-3)); background: var(--bg); box-shadow: none; }
+.cr-node.optional .ttl { background: var(--bg); }
+/* 右边卡片上摆的是哪一关 */
+.cr-node[aria-current="true"] .dot { outline: 3px solid color-mix(in srgb, var(--c) 55%, transparent); outline-offset: 4px; }
+.cr-node.next[aria-current="true"] .dot { outline-offset: 11px; }
+/* 啾啾站在下一关旁边 */
+.cr-bird { position: absolute; z-index: 4; margin: -66px 0 0 22px; pointer-events: none; }
+.cr-bird.left { margin-left: -78px; }
+
+/* 右边：选中那一关的卡片 */
+.cr-card { align-self: start; min-height: 0; max-height: 100%; display: flex; flex-direction: column; border-radius: 20px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--card-elev), 0 18px 40px -26px var(--shade-4); overflow: hidden; }
+.cr-art { --h: clamp(104px, 18vh, 164px); position: relative; flex: none; height: var(--h); display: grid; place-items: center; color: var(--cs-ink); background: var(--cs-art); }
+.cr-fig { width: calc(var(--h) * .76); height: calc(var(--h) * .76); }
+.cr-art .cs-no { position: absolute; left: 14px; top: 13px; padding: 6px 9px; border-radius: 7px; font-size: 13.5px; background: var(--c); color: var(--on-bright); }
+.cr-art .where { position: absolute; right: 14px; top: 15px; font-size: 12.5px; font-weight: 700; color: var(--inv-muted); }
+.cr-art .jiu-perch { position: absolute; right: 10px; bottom: 6px; }
+.cr-art .jiu-perch[hidden] { display: none; }
+.cr-bd { min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 10px; padding: 14px 16px 16px; scrollbar-width: thin; }
+.cr-bd h2 { margin: 0; font-size: 21px; font-weight: 800; line-height: 1.2; }
+.cr-bd h2 :is(.cs-flag, .cs-opt) { margin-left: 4px; vertical-align: 3px; }
+.cr-bd p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-2); }
+.cr-bd .say { padding: 9px 12px; border-radius: 4px 14px 14px 14px; background: var(--bubble); border: 1px solid var(--line); color: var(--text); line-height: 1.55; }
+.cr-meta { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.cr-meta .kind { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 11px; font-weight: 700; background: color-mix(in srgb, var(--c) 15%, var(--field)); color: color-mix(in srgb, var(--c) 76%, var(--text)); }
+.cr-card .cs-tiers { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; }
+.cr-card .cs-tier { width: 38px; height: 38px; font-size: 13.5px; }
+.cr-card .cs-tiers .row { gap: 7px; }
+.cr-card .cs-go { width: 100%; height: 50px !important; font-size: 17px !important; }
+.cr-card .cs-keys { text-align: center; }
+
+/* 卡片矮的时候（1024 × 768）：封面小一点 */
+@container (max-width: 1000px) {
+  .cr-stop { gap: 7px; padding-right: 13px; }
+  .cr-stop b { font-size: 15.5px; }
+}
+/* 内容区很窄（教练的栏开着、或者不是平板横屏了）：卡片挪到路的下面，横着摆 */
+@container (max-width: 800px) {
+  .cr-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .cr-card { align-self: stretch; flex-direction: row; max-height: 190px; }
+  .cr-art { width: 132px; height: auto; }
+  .cr-bd { flex: 1; grid-template-columns: minmax(0, 1fr) auto; align-items: start; padding: 10px 14px; gap: 6px 14px; }
+  .cr-bd > * { grid-column: 1; }
+  .cr-bd .say, .cr-card .cs-keys, .cr-card .cs-tiers small { display: none; }
+  .cr-card .cs-go { grid-column: 2; grid-row: 1 / span 3; width: auto; align-self: center; }
+  .cr-head .cl-link, .cr-art .where { display: none; }
+}

@@ -127,11 +127,6 @@
 .tq-slots i.home { background: var(--accent); }
 .tq-slots i.empty { border: 1.5px dashed var(--line-2); background: transparent; box-shadow: none; color: var(--muted); }
 
-/* 列表上乐理线的单元小标题 */
-.cl-unit { flex: none; display: flex; align-items: baseline; gap: 8px; margin: 8px 2px 0; font-size: 13px; font-weight: 800; color: var(--text-2); }
-.cl-unit:first-child { margin-top: 0; }
-.cl-unit small { font-weight: 600; color: var(--muted); }
-.cl-node.kind-make .no { border: 2px dashed var(--c); background: transparent; }
 
 /* ───────── 第二期：格子、回家圈、和弦色块、三盏灯、亮暗牌 ───────── */
 /* 多出来的两种颜色：青 = 和弦（一摞色块 / 色带），蓝 = 贝斯。紫还是梯子和旋律，桔红还是家 */
@@ -370,19 +365,9 @@
 .tn-route i.todo { color: var(--muted); background: transparent; border: 1.5px dashed var(--line-2); }
 .tn-step { min-width: 50px; }
 
-/* 选学（乐理线的“看懂谱子”“和弦进阶”，不在主路上）：列表上的单元小标题和关、路线页最下面的岔路、卡册上的角标，都是虚线的 */
-.cl-unit.optional { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--line-2); }
-.cl-node.optional { background: transparent; border: 1.5px dashed var(--line-2); box-shadow: none; }
-.cl-node.optional .no { background: transparent; box-shadow: 0 0 0 1.5px var(--line-2) inset; }
-.cl-node.optional.done .no { background: var(--c); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent); }
-.cl-side-tip { margin-top: 12px; }
-.cl-side-stop { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 14px; align-items: center; padding: 10px 14px; border-radius: var(--radius); border: 1.5px dashed var(--line-2); }
-.cl-side-stop.done { border-color: var(--lamp-ok); }
-.cl-side-stop .cl-stop-name .n { background: transparent; color: var(--muted); box-shadow: 0 0 0 1.5px var(--line-2) inset; font-size: 13px; }
-.cl-chip.optional { border-style: dashed; }
+/* 选学（乐理线的“看懂谱子”“和弦进阶”，不在主路上）：卡册上的角标是虚线的（选关那一页和路线页上的在 classroom-select.css） */
 .cl-opt-tag { position: absolute; right: 8px; bottom: 8px; padding: 1px 7px; border-radius: 999px; font: 700 11px/1.5 var(--sans, inherit); font-style: normal; color: var(--muted); border: 1px dashed var(--line-2); }
 .cl-kcard.optional.locked { border-style: dotted; }
-@media (max-width: 760px) { .cl-side-stop { grid-template-columns: minmax(0, 1fr); } }
 /* 谱 → 格子：两排 16 个方键（classroom-kit.js 的 keys16，和机器上一样），占满一行 */
 .tn-pad { flex-basis: 100%; }
 .tn-pad .cl-key { aspect-ratio: auto; height: 46px; }
