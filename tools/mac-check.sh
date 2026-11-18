@@ -209,8 +209,10 @@ echo "classroom levels -> playable=$playable/66 broken=[${broken# }]"
 echo "classroom toys -> $(node tools/toy-check.mjs | head -1 | sed 's/^toy-check: //')"
 classroom '#/classroom/works'
 echo "classroom works -> page=$(count 'tw-page') empty=$(count 'class="tw-empty"') tabs=$(count 'class="cl-tab[ "]') errors=$(count '这一页出错了')"
+# lit = 路上亮着的有几段（走过的那条线上的 data-lit）：一关没学时只有起点到第一关那一小段（lit=1）
+lit() { grep -o 'data-lit="[0-9]*"' $D/dom.html | head -1 | grep -o '[0-9][0-9]*'; }
 classroom '#/classroom/route'
-echo "classroom route -> stops=$(count 'class="cr-stop[ "]') side=$(count 'class="cr-stop-side') nodes=$(count 'class="cr-node[ "]') next=$(count 'class="cr-node[^"]* next"') card=$(count 'class="cr-card"') errors=$(count '这一页出错了')"
+echo "classroom route -> stops=$(count 'class="cr-stop[ "]') side=$(count 'class="cr-stop-side') nodes=$(count 'class="cr-node[ "]') next=$(count 'class="cr-node[^"]* next"') card=$(count 'class="cr-card"') lit=$(lit) errors=$(count '这一页出错了')"
 classroom '#/classroom/cards'
 echo "classroom cards -> cards=$(count 'class="cl-kcard[ "]') locked=$(count 'cl-kcard locked') optional=$(count 'class="cl-opt-tag"') errors=$(count '这一页出错了')"
 classroom '#/classroom/daily'
@@ -371,6 +373,10 @@ classroom '?clstep=done#/classroom/R1'
 classroom '?clstep=done#/classroom/F1'
 echo "classroom xp: +R1 +F1 -> gain=\"$(gain)\" badge=$(curl -s $BASE/api/progress | tr -d ' \n' | grep -o '"three-lines":"[^"]*"' | wc -l | tr -d ' ') $(xp)"
 home rooms ''
+# 跳着学的时候，路也亮在学过的地方（2026-11-18）。这时学过 T5、R1、F1，路线上下一关是 R2：
+# 开头到 R2 一段、F1 脚下一小段、T5 脚下一小段，一共 3 段（lit=3）；学过的圆键 3 个
+classroom '#/classroom/route'
+echo "classroom route (skipped) -> lit=$(lit) done=$(count 'class="cr-node done[ "]') next=$(count 'class="cr-node[^"]* next"') errors=$(count '这一页出错了')"
 put "{$OLD,\"classroom\":{\"T5\":{\"done\":true,\"stars\":3,\"at\":\"2026-11-08T10:00:00.000Z\",\"times\":1},\"R1\":{\"done\":true,\"stars\":2,\"at\":\"2026-11-09T10:00:00.000Z\",\"times\":2}},$BODY}"
 home rooms-old ''
 echo "classroom xp: old progress -> $(xp)"

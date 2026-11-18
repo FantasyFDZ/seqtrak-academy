@@ -29,11 +29,14 @@ const still = () => document.documentElement.hasAttribute('data-still');
 
 // 这次打开应用期间，选曲台停在哪条线、每条线停在哪一关（从一关里返回进门页，要回到刚才那一关，不是跳回“接着学”）
 const pick = { line: null, byLine: {} };
-/** 进了一关：记下来，回选曲台的时候停在它上面（views/classroom.js 进关时调） */
+// 推荐路线页也一样：这次打开应用期间在路上停在哪一关（点过、沿路走到过，或者进过的关）。离开再回来还在它上面
+let roadPick = null;
+/** 进了一关：记下来，回选曲台、回路线页的时候停在它上面（views/classroom.js 进关时调） */
 export function rememberPick(level) {
   if (!level?.line) return;
   pick.line = level.line;
   pick.byLine[level.line] = level.id;
+  roadPick = level.id;
 }
 let devUsed = false;
 function applyDev() {
@@ -137,10 +140,11 @@ export function selectPage(view, headEl) {
       class: ['cs-row', rec?.done ? 'done' : 'todo', level.kind === 'boss' && 'boss', level.optional && 'optional', next && 'next'],
       role: 'option', id: `cs-opt-${level.id}`, 'aria-selected': 'false', 'data-id': level.id,
     },
-      h('span', { class: 'cv', html: coverSvg(level) }),
+      h('span', { class: 'cv', html: coverSvg(level, { small: true }) }),
       h('span', { class: 't' },
         h('b', {}, h('span', { class: 'cs-no' }, level.id), level.title),
-        h('span', {}, `${level.optional ? '选学 · ' : ''}${KINDS[level.kind].label} · ${level.about}`)),
+        // 小字只放这一关讲什么：前面再挂“节奏挑战 · ”这样的种类，窄一点的屏上一多半的字就被截掉了。种类在右边舞台的标签上，鼠标停在这一行上也看得到
+        h('span', { title: `${KINDS[level.kind].label} · ${level.about}` }, `${level.optional ? '选学 · ' : ''}${level.about}`)),
       rec?.done ? medalDots(rec.stars || 0) : h('span', { class: 'min', 'aria-label': `约 ${minutes(level)} 分钟` }, `${minutes(level)}′`),
       next && h('em', { class: 'cs-flag' }, '接着学'));
   };
@@ -426,9 +430,9 @@ export function routePage(view, headEl) {
   const main = stops.flatMap((s) => s.levels);
   const order = [...main, ...sides.flatMap((s) => s.levels)]; // 路上的先后：大路 60 关，然后两段岔路
   const hot = nx ? main.findIndex((l) => l.id === nx.id) : -1;
-  applyDev();
-  const dev = levelById((DEV.get('clpick') || '').toUpperCase());
-  let cur = (dev && order.find((l) => l.id === dev.id)) || nx || main[main.length - 1]; // 卡片上摆的是哪一关：默认下一关
+  applyDev(); // 地址里带 ?clpick=<关> 的话，它这时已经记进 roadPick 了
+  // 卡片上摆的是哪一关：这次打开应用期间在路上停过的那一关（从它那里进了关再回来也是它）→ 下一关 → 都学完了就是最后一关
+  let cur = order.find((l) => l.id === roadPick) || nx || main[main.length - 1];
   let touched = false;
 
   // 一站一块地，站牌骑在它的上边线上
@@ -552,10 +556,35 @@ export function routePage(view, headEl) {
     roads.setAttribute('viewBox', `0 0 ${W} ${L.height}`);
     const seg = curves(L.pts);
     const from = (a, b) => `M${L.pts[a][0]} ${L.pts[a][1]} ${seg.slice(a, b).join(' ')}`;
-    const end = L.nodes[main.length - 1].at;
-    bed.setAttribute('d', from(0, end));
-    mid.setAttribute('d', from(0, end));
-    walked.setAttribute('d', from(0, L.nodes[hot >= 0 ? hot : main.length - 1].at)); // 走过的路亮到下一关为止；都学完了就亮到头
+    const N = main.length;
+    const whole = from(0, L.nodes[N - 1].at);
+    bed.setAttribute('d', whole);
+    mid.setAttribute('d', whole);
+    // 走过的路。一关学过了，它前后各半段路就亮；下一关（还没学）前面那半段也亮，路走到它为止。
+    // 按顺序学的人看到的和原来一样：从头亮到下一关，都学完了亮到头。跳着学的，学过的那几关脚下也是亮的（原来只有圆键是实的，路是灰的）。
+    // 画法：整条路一条线，亮的几段用虚线的“实 / 空”摆出来。量的是沿着路的长度，换行拐弯的那一长段也是从正中间分。
+    const len = main.map((_, i) => {
+      walked.setAttribute('d', from(0, L.nodes[i].at));
+      return walked.getTotalLength();
+    });
+    walked.setAttribute('d', whole);
+    const halfway = (i) => (len[i] + len[i + 1]) / 2;
+    const lit = []; // [从, 到]
+    for (let i = 0; i < N; i++) {
+      if (i !== hot && !done[main[i].id]?.done) continue;
+      const a = i ? halfway(i - 1) : 0;
+      const b = i === hot || i === N - 1 ? len[i] : halfway(i);
+      const last = lit[lit.length - 1];
+      if (last && a <= last[1] + 0.5) last[1] = b;
+      else lit.push([a, b]);
+    }
+    const r1 = (v) => Math.round(v * 10) / 10;
+    // 最后一个“空”比整条路还长：图案不会绕回来再画一遍。头一段不是从起点开始的，就把整个图案往后推（负的 dashoffset）
+    const cut = lit.map(([a, b]) => [r1(a), r1(b)]); // 先把每一段的两头取整到一位小数，再算长短：一段段加起来不会越差越多
+    const dash = cut.flatMap(([a, b], k) => [r1(b - a), k < cut.length - 1 ? r1(cut[k + 1][0] - b) : r1(len[N - 1] + 40)]);
+    walked.setAttribute('stroke-dasharray', dash.length ? dash.join(' ') : `0 ${r1(len[N - 1] + 40)}`);
+    walked.setAttribute('stroke-dashoffset', String(-(cut[0]?.[0] || 0)));
+    walked.dataset.lit = String(cut.length); // 亮着的有几段（按顺序学的人是 1 段）：检查脚本看它
     L.sideRoads.forEach((p, i) => sideBeds[i].setAttribute('d', `M${p[0][0] - 44} ${p[0][1] + 4} L${p.map((q) => q.join(' ')).join(' L')} L${p[p.length - 1][0] + 44} ${p[p.length - 1][1] - 4}`));
     L.regions.forEach((r, i) => {
       Object.assign(regionEls[i].style, { top: `${r.top}px`, height: `${r.height}px` });
@@ -594,6 +623,7 @@ export function routePage(view, headEl) {
     const level = order.find((l) => l.id === id);
     if (!level) return;
     cur = level;
+    roadPick = level.id;
     paintCard();
     bring(cur);
     if (focus) nodeBy.get(id)?.focus({ preventScroll: true });

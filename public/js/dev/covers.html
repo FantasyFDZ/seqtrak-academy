@@ -65,7 +65,7 @@
       set.className = 'set cl-select';
       set.style.setProperty('--c', `var(--${line.color})`);
       set.innerHTML = `<h2><span class="ic">${lineIcon(line.id)}</span>${esc(line.name)}<small>${levels.length} 关</small></h2><div class="grid">${levels.map((l) => {
-        const small = coverSvg(l);
+        const small = coverSvg(l, { small: true }); // 列表里用的那一张（个别关的小图和大封面不是同一张）
         if (l.kind !== 'boss') {
           if (seen.has(small)) same++;
           seen.set(small, l.id);

@@ -201,6 +201,18 @@ total += await batch([
   { size: '1180x820', name: 'neon-all-route', query: 'skin=neon', path: ROAD },
 ]);
 
+// 跳着学的：路线开头学了两关，后面东一关西一关（有连着的两关，也有孤零零的一关）。看路是不是亮在学过的地方：
+// 开头到“接着学”一段，R4–R5 一段，R10、T5 各一小段，T14–T15 一段，F2 一小段，一共 6 段
+const SKIP = Object.fromEntries(['R1', 'R2', 'R4', 'R5', 'R10', 'T5', 'T14', 'T15', 'F2'].map((id, i) => [id, { done: true, stars: (i % 3) + 1, at, times: 1 }]));
+await put(SKIP);
+total += await batch([
+  { size: '1024x768', name: 'skip-route', path: ROAD },
+  { size: '1180x820', name: 'skip-route-pick-R5', query: 'clpick=R5', path: ROAD },
+  { size: '1180x3600', name: 'skip-route-long', path: ROAD },
+  { size: '1180x3600', name: 'neon-skip-route-long', query: 'skin=neon', path: ROAD },
+  { size: '1024x768', name: 'skip-sel-rhythm', query: 'clline=rhythm', path: SEL },
+]);
+
 ws.close();
 console.log(`shots: ${total} → ${OUT}`);
 process.exit(0);

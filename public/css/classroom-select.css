@@ -95,6 +95,8 @@
 .cs-unit.optional::after { height: 0; border-top: 1px dashed var(--line-2); background: none; }
 .cs-row { position: relative; display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-bottom: 6px; padding: 6px 12px 6px 7px; border-radius: 14px; border: 1px solid transparent; cursor: pointer; touch-action: manipulation; transition: transform var(--t-move) var(--out), background var(--t-move), box-shadow var(--t-move), padding var(--t-move) var(--out), border-color var(--t-move); }
 .cs-row .cv { width: 46px; height: 46px; padding: 6px; border-radius: 11px; background: color-mix(in srgb, var(--c) 13%, var(--field)); color: color-mix(in srgb, var(--c) 78%, var(--text)); transition: width var(--t-move) var(--out), height var(--t-move) var(--out), background var(--t-move), color var(--t-move); }
+/* 霓虹：没学过的封面照上面那样调出来太暗（深底上压一层线的颜色，图又只比底亮一点），底和图各提亮一档。学过的、选中的不归这一条管（它们的规则在后面） */
+[data-skin="neon"] .cs-row .cv { background: color-mix(in srgb, var(--c) 26%, var(--field)); color: color-mix(in srgb, var(--c) 62%, var(--text)); }
 .cs-row .t { min-width: 0; }
 .cs-row .t b { display: block; font-size: 15px; font-weight: 700; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cs-row .t b .cs-no { margin-right: 7px; color: color-mix(in srgb, var(--c) 76%, var(--text)); }

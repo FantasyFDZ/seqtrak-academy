@@ -3,6 +3,8 @@
 //   · 纯 SVG，视框 100 × 100，只用 currentColor（深浅靠透明度），没有外部资源；颜色由放它的地方定。
 //   · 一关一张，照内容画：节奏线有图案 / 谱面的用真的图案，别的按这一关讲什么来画；四个大关一个样子，颜色跟各自的线。
 //     不用随机数凑：新加了关，就在下面的 DRAW 里给它画一张（没画的先用这条线的图标顶着，tools 里的总览页会标出来）。
+//   · 列表里的小图（四五十像素）：coverSvg(level, { small: true })。绝大多数关和大封面是同一张；
+//     画得太密、缩小了只剩一片灰的（眼下是 R8、R13），在自己的画法里另给一张疏一点的。画新封面时缩到 46 像素看一眼。
 //   · 只有大封面会动：coverSvg(level, { anim: true }) 给会动的部件带上 cva-* 的类名，怎么动写在
 //     public/css/classroom-select.css 里（只在“丰富”档、系统没开减少动态、地址不带 ?still 时才动）。
 // 这个文件是纯函数（Node 里也能跑）。总览页：public/js/dev/covers.html。
@@ -245,7 +247,12 @@ const DRAW = {
   R7: () => [8, 30, 52, 74].map((x) => rect(x, 16, 18, 20, 5)).join('') + box(31.2, 59.2, 15.6, 17.6, 5, 2.2, 0.5, ' stroke-dasharray="3 3"') + rect(52, 58, 18, 20, 5, 1, a('slide'))
     + box(75.2, 59.2, 15.6, 17.6, 5, 2.2, 0.28, ' stroke-dasharray="3 3"') + line('M36 90 H60', 2.6, 0.6) + tip(64, 90, 0, 6, 0.8) + line('M8 46 H92', 1.6, 0.25),
   // 听律动，猜风格：一层一层拆——底鼓、第 2、4 拍那一下、镲
-  R8: () => ['x---x---x---x---', '----x-------x---', 'x-x-x-x-x-x-x-x-'].map((p, row) => group([...p].map((c, i) => rect(8 + i * 5.3, 16 + row * 25, 4.2, 18, 1.6, c === 'x' ? 1 : 0.13)).join(''), a('pulse', 2 - row))).reverse().join(''),
+  // 小图只画半小节（8 格）：16 格挤在四十几个像素里，一格一个多像素，只剩一片灰
+  R8: (level, { small } = {}) => {
+    const rows = small ? ['x---x---', '----x---', 'x-x-x-x-'] : ['x---x---x---x---', '----x-------x---', 'x-x-x-x-x-x-x-x-'];
+    const [pitch, w, r, dim] = small ? [10.8, 8.6, 2.4, 0.18] : [5.3, 4.2, 1.6, 0.13];
+    return rows.map((p, row) => group([...p].map((c, i) => rect(8 + i * pitch, 16 + row * 25, w, 18, r, c === 'x' ? 1 : dim)).join(''), a('pulse', 2 - row))).reverse().join('');
+  },
   // 重音挪一挪：8 下镲，重的那两下换了地方
   R9: () => [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ([2, 5].includes(i) ? rect(9 + i * 10.6, 30, 7.6, 58, 3.5, 1, a('pulse', i === 2 ? 0 : 1)) : rect(9 + i * 10.6, 66, 7.6, 22, 3.5, 0.38))).join('')
     + line('M13 22 Q23.5 6 33 20', 2.4, 0.6, ' stroke-dasharray="3 4"') + tip(34, 22, 58, 5.5, 0.8),
@@ -261,7 +268,13 @@ const DRAW = {
     + (row ? box(20 + [0, 6, 2][row] * 9.6 - 1.6, 12 + row * 27 - 1.6, 10.8, 21.2, 4.5, 1.6, 0.9) : ''), ` opacity="${[1, 0.62, 0.36][row]}"${a('pulse', row)}`)).join('')
     + line('M9 14 V78', 2.6, 0.6) + tip(9, 83, 90, 6, 0.8),
   // 三格一圈：每 3 格响一下，转过小节线不重新起头——三行（三小节）才转回原位
-  R13: (level) => {
+  R13: (level, { small } = {}) => {
+    if (small) {
+      // 小图：一行 8 格、三行 24 格，还是每 3 格一下，看得出每一行都往后错一格；48 个点挤在小图里分不出大小，细线也不画
+      let s = '';
+      for (let g = 0; g < 24; g++) s += dot(11 + (g % 8) * 11.1, 24 + Math.floor(g / 8) * 26, g % 3 ? 2 : 4.6, g % 3 ? 0.3 : 1);
+      return s;
+    }
     const pat = (level?.quiz?.chart?.lanes?.HAT1 || '').padEnd(48, '-');
     const real = /x/.test(pat);
     let out = '';
@@ -338,11 +351,11 @@ export const hasCover = (level) => !!DRAW[level?.id];
  * 一关的封面。level = content/classroom.js 里的一关；anim = 大封面才给 true（会动的部件带上 cva-* 的类名）。
  * 返回一段 <svg class="cl-cover" viewBox="0 0 100 100">…</svg>。
  */
-export function coverSvg(level, { anim = false } = {}) {
+export function coverSvg(level, { anim = false, small = false } = {}) {
   live = !!anim;
   let inner;
   try {
-    inner = (DRAW[level?.id] || (level?.kind === 'boss' ? boss : ICON[level?.line] || ICON.theory))(level);
+    inner = (DRAW[level?.id] || (level?.kind === 'boss' ? boss : ICON[level?.line] || ICON.theory))(level, { small });
   } finally {
     live = false;
   }
