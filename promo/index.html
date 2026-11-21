@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN" data-skin="neon" data-fx="rich">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SEQTRAK Academy 宣传片</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/classroom-select.css">
+<link rel="stylesheet" href="/promo/promo.css">
+</head>
+<body>
+<div id="viewport">
+  <div id="stage" aria-label="宣传片画面">
+    <div id="bg"><div class="bg-glow"></div><div class="bg-dots"></div><div class="bg-kick"></div></div>
+    <div id="scenes"></div>
+    <div id="caps"></div>
+    <div id="birds"></div>
+    <div id="fx"><div class="fx-dark"></div><div class="fx-grain"></div><div class="fx-flash"></div><div class="fx-vignette"></div><div class="fx-fade"></div></div>
+  </div>
+</div>
+<div id="ui" hidden>
+  <button id="play" type="button" title="播放 / 暂停（空格）">▶</button>
+  <span id="time">0:00.00</span>
+  <div id="track">
+    <input id="scrub" type="range" min="0" max="78.5" step="0.01" value="0" aria-label="进度">
+    <div id="marks"></div>
+  </div>
+  <span id="bar">第 1 小节</span>
+</div>
+<script type="module" src="/promo/js/main.js"></script>
+</body>
+</html>
